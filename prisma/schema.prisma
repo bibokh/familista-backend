@@ -271,12 +271,13 @@ model Club {
   // ── Club Home Dashboard ──
   announcements Announcement[]
 
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
   /// The Club Design Studio's brand kit (M2c): the club's colours and logos.
-  designBrandKit    DesignBrandKit?
-  designRosters     DesignRoster[]
-  designCollections DesignCollection[]
+  designBrandKit        DesignBrandKit?
+  designRosters         DesignRoster[]
+  designCollections     DesignCollection[]
+  manufacturingRequests ManufacturingRequest[]
 
   @@index([stripeCustomerId])
   @@index([franchiseUnitId])
@@ -11158,7 +11159,8 @@ model DesignCollection {
   createdAt   DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
 
-  items DesignCollectionItem[]
+  items    DesignCollectionItem[]
+  requests ManufacturingRequest[]
 
   /// An item names its collection and its club together.
   @@unique([id, clubId])
@@ -11182,4 +11184,159 @@ model DesignCollectionItem {
   @@unique([collectionId, projectId])
   @@index([clubId])
   @@index([projectId])
+}
+
+// ── Manufacturing (M4): owner-brokered quotations and orders ─────────────────
+// Until real factories are signed (the Owner's decision of 23 November 2026), a supplier is a record the Platform Owner
+// creates and verifies, not an account. Clubs request quotations for a collection and a roster; the Owner records the
+// quotations real suppliers give; the club accepts one; the Owner tracks the order to delivery. Every step is one
+// audited transaction and an immutable event. Nothing here moves money: an accepted quotation is not a payment.
+
+/// Where a supplier stands with the Platform Owner. Only a VERIFIED supplier's quotation ever reaches a club.
+enum ManufacturingSupplierStatus {
+  PROSPECT
+  VERIFIED
+  SUSPENDED
+}
+
+/// Where a club's request for quotation stands. The transitions are src/platform/manufacturing/state.ts.
+enum ManufacturingRequestStatus {
+  SUBMITTED
+  IN_REVIEW
+  QUOTED
+  ACCEPTED
+  ORDERED
+  IN_PRODUCTION
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  DECLINED
+  REFUSED
+}
+
+/// Where one recorded quotation stands. A DRAFT is the Owner's alone; a club sees it once PUBLISHED.
+enum ManufacturingQuoteStatus {
+  DRAFT
+  PUBLISHED
+  ACCEPTED
+  SUPERSEDED
+  WITHDRAWN
+}
+
+/// Who moved a request. SUPPLIER is reserved for the Supplier Portal and used by nothing yet.
+enum ManufacturingActorKind {
+  CLUB
+  OWNER
+  SUPPLIER
+}
+
+/// A factory the Platform Owner works with (M4). Platform data, reached only on the Owner's routes; a club sees a
+/// verified supplier's name and country on a quotation, never its contact or notes. Created by the Owner: no supplier
+/// is seeded, listed or presented as a partner until the Owner verifies it.
+model ManufacturingSupplier {
+  id                String                      @id @default(uuid())
+  name              String
+  /// ISO 3166-1 alpha-2.
+  country           String
+  city              String?
+  website           String?
+  contactEmail      String?
+  /// Garment forms it makes: top, shorts, socks.
+  forms             String[]
+  /// Decoration methods it offers: SUBLIMATION, SCREEN_PRINT, EMBROIDERY, HEAT_TRANSFER.
+  methods           String[]
+  minOrderSets      Int?
+  leadTimeDays      Int?
+  status            ManufacturingSupplierStatus @default(PROSPECT)
+  /// What the Owner checked before verifying it (required when VERIFIED).
+  verificationNote  String?
+  verifiedAt        DateTime?                   @db.Timestamptz(3)
+  verifiedById      String?
+  /// The supplier's own workspace once the Supplier Portal opens; null until then, and nothing reads it yet.
+  portalWorkspaceId String?
+  version           Int                         @default(1)
+  createdById       String
+  createdAt         DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                    @default(now()) @updatedAt @db.Timestamptz(3)
+
+  quotes ManufacturingQuote[]
+
+  @@index([status])
+}
+
+/// A club's request for quotation (M4): a frozen specification of a collection's designs (each at its saved revision and
+/// hash) and a roster's names, numbers and sizes, as submitted. Under row-level security (20261123220000).
+model ManufacturingRequest {
+  id              String                     @id @default(uuid())
+  clubId          String
+  club            Club                       @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  collectionId    String?
+  collection      DesignCollection?          @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  status          ManufacturingRequestStatus @default(SUBMITTED)
+  version         Int                        @default(1)
+  /// The specification as submitted; never changed afterwards (a trigger holds it).
+  spec            Json
+  setsTotal       Int
+  clubNote        String?
+  neededBy        DateTime?                  @db.Date
+  acceptedQuoteId String?                    @unique
+  createdById     String
+  createdAt       DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime                   @default(now()) @updatedAt @db.Timestamptz(3)
+
+  events ManufacturingRequestEvent[]
+  quotes ManufacturingQuote[]
+
+  @@unique([id, clubId])
+  @@index([clubId, status, updatedAt])
+  @@index([status, updatedAt])
+  @@index([collectionId])
+}
+
+/// One step of a request's history. Never changed or removed (a trigger holds it).
+model ManufacturingRequestEvent {
+  id          String                      @id @default(uuid())
+  clubId      String
+  requestId   String
+  request     ManufacturingRequest        @relation(fields: [requestId, clubId], references: [id, clubId], onDelete: Cascade)
+  action      String
+  fromStatus  ManufacturingRequestStatus?
+  toStatus    ManufacturingRequestStatus
+  actorKind   ManufacturingActorKind
+  actorUserId String
+  note        String?
+  createdAt   DateTime                    @default(now()) @db.Timestamptz(3)
+
+  @@index([requestId, createdAt])
+  @@index([clubId])
+}
+
+/// A quotation a real supplier gave for a request, recorded by the Platform Owner with the supplier's own reference and
+/// how it was received. Amounts are integers in the currency's minor unit. Nothing is charged.
+model ManufacturingQuote {
+  id                String                   @id @default(uuid())
+  clubId            String
+  requestId         String
+  request           ManufacturingRequest     @relation(fields: [requestId, clubId], references: [id, clubId], onDelete: Cascade)
+  supplierId        String
+  supplier          ManufacturingSupplier    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  status            ManufacturingQuoteStatus @default(DRAFT)
+  /// ISO 4217.
+  currency          String
+  totalMinor        Int
+  /// [{ projectId, unitMinor, sets }]: per design, when the supplier priced them apart.
+  lines             Json                     @default("[]")
+  leadTimeDays      Int
+  validUntil        DateTime                 @db.Date
+  supplierReference String
+  /// How the quotation was received (an e-mail of a date, a signed PDF): the record that it is real.
+  evidence          String
+  recordedById      String
+  publishedAt       DateTime?                @db.Timestamptz(3)
+  createdAt         DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                 @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@index([requestId])
+  @@index([supplierId])
+  @@index([clubId])
 }

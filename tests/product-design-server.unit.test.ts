@@ -121,8 +121,11 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
     await C.api.listCollections('active'); await C.api.createCollection(kit); await C.api.openCollection(id);
     await C.api.saveCollection(id, 2, kit); await C.api.archiveCollection(id); await C.api.unarchiveCollection(id);
     await C.api.deleteCollection(id); await C.api.orderSheet(id, id);
+    // M4: the club's requests for quotation, every route of them.
+    await C.api.submitRequest(id, { rosterId: null }); await C.api.listRequests(); await C.api.openRequest(id);
+    await C.api.cancelRequest(id); await C.api.declineQuotes(id); await C.api.confirmDelivery(id); await C.api.acceptQuote(id, id);
     expect(calls.every((c) => c.url.startsWith('/api/v1/club-design/'))).toBe(true);
-    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(`/assets/${id}`, '/assets/:assetId').replace(`/rosters/${id}`, '/rosters/:rosterId').replace(`/collections/${id}`, '/collections/:collectionId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(`/assets/${id}`, '/assets/:assetId').replace(`/rosters/${id}`, '/rosters/:rosterId').replace(`/collections/${id}`, '/collections/:collectionId').replace(`/requests/${id}/quotes/${id}`, '/requests/:requestId/quotes/:quoteId').replace(`/requests/${id}`, '/requests/:requestId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
     expect([...new Set(used)].sort()).toEqual(served);
     expect(calls.some((c) => c.url.includes('club-1') || String(c.init.body || '').includes('club-1'))).toBe(false);
     expect(calls[0].init.headers).toMatchObject({ Authorization: 'Bearer tkn' });

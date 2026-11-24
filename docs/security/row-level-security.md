@@ -54,6 +54,13 @@ both ways. An item names its collection and its project each together with the
 club (composite foreign keys onto `DesignCollection(id, clubId)` and
 `DesignProject(id, clubId)`), so no collection can gather another club's design;
 a trigger holds the roster a collection names to its club, on the system path too.
+Manufacturing (`20261123220000_manufacturing_requests`, owner-brokered) adds
+`ManufacturingRequest`, `ManufacturingRequestEvent` and `ManufacturingQuote`,
+each isolated by its own `clubId` both ways; a quotation and an event name their
+request and club together (composite keys). The Platform Owner's console reaches
+every club's requests on the named system path, behind `assertPlatformOwner`.
+`ManufacturingSupplier` is platform data with no club and no policy: only the
+Owner's routes reach it.
 
 The AI agent worker runs each job's deterministic handler in that job's own
 club context (`runInClubContext(job.clubId, …)`), not on a system path: the

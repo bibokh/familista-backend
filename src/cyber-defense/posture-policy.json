@@ -827,6 +827,49 @@
         "GET /club-design/projects/:id/revisions/:number",
         "POST /club-design/projects/:id/revisions/:number/restore"
       ]
+    },
+    "manufacturing.routes :supplierId": {
+      "basis": "platform-only",
+      "reason": "The Platform Owner's manufacturing console (src/routes/manufacturing.routes.ts) is behind authenticate and assertPlatformOwner. A supplier id names a ManufacturingSupplier, platform data with no club, created and verified by the Owner alone; no club route reaches a supplier's row, and a club sees a verified supplier's name and country only on a published quotation.",
+      "routes": [
+        "GET /system/manufacturing/suppliers/:supplierId",
+        "PUT /system/manufacturing/suppliers/:supplierId",
+        "POST /system/manufacturing/suppliers/:supplierId/status"
+      ]
+    },
+    "manufacturing.routes :requestId": {
+      "basis": "cross-club-by-design",
+      "reason": "The Platform Owner brokers every club's requests for quotation (owner-brokered manufacturing, the Owner's decision of 23 November 2026): the console behind authenticate and assertPlatformOwner runs on the named system path and reaches each club's request by design. A club reaches only its own, through /club-design behind tenantParam('manufacturingRequest'), and row-level security holds requests, quotations and events to their club.",
+      "routes": [
+        "GET /system/manufacturing/requests/:requestId",
+        "POST /system/manufacturing/requests/:requestId/review",
+        "POST /system/manufacturing/requests/:requestId/refuse",
+        "POST /system/manufacturing/requests/:requestId/quotes",
+        "POST /system/manufacturing/requests/:requestId/quotes/:quoteId/publish",
+        "POST /system/manufacturing/requests/:requestId/quotes/:quoteId/withdraw",
+        "DELETE /system/manufacturing/requests/:requestId/quotes/:quoteId",
+        "POST /system/manufacturing/requests/:requestId/order",
+        "POST /system/manufacturing/requests/:requestId/production",
+        "POST /system/manufacturing/requests/:requestId/shipped",
+        "POST /system/manufacturing/requests/:requestId/delivered",
+        "GET /system/manufacturing/requests/:requestId/designs/:projectId"
+      ]
+    },
+    "manufacturing.routes :quoteId": {
+      "basis": "cross-club-by-design",
+      "reason": "A quotation id is read only together with its request's id (the service filters by both) on the Platform Owner's console, behind assertPlatformOwner; a club reaches only its own quotations, through /club-design behind tenantParam('manufacturingQuote').",
+      "routes": [
+        "POST /system/manufacturing/requests/:requestId/quotes/:quoteId/publish",
+        "POST /system/manufacturing/requests/:requestId/quotes/:quoteId/withdraw",
+        "DELETE /system/manufacturing/requests/:requestId/quotes/:quoteId"
+      ]
+    },
+    "manufacturing.routes :projectId": {
+      "basis": "cross-club-by-design",
+      "reason": "A design id is read only as one of the designs a request's frozen specification names, at the revision and hash it names (the service refuses any other), on the Platform Owner's console behind assertPlatformOwner, so the Owner can hand the supplier exactly what the club asked for.",
+      "routes": [
+        "GET /system/manufacturing/requests/:requestId/designs/:projectId"
+      ]
     }
   },
   "ownerRooms": {
@@ -1339,7 +1382,10 @@
     "DesignBrandAsset",
     "DesignRoster",
     "DesignCollection",
-    "DesignCollectionItem"
+    "DesignCollectionItem",
+    "ManufacturingRequest",
+    "ManufacturingRequestEvent",
+    "ManufacturingQuote"
   ],
   "rlsSystemPaths": {
     "platform-owner": "A platform owner acts across clubs by role (authenticate); the owner rooms are pinned separately (owner-rooms-pinned).",

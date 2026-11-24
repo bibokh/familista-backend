@@ -155,6 +155,9 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     const ts = (d: string): string[] => fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? ts(path.join(d, e.name)) : /\.ts$/.test(e.name) ? [path.join(d, e.name)] : []));
     expect(ts('src').filter((f) => /product-design|ProductDesign|pd-core/.test(read(f))).sort()).toEqual([
       'src/contracts/owner-api.contracts.ts', 'src/cyber-defense/control-plane/registry.ts',
+      // M4: manufacturing builds on the Design Studio's collections, rosters, revisions and actor (src/platform/manufacturing).
+      'src/platform/manufacturing/club-http.ts', 'src/platform/manufacturing/owner-http.ts', 'src/platform/manufacturing/request.service.ts',
+      'src/platform/manufacturing/supplier.service.ts',
       'src/platform/product-design/core.ts', 'src/platform/product-design/http.ts',
       // M3: the server's copy of the roster core reads public/product-design/pd-roster.js, as core.ts reads pd-core.js.
       'src/platform/product-design/roster-core.ts', 'src/routes/club-design.routes.ts',

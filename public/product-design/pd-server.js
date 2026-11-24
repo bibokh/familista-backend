@@ -125,6 +125,16 @@
       api.orderSheet = function (collectionId, rosterId) {
         return call('GET', '/collections/' + id(collectionId) + '/order-sheet' + (rosterId ? '?rosterId=' + id(rosterId) : ''));
       };
+      // Manufacturing (M4, owner-brokered): the club's requests for quotation, the quotations published to it, its steps.
+      api.submitRequest = function (collectionId, r) {
+        return call('POST', '/collections/' + id(collectionId) + '/requests', { rosterId: r.rosterId || null, note: r.note || null, neededBy: r.neededBy || null });
+      };
+      api.listRequests = function () { return call('GET', '/requests'); };
+      api.openRequest = function (requestId) { return call('GET', '/requests/' + id(requestId)); };
+      api.cancelRequest = function (requestId, note) { return call('POST', '/requests/' + id(requestId) + '/cancel', { note: note || null }); };
+      api.declineQuotes = function (requestId, note) { return call('POST', '/requests/' + id(requestId) + '/decline', { note: note || null }); };
+      api.confirmDelivery = function (requestId, note) { return call('POST', '/requests/' + id(requestId) + '/delivered', { note: note || null }); };
+      api.acceptQuote = function (requestId, quoteId) { return call('POST', '/requests/' + id(requestId) + '/quotes/' + id(quoteId) + '/accept', {}); };
     }
 
     /** The saved design the editor's draft belongs to, or null. A malformed record is ignored, never trusted. */

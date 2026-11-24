@@ -337,7 +337,8 @@ describe('the Owner-room registrations the platform pins', () => {
     expect(cov.srcDomains['design-system']).toBeDefined();
     // Registered under the existing System area: it adds no area of its own to the Command Center.
     const reg = read('src/cyber-defense/control-plane/registry.ts');
-    expect(reg).toContain("routers: ['system.routes', 'owner-trace.routes', 'observability.routes', 'design-system.routes', 'product-design.routes']");
+    // The System area also holds the Platform Owner's manufacturing console (M4).
+    expect(reg).toContain("routers: ['system.routes', 'owner-trace.routes', 'observability.routes', 'design-system.routes', 'product-design.routes', 'manufacturing.routes']");
     expect(reg).not.toMatch(/id: 'design-system'/);
     const sec = json('src/cyber-defense/generated/security-manifest.json');
     expect(JSON.stringify(sec)).toContain('GET /system/design-system/tokens');

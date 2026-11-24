@@ -43,6 +43,10 @@ import {
   archiveDesignCollection, createDesignCollection, deleteDesignCollection, listDesignCollections, openDesignCollection, readOrderSheet,
   saveDesignCollection, unarchiveDesignCollection,
 } from '../platform/product-design/collection-http';
+import {
+  acceptManufacturingQuote, cancelManufacturingRequest, confirmManufacturingDelivery, declineManufacturingQuotes, listManufacturingRequests,
+  openManufacturingRequest, submitManufacturingRequest,
+} from '../platform/manufacturing/club-http';
 
 const router = Router();
 router.use(authenticate);
@@ -102,5 +106,16 @@ router.post('/collections/:collectionId/archive', tenantParam('designCollection'
 router.post('/collections/:collectionId/unarchive', tenantParam('designCollection', 'collectionId'), unarchiveDesignCollection);
 router.delete('/collections/:collectionId', tenantParam('designCollection', 'collectionId'), deleteDesignCollection);
 router.get('/collections/:collectionId/order-sheet', tenantParam('designCollection', 'collectionId'), readOrderSheet);
+
+// Manufacturing (M4), owner-brokered: the club's requests for quotation. A request is submitted from one of the club's
+// collections; a request id and a quotation id are each checked against the caller's club before the handler runs. The
+// club reads only quotations the Platform Owner published, and moves a request only by the club's own steps.
+router.post('/collections/:collectionId/requests', tenantParam('designCollection', 'collectionId'), submitManufacturingRequest);
+router.get('/requests', listManufacturingRequests);
+router.get('/requests/:requestId', tenantParam('manufacturingRequest', 'requestId'), openManufacturingRequest);
+router.post('/requests/:requestId/cancel', tenantParam('manufacturingRequest', 'requestId'), cancelManufacturingRequest);
+router.post('/requests/:requestId/decline', tenantParam('manufacturingRequest', 'requestId'), declineManufacturingQuotes);
+router.post('/requests/:requestId/delivered', tenantParam('manufacturingRequest', 'requestId'), confirmManufacturingDelivery);
+router.post('/requests/:requestId/quotes/:quoteId/accept', tenantParam('manufacturingRequest', 'requestId'), tenantParam('manufacturingQuote', 'quoteId'), acceptManufacturingQuote);
 
 export default router;

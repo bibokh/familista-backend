@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-23T21:52:24.491Z",
+  "generatedAt": "2026-11-24T09:24:41.954Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -282,7 +282,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/routes/index.ts",
-      "sourceEvidence": "src/routes/index.ts — 59 mounted routers",
+      "sourceEvidence": "src/routes/index.ts — 60 mounted routers",
       "dependencies": [
         "platform-core"
       ],
@@ -324,7 +324,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "351 models, 214 enums, 54 migrations."
+      "note": "355 models, 218 enums, 55 migrations."
     },
     {
       "id": "prisma-orm",
@@ -1101,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 246 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 248 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "641 TypeScript modules under src/."
+      "note": "649 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1625,22 +1625,22 @@
     }
   ],
   "surface": {
-    "routeModules": 69,
+    "routeModules": 70,
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 641,
-    "testSuites": 246,
-    "migrations": 54,
-    "prismaModels": 351,
-    "prismaEnums": 214
+    "totalTypeScript": 649,
+    "testSuites": 248,
+    "migrations": 55,
+    "prismaModels": 355,
+    "prismaEnums": 218
   },
   "database": {
     "provider": "postgresql",
-    "models": 351,
-    "enums": 214,
-    "migrations": 54,
-    "latestMigration": "20261123210000_design_studio_collections"
+    "models": 355,
+    "enums": 218,
+    "migrations": 55,
+    "latestMigration": "20261123220000_manufacturing_requests"
   },
   "typescript": {
     "target": "ES2020",
@@ -1729,9 +1729,9 @@
           "Algorithm telemetry (real PostgreSQL)",
           "AI read authorization (real PostgreSQL)",
           "Design Studio persistence (real PostgreSQL)",
+          "Manufacturing workflow (real PostgreSQL)",
           "Audit (blocking on high and critical)",
-          "Checkout",
-          "Setup Node 20"
+          "Checkout"
         ],
         "services": [
           "postgres:16-alpine",
@@ -1947,11 +1947,18 @@
       "reads": 4
     },
     {
+      "path": "/system/manufacturing",
+      "router": "manufacturingRoutes",
+      "file": "src/routes/manufacturing.routes.ts",
+      "writes": 13,
+      "reads": 5
+    },
+    {
       "path": "/club-design",
       "router": "clubDesignRoutes",
       "file": "src/routes/club-design.routes.ts",
-      "writes": 19,
-      "reads": 12
+      "writes": 24,
+      "reads": 14
     },
     {
       "path": "/telemetry",

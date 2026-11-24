@@ -263,6 +263,9 @@ export const TENANT_RESOURCES = {
   designRoster:             (id: string): Promise<Owner> => prisma.designRoster.findUnique({ where: { id }, select: { clubId: true } }),
   // A collection of a club's Design Studio (M3b).
   designCollection:         (id: string): Promise<Owner> => prisma.designCollection.findUnique({ where: { id }, select: { clubId: true } }),
+  // Manufacturing (M4): a club's request for quotation, and a quotation recorded for one.
+  manufacturingRequest:     (id: string): Promise<Owner> => prisma.manufacturingRequest.findUnique({ where: { id }, select: { clubId: true } }),
+  manufacturingQuote:       (id: string): Promise<Owner> => prisma.manufacturingQuote.findUnique({ where: { id }, select: { clubId: true } }),
 } as const;
 
 export type TenantResource = keyof typeof TENANT_RESOURCES;
