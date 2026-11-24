@@ -190,6 +190,10 @@ export async function acceptQuote(clubId: string, actor: DesignActor, id: string
   return prisma.$transaction(async (tx) => {
     const r = await tx.manufacturingRequest.findFirst({ where: { id, clubId }, select: { id: true, clubId: true, status: true } });
     if (!r) throw new NotFoundError('Request');
+    // The workflow first: once a request has left QUOTED (accepted, declined, cancelled), any acceptance is the conflict it
+    // is, whichever quotation it names, never a 'not found' for a quotation that was set aside meanwhile.
+    const allowed = step('accept', 'CLUB', r.status, null);
+    if ('refused' in allowed) throw new RequestStepError(allowed.refused, r.status);
     const q = await tx.manufacturingQuote.findFirst({ where: { id: quoteId, requestId: id, clubId }, select: { status: true, validUntil: true, totalMinor: true, currency: true, supplier: { select: { status: true } } } });
     if (!q || q.status !== Q.PUBLISHED) throw new NotFoundError('Quotation');
     if (q.validUntil < today()) throw new RequestStepError('quote-expired', r.status);

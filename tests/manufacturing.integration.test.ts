@@ -247,6 +247,11 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
     const won = race.find((r) => r.status === 200)!.body.data.request;
     expect(won.status).toBe('ACCEPTED');
     expect(won.quotes.map((q: Row) => q.status).sort()).toEqual(['ACCEPTED', 'SUPERSEDED']);
+    // A late acceptance, after the race was settled, is the same conflict: never a 'not found' (whichever quotation it names).
+    for (const q of [draft, second]) {
+      const late = await as('admin').post(`${CLUB}/requests/${req}/quotes/${q}/accept`);
+      expect([late.status, late.body.code, late.body.reason]).toEqual([409, 'REQUEST_STEP_REFUSED', 'wrong-status']);
+    }
     expect(Number((await sys(`SELECT count(*)::int AS n FROM "OperationsPayment"`))[0].n)).toBe(0);
   });
 
