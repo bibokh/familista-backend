@@ -29,6 +29,8 @@
   var BASE = '/system/product-design';
   var LINK_KEY = 'familista_product_design_link_v1';
   var CLUB_BASE = '/club-design';
+  // M4: the Platform Owner's manufacturing console (owner-brokered). The server refuses it to anyone else.
+  var MFG_BASE = '/system/manufacturing';
   var CLUB_ID = /^[A-Za-z0-9_-]{1,64}$/;
   var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   var ORIGINS = ['EDITOR', 'FILE_IMPORT', 'BROWSER_DRAFT'];
@@ -137,6 +139,29 @@
       api.acceptQuote = function (requestId, quoteId) { return call('POST', '/requests/' + id(requestId) + '/quotes/' + id(quoteId) + '/accept', {}); };
     }
 
+    // The Platform Owner's manufacturing console (M4): suppliers, every club's requests, quotations and order steps.
+    if (base === MFG_BASE) {
+      var q = function (v) { return encodeURIComponent(String(v)); };
+      api = {
+        listSuppliers: function () { return call('GET', '/suppliers'); },
+        createSupplier: function (s) { return call('POST', '/suppliers', s); },
+        openSupplier: function (supplierId) { return call('GET', '/suppliers/' + id(supplierId)); },
+        saveSupplier: function (supplierId, s) { return call('PUT', '/suppliers/' + id(supplierId), s); },
+        setSupplierStatus: function (supplierId, status, note) { return call('POST', '/suppliers/' + id(supplierId) + '/status', { status: status, note: note }); },
+        listRequests: function (status) { return call('GET', '/requests' + (status ? '?status=' + q(status) : '')); },
+        openRequest: function (requestId) { return call('GET', '/requests/' + id(requestId)); },
+        step: function (requestId, step, note) {
+          var path = { review: 'review', refuse: 'refuse', order: 'order', produce: 'production', ship: 'shipped', deliver: 'delivered' }[step];
+          return path ? call('POST', '/requests/' + id(requestId) + '/' + path, { note: note || null }) : Promise.resolve({ ok: false, status: 0, code: 'BAD_STEP', data: null, message: '', errors: [] });
+        },
+        recordQuote: function (requestId, quote) { return call('POST', '/requests/' + id(requestId) + '/quotes', quote); },
+        publishQuote: function (requestId, quoteId) { return call('POST', '/requests/' + id(requestId) + '/quotes/' + id(quoteId) + '/publish', {}); },
+        withdrawQuote: function (requestId, quoteId, note) { return call('POST', '/requests/' + id(requestId) + '/quotes/' + id(quoteId) + '/withdraw', { note: note }); },
+        discardDraft: function (requestId, quoteId) { return call('DELETE', '/requests/' + id(requestId) + '/quotes/' + id(quoteId)); },
+        specDesign: function (requestId, projectId) { return call('GET', '/requests/' + id(requestId) + '/designs/' + id(projectId)); },
+      };
+    }
+
     /** The saved design the editor's draft belongs to, or null. A malformed record is ignored, never trusted. */
     function readLink() {
       var s = storage();
@@ -175,6 +200,10 @@
     if (w.kind === 'CLUB' && typeof w.clubId === 'string' && CLUB_ID.test(w.clubId)) return client(CLUB_BASE, LINK_KEY + '_club_' + w.clubId);
     return null;
   }
+  var mfg = null;
+  /** The Platform Owner's manufacturing console's client (M4), made once. */
+  function manufacturing() { if (!mfg) mfg = client(MFG_BASE, LINK_KEY + '_manufacturing').api; return mfg; }
   return Object.freeze({ BASE: platform.BASE, LINK_KEY: platform.LINK_KEY, ORIGINS: ORIGINS, api: platform.api, fingerprint: fingerprint,
-    readLink: platform.readLink, writeLink: platform.writeLink, clearLink: platform.clearLink, CLUB_BASE: CLUB_BASE, forWorkspace: forWorkspace });
+    readLink: platform.readLink, writeLink: platform.writeLink, clearLink: platform.clearLink, CLUB_BASE: CLUB_BASE, forWorkspace: forWorkspace,
+    MFG_BASE: MFG_BASE, manufacturing: manufacturing });
 }));

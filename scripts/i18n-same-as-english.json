@@ -492,7 +492,11 @@
       "Logos",
       "Name",
       "Team",
-      "Training"
+      "Training",
+      "Familista",
+      "Sublimation",
+      "Designs",
+      "Website"
     ],
     "product-design/fr": [
       "Chevron",
@@ -517,7 +521,12 @@
       "Logos",
       "Actions",
       "Collection",
-      "Collections"
+      "Collections",
+      "Familista",
+      "version %d",
+      "Prospect",
+      "Sublimation",
+      "Designs"
     ],
     "product-design/es": [
       "Club",
@@ -527,13 +536,16 @@
       "Design Studio Control",
       "Inspector",
       "Material",
-      "Owner Control"
+      "Owner Control",
+      "Familista",
+      "ref. %s"
     ],
     "product-design/ar": [
       "Club Design Studio",
       "Creator Studio",
       "Design Studio",
-      "Design Studio Control"
+      "Design Studio Control",
+      "Familista"
     ]
   },
   "catalogue": {

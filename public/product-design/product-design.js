@@ -38,7 +38,7 @@
 
   var C = window.FamilistaProductDesignCore;
   var LIMITS = C.LIMITS;
-  var VERSION = '20261123-product-design-m3a';
+  var VERSION = '20261124-product-design-m4';
   // The released garments: templates/index.json names each one's reviewed template file; the server reads the same index.
   var TEMPLATE_DIR = '/product-design/templates/';
   var INDEX_URL = TEMPLATE_DIR + 'index.json?v=' + VERSION;
@@ -249,8 +249,7 @@
     method: L('Production methods come from a connected supplier (DS-5). This is the template’s reference.'),
     fabric: L('Fabrics come from a connected supplier (DS-5). This is the template’s reference.'),
     store: L('The Global Store is planned (DS-7).'),
-    orders: L('Orders are planned (DS-6).'),
-    suppliers: L('Supplier administration is planned (DS-5).'),
+    'suppliers-club': L('Familista works with verified suppliers for your club: ask for a quotation from a collection’s order sheet.'),
     payments: L('Payments are planned (DS-6), after business and legal approval.'),
   };
 
@@ -274,6 +273,8 @@
       images: {},
       // M3: the Team panel, made once per opening of the room, and the roster entry the garment previews ({ name, number }).
       team: null, preview: null,
+      // M4: the Platform Owner's manufacturing console, in the platform's room only.
+      mfg: null,
     };
   }
   function listen(target, type, fn, opts) {
@@ -606,6 +607,7 @@
     var sv = S.srv, d = S.el.dock;
     if (!d) return;
     if (S.team && S.team.isOpen()) S.team.close();
+    if (S.mfg && S.mfg.isOpen()) S.mfg.close();
     if (tab) sv.tab = tab;
     // Focus goes back where it came from: the button pressed, or, when the room opened the panel itself (a conflict), its own button.
     if (trigger) sv.trigger = trigger;
@@ -828,7 +830,8 @@
   /** What the Team panel is handed: the room's own builders, words and server client. It fetches and styles nothing itself. */
   function teamContext() {
     return {
-      roster: window.FamilistaProductDesignRoster, collections: window.FamilistaProductDesignCollections || null, api: P.api, host: S.host, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, dirArrow: dirArrow, date: when, percent: percent,
+      roster: window.FamilistaProductDesignRoster, collections: window.FamilistaProductDesignCollections || null,
+      requests: window.FamilistaProductDesignRequests || null, lang: function () { return LANG; }, api: P.api, host: S.host, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, dirArrow: dirArrow, date: when, percent: percent,
       onPreview: setPreview, nameFit: nameFit,
       // M3b: the saved design on screen, opening one (behind the unsaved-change guard), and a design's product name.
       currentProject: function () { var l = S.srv.link; return l ? { id: l.projectId, name: S.doc.name, templateKey: S.doc.template.key } : null; },
@@ -846,6 +849,27 @@
     if (e) CATALOGUE.forEach(function (g) { g.items.forEach(function (it) { if (it.id === e.product) label = it.label; }); });
     return label ? T(label) : T('A garment no longer offered');
   }
+  /** What the manufacturing console is handed: the room's builders and words, and the Owner's manufacturing client. */
+  function mfgContext() {
+    return {
+      roster: window.FamilistaProductDesignRoster, api: SERVER.manufacturing(), host: S.host, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say,
+      dirArrow: dirArrow, date: when, lang: function () { return LANG; }, onToggle: function () { syncMfgTriggers(); },
+    };
+  }
+  function syncMfgTriggers() {
+    var bs = S.host.querySelectorAll('[data-pd-act="mfg"]'), m = S.mfg && S.mfg.isOpen() ? S.mfg.metrics() : null;
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', m && bs[i].getAttribute('data-pd-tab') === m.tab ? 'true' : 'false');
+  }
+  function onMfgAction(act, t) {
+    if (!S.mfg) return false;
+    if (act === 'mfg') {
+      if (S.mfg.isOpen() && t.getAttribute('aria-expanded') === 'true') { S.mfg.close(); return true; }
+      if (S.srv.open) closeDock();
+      S.mfg.open(t.getAttribute('data-pd-tab') || 'requests', t);
+      return true;
+    }
+    return S.mfg.onAction(act, t);
+  }
   function syncTeamTriggers() {
     var bs = S.host.querySelectorAll('[data-pd-act="team"]');
     for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', S.team && S.team.isOpen() ? 'true' : 'false');
@@ -854,10 +878,11 @@
     if (!S.team) return false;
     if (act === 'team') {
       if (S.team.isOpen()) S.team.close();
-      else { if (S.srv.open) closeDock(); S.team.open(t); }
+      else { if (S.srv.open) closeDock(); if (S.mfg && S.mfg.isOpen()) S.mfg.close(); S.team.open(t); }
       return true;
     }
     if (act === 'team-stop-preview') { S.team.stopPreview(); return true; }
+    if (act === 'team-requests') { if (S.srv.open) closeDock(); S.team.openTab('requests', t); return true; }
     return S.team.onAction(act, t);
   }
   /** Show a roster row's name and number on the garment, or the placeholders again: the canvas, the views and 3D alike. */
@@ -1600,6 +1625,7 @@
     if (mod && (k === 'y' || k === 'Y') && !typing(ev.target)) { ev.preventDefault(); undoRedo('redo'); return; }
     if (mod && (k === 's' || k === 'S')) { ev.preventDefault(); if (S.team && S.team.onSaveKey(ev)) return; serverSave(); return; }
     if (k === 'Escape' && S.team && S.team.isOpen()) { ev.preventDefault(); S.team.close(); return; }
+    if (k === 'Escape' && S.mfg && S.mfg.isOpen()) { ev.preventDefault(); S.mfg.close(); return; }
     if (k === 'Escape' && S.srv.open) { ev.preventDefault(); closeDock(); return; }
     if (k === 'Escape' && S.panel) { setPanel(null); return; }
     if (ev.target !== S.el.canvas) return;
@@ -2115,18 +2141,20 @@
     { page: 'agents-room', icon: 'agents', label: L('AI Agents Operations Room') },
     { page: 'clubs', icon: 'shield', label: L('Clubs') },
     { page: 'product-design', icon: 'shirt', label: L('Design Studio'), current: true },
+    // M4, owner-brokered: the manufacturing console, as a floating panel over the room.
+    { act: 'mfg', tab: 'requests', icon: 'box', label: L('Orders') },
+    { act: 'mfg', tab: 'suppliers', icon: 'factory', label: L('Factories & suppliers') },
     { reason: 'store', icon: 'store', label: L('Global Store') },
-    { reason: 'orders', icon: 'box', label: L('Orders') },
-    { reason: 'suppliers', icon: 'factory', label: L('Factories & suppliers') },
     { reason: 'payments', icon: 'card', label: L('Payments') },
   ];
   /** In a club: back to the club's home, and the studio; commerce stays planned, as on the platform. */
   var SIDE_CLUB = [
     { page: 'club-home', icon: 'home', label: L('Club home') },
     { page: 'club-design', icon: 'shirt', label: L('Design Studio'), current: true },
+    // M4: the club's requests for quotation, in the Team panel.
+    { act: 'team-requests', icon: 'box', label: L('Orders') },
     { reason: 'store', icon: 'store', label: L('Global Store') },
-    { reason: 'orders', icon: 'box', label: L('Orders') },
-    { reason: 'suppliers', icon: 'factory', label: L('Factories & suppliers') },
+    { reason: 'suppliers-club', icon: 'factory', label: L('Factories & suppliers') },
     { reason: 'payments', icon: 'card', label: L('Payments') },
   ];
   function buildSide() {
@@ -2135,6 +2163,7 @@
     (clubWorkspace() ? SIDE_CLUB : SIDE).forEach(function (it) {
       if (it.reason && !plannedShown) { plannedShown = true; list.appendChild(h('li', { class: 'pd-side-group', text: T('Planned') })); }
       var b = it.current ? btn({ class: 'pd-side-btn is-current', 'aria-current': 'page' })
+        : it.act ? btn({ class: 'pd-side-btn', 'data-pd-act': it.act, 'data-pd-tab': it.tab || null, 'aria-controls': it.act === 'mfg' ? 'pd-mfg' : 'pd-team', 'aria-expanded': 'false' })
         : it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)
         : btn({ class: 'pd-side-btn', 'data-action': 'navTo', 'data-page': it.page });
       append(b, [icon(it.icon, 18), h('span', { class: 'pd-side-label', text: T(it.label) })]);
@@ -2877,14 +2906,16 @@
     { icon: 'shirt', label: L('Product design'), state: 'available' },
     // In a club, its team rosters hold the sizes and sets (M3); ordering them is still planned.
     { icon: 'ruler', label: L('Sizes & quantity'), state: 'planned', club: 'available' },
-    { icon: 'calc', label: L('Price'), state: 'planned' },
+    // M4, owner-brokered: quotations from verified suppliers, the order, its production, shipping and delivery are
+    // recorded by Familista, not automated; payment is not processed online.
+    { icon: 'calc', label: L('Price'), state: 'brokered' },
     { icon: 'card', label: L('Secure payment'), state: 'planned' },
-    { icon: 'factory', label: L('Send to factory'), state: 'not-connected' },
-    { icon: 'gear', label: L('Manufacturing'), state: 'not-connected' },
-    { icon: 'truck', label: L('Shipping & tracking'), state: 'planned' },
-    { icon: 'delivered', label: L('Delivery'), state: 'planned' },
+    { icon: 'factory', label: L('Send to factory'), state: 'brokered' },
+    { icon: 'gear', label: L('Manufacturing'), state: 'brokered' },
+    { icon: 'truck', label: L('Shipping & tracking'), state: 'brokered' },
+    { icon: 'delivered', label: L('Delivery'), state: 'brokered' },
   ];
-  var STATE_LABEL = { available: L('Available'), planned: L('Planned'), 'not-connected': L('Not connected') };
+  var STATE_LABEL = { available: L('Available'), planned: L('Planned'), 'not-connected': L('Not connected'), brokered: L('Through Familista') };
   var INTEGRATION = [
     { ok: true, label: L('Part of Owner Control, in the Platform Owner navigation') },
     { ok: true, label: L('Holds no club or personal data: platform designs only') },
@@ -2966,6 +2997,10 @@
     if (!S.team && clubWorkspace() && P.api.listRosters && window.FamilistaProductDesignRoster && window.FamilistaProductDesignTeam) {
       S.team = window.FamilistaProductDesignTeam.create(teamContext());
     }
+    // M4: the manufacturing console, in the platform's room only; its scripts are loaded by the owner's room alone.
+    if (!S.mfg && !clubWorkspace() && SERVER.manufacturing && window.FamilistaProductDesignManufacturing && window.FamilistaProductDesignRoster) {
+      S.mfg = window.FamilistaProductDesignManufacturing.create(mfgContext());
+    }
     E.lib = buildLib();
     var editor = buildEditor();
     E.insp = buildInsp();
@@ -2977,6 +3012,7 @@
       h('div', { class: 'pd-scrim', 'data-pd-act': 'close-panel', 'aria-hidden': 'true' }),
       (E.dock = h('section', { class: 'pd-dock', id: 'pd-dock', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'pd-dock-title', 'data-open': S.srv.open ? 'true' : 'false' })),
       S.team ? S.team.el : null,
+      S.mfg ? S.mfg.el : null,
       E.live,
     ]);
     host.appendChild(E.shell);
@@ -2992,6 +3028,7 @@
     renderDock();
     syncDockTriggers();
     if (S.team) S.team.repaint();
+    if (S.mfg) S.mfg.repaint();
     syncPreviewTag();
     renderThumbs();
     sync3d();
@@ -3057,6 +3094,7 @@
     if ((a = t.getAttribute('data-pd-filter'))) { if (S.srv.filter !== a) { S.srv.filter = a; loadProjects(); } return; }
     if ((a = t.getAttribute('data-pd-act')) && onDockAction(a, t)) return;
     if (a && onTeamAction(a, t)) return;
+    if (a && onMfgAction(a, t)) return;
     if ((a = t.getAttribute('data-pd-lang'))) { chooseSetLocale(a).then(function () { if (S) build(); }); return; }
     if ((a = t.getAttribute('data-pd-view'))) { setView(a); return; }
     if ((a = t.getAttribute('data-pd-mode'))) { setMode(a); return; }
@@ -3149,6 +3187,7 @@
   function onInput(ev) {
     var t = ev.target;
     if (S.team && S.team.onInput(ev)) return;
+    if (S.mfg && S.mfg.onInput(ev)) return;
     if (t === S.el.docName) { if (t.value.trim()) commitOp({ op: 'set', target: { kind: 'doc' }, key: 'name', value: t.value.slice(0, LIMITS.name) }, T('Design name'), 'doc-name'); return; }
     var sid = t.getAttribute('data-pd-swatch');
     if (sid) { commitOp({ op: 'set', target: { kind: 'swatch', id: sid }, key: 'srgb', value: String(t.value).toLowerCase() }, T('Colour'), 'swatch-' + sid); refreshColourRow(t, sid); return; }
@@ -3169,6 +3208,7 @@
   function onChange(ev) {
     var t = ev.target, field = t.getAttribute('data-pd-field');
     if (S.team && S.team.onChange(ev)) return;
+    if (S.mfg && S.mfg.onChange(ev)) return;
     if (t.hasAttribute('data-pd-brand-file')) { brandUpload(t.files && t.files[0]); return; }
     if (t.tagName === 'SELECT' && field) { var n = selectedLayer(); if (n) { setLayer(n.id, field, t.value, T(field === 'font' ? 'Font' : field === 'shape' ? 'Shape' : 'Pattern')); renderLayers(); } return; }
     if (field && (t.type === 'range' || t.type === 'number')) { fieldValue(t, field, false); S.merge = null; return; }
@@ -3435,7 +3475,7 @@
       renderMsMedian: ms.length ? ms[Math.floor(ms.length / 2)] : null, renderMsMax: ms.length ? ms[ms.length - 1] : null,
       edits: S.metrics.editMs.length, editMsMedian: ed.length ? ed[Math.floor(ed.length / 2)] : null, editMsP95: ed.length ? ed[Math.floor(ed.length * 0.95)] : null,
       template: TEMPLATE ? TEMPLATE.key : null, products: INDEX ? INDEX.map(function (e) { return e.product; }) : [],
-      workspace: WS.kind, team: S.team ? S.team.metrics() : null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
+      workspace: WS.kind, team: S.team ? S.team.metrics() : null, mfg: S.mfg ? S.mfg.metrics() : null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
       layers: S.doc.surfaces.map(function (x) { return x.layers.length; }), findings: S.findings.length,
       saveState: S.saveState, lastSaveBytes: S.metrics.lastSaveBytes, announced: S.announced, lang: LANG, dir: DIR,
       server: { state: S.srv.state, busy: S.srv.busy, linked: !!S.srv.link, projectId: S.srv.link ? S.srv.link.projectId : null, revision: S.srv.link ? S.srv.link.revision : null,

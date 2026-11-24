@@ -502,6 +502,9 @@ body.pd-studio-open { overflow: hidden; }
 .pd-flow-label { font-size: var(--fam-font-size-xs); font-weight: var(--fam-font-weight-semibold); line-height: var(--fam-font-line-height-tight); max-width: 100%; overflow-wrap: anywhere; hyphens: auto; }
 .pd-flow-state { font-size: var(--fam-font-size-2xs); font-weight: var(--fam-font-weight-bold); letter-spacing: var(--fam-font-tracking-wide); text-transform: uppercase; color: var(--fam-text-tertiary); }
 .pd-flow-step[data-state="available"] .pd-flow-state { color: var(--fam-text-primary); }
+/* Through Familista (M4): done by the Platform Owner on the club's behalf, not automated: an edge, not a fill. */
+.pd-flow-step[data-state="brokered"] { border-color: color-mix(in srgb, var(--fam-module-accent) 45%, var(--fam-border-default)); }
+.pd-flow-step[data-state="brokered"] .pd-flow-ic, .pd-flow-step[data-state="brokered"] .pd-flow-state { color: var(--fam-text-secondary); }
 .pd-flow-arrow { display: flex; align-items: center; color: var(--fam-text-tertiary); font-size: var(--fam-font-size-lg); }
 .pd-integ-list { display: flex; flex-direction: column; gap: 3px; }
 .pd-integ { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 6px; font-size: var(--fam-font-size-xs); line-height: var(--fam-font-line-height-tight); color: var(--fam-text-secondary); }
@@ -575,12 +578,14 @@ body.pd-studio-open { overflow: hidden; }
 }
 .pd-team[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
 .pd-team-head .pd-h2 { margin-inline-end: auto; }
-.pd-team-status { flex: none; margin: 0; padding: 0 var(--fam-space-3) var(--fam-space-3); min-height: calc(var(--fam-font-size-sm) * 1.6 + var(--fam-space-3)); color: var(--fam-text-secondary); }
+.pd-team-status { flex: none; margin: 0; padding: var(--fam-space-2) var(--fam-space-3) var(--fam-space-3); border-top: var(--fam-border-width-hairline) solid var(--fam-border-subtle); min-height: calc(var(--fam-font-size-sm) * 1.6 + var(--fam-space-3)); color: var(--fam-text-secondary); }
 .pd-team-field { display: flex; flex-direction: column; gap: 4px; }
 .pd-team-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .pd-team-delim { width: auto; max-width: 280px; }
 .pd-team-scroll {
-  overflow: auto; max-height: 46vh; scrollbar-gutter: stable; border-radius: var(--fam-radius-md);
+  /* flex: none: in the panel's column a box that scrolls would otherwise be the one to shrink, to nothing, when the
+     panel's content is taller than the panel; it keeps its height and the panel's body scrolls instead. */
+  flex: none; overflow: auto; max-height: 46vh; scrollbar-gutter: stable; border-radius: var(--fam-radius-md);
   border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); background: var(--fam-surface-sunken);
 }
 .pd-team-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fam-font-size-sm); }
@@ -619,6 +624,20 @@ body.pd-studio-open { overflow: hidden; }
 .pd-col-sheet th[scope="row"] { font-weight: var(--fam-font-weight-semibold); white-space: normal; }
 .pd-col-sheet td { font-variant-numeric: tabular-nums; }
 .pd-col-unsized { color: var(--fam-status-warning); }
+
+/* Manufacturing (M4): requests, quotations, their history; the Owner's console shares the Team panel's surface. */
+.pd-mfg { z-index: 44; }
+.pd-req-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--fam-space-2); }
+.pd-req-amount { font-size: var(--fam-font-size-xl); font-weight: var(--fam-font-weight-bold); font-variant-numeric: tabular-nums; }
+.pd-req-quote { align-items: flex-start; }
+.pd-req-note { color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pd-req-history { display: flex; flex-direction: column; gap: var(--fam-space-2); margin: 0; padding: 0; list-style: none; }
+.pd-req-history li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: var(--fam-space-2); align-items: start; }
+.pd-req-dot { width: 8px; height: 8px; margin-top: 6px; border-radius: var(--fam-radius-full); border: 2px solid color-mix(in srgb, var(--fam-module-accent) 70%, transparent); }
+.pd-req-event { font-weight: var(--fam-font-weight-semibold); }
+.pd-col-ask textarea, .pd-mfg textarea { resize: vertical; min-height: 64px; }
+.pd-mfg-checks { display: flex; flex-wrap: wrap; gap: var(--fam-space-2) var(--fam-space-3); }
+.pd-mfg-check { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fam-font-size-sm); }
 
 /* What the garment shows while a roster row is previewed: over the canvas, so it moves nothing. */
 .pd-preview-tag {

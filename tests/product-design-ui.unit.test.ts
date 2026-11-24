@@ -36,7 +36,8 @@ const APP = read('public/app.js');
 const JS = read('public/product-design/product-design.js');
 const CODE = strip(JS);
 // M3: the Team panel is the room's own module; its words are the room's catalogue's, and it holds the room's rules.
-const TEAM = read('public/product-design/pd-team.js') + read('public/product-design/pd-collections.js');
+const TEAM = read('public/product-design/pd-team.js') + read('public/product-design/pd-collections.js') + read('public/product-design/pd-requests.js')
+  + read('public/product-design/pd-manufacturing.js');
 const TEAM_CODE = strip(TEAM);
 const CORE = read('public/product-design/pd-core.js');
 const CSS = read('public/product-design/product-design.css');
@@ -92,8 +93,8 @@ describe('the Interface Studio is preserved', () => {
 describe('wiring: an owner room of its own, its design routes guarded on the server', () => {
   it('app.js loads it on demand behind the platform-owner check, its core, its server client, its garment and 3D view, then its editor, under one version that the room also uses', () => {
     // DS-1c adds the garment geometry and the 3D view before the editor; Babylon itself is loaded only when 3D is chosen (pd-3d.js).
-    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261123-product-design-m3a', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);");
-    expect(JS).toContain("var VERSION = '20261123-product-design-m3a';");
+    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261124-product-design-m4', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-manufacturing.js', '/product-design/product-design.js'], done);");
+    expect(JS).toContain("var VERSION = '20261124-product-design-m4';");
     expect(APP).toContain("if (page === 'product-design' && !(_PD_ROOM && _PD_ROOM.state === 'ready')) {");
     expect(APP).toMatch(/_loadProductDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'owner-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
     // The owner rooms keep their platform-owner check; the same asset loader serves the club's room behind its capability.
@@ -102,7 +103,7 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
   });
 
   it('M2b: opens in a club’s workspace for whoever its capability names, the same files under the same version, and falls back to the club’s home', () => {
-    expect(APP).toContain("_famLoadRoom(_PD_ROOM, '20261123-product-design-m3a', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-collections.js', '/product-design/pd-team.js', '/product-design/product-design.js'], done,\n    function () { return _access('canDesignClubKits'); });");
+    expect(APP).toContain("_famLoadRoom(_PD_ROOM, '20261124-product-design-m4', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-collections.js', '/product-design/pd-requests.js', '/product-design/pd-team.js', '/product-design/product-design.js'], done,\n    function () { return _access('canDesignClubKits'); });");
     expect(APP).toContain("if (!_access('canDesignClubKits')) { try { navTo('club-home', null, _opts); } catch (_) {} return; }");
     expect(APP).toMatch(/_loadClubDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'club-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
     const nav = APP.slice(APP.indexOf('var CLUB_NAV_ITEMS = ['), APP.indexOf('];', APP.indexOf('var CLUB_NAV_ITEMS = [')));
@@ -260,7 +261,8 @@ describe('it says what it is, and what it is not yet', () => {
   const REASON_KEYS = new Set(REASONS.map((r) => r[0]));
 
   it('every unavailable control names a reason that exists, and every reason is in the room’s catalogue', () => {
-    expect([...REASON_KEYS].sort()).toEqual(['360', '3d', 'capture', 'context-club', 'context-creator', 'fabric', 'image', 'method', 'order', 'orders', 'payments', 'product', 'proof', 'store', 'suppliers', 'templates']);
+    // M4: Orders and Factories & suppliers are no longer planned: the Owner's console, and a club's requests (its suppliers stay Familista's).
+    expect([...REASON_KEYS].sort()).toEqual(['360', '3d', 'capture', 'context-club', 'context-creator', 'fabric', 'image', 'method', 'order', 'payments', 'product', 'proof', 'store', 'suppliers-club', 'templates']);
     // Each reason is defined once and used at least once: by planned(…, 'key'), a context, a read-only field or a side entry.
     for (const k of REASON_KEYS) {
       const quoted = (CODE.match(new RegExp(`'${k}'`, 'g')) || []).length;
@@ -358,7 +360,9 @@ describe('the official languages', () => {
 
   it('the Team panel (M3) fetches, stores and styles nothing itself, and writes no visible English outside the catalogue', () => {
     expect(TEAM_CODE).not.toMatch(/fetch\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|localStorage|sessionStorage|\/api\/|<form|\.submit\(/);
-    expect(TEAM_CODE).not.toMatch(/setAttribute\(\s*['"]style['"]|\.cssText|\bstyle\s*:|\.style\./);
+    // The only `style:` keys in these modules are Intl's currency format (M4), never a builder's attribute.
+    expect(TEAM_CODE.replace(/new Intl\.NumberFormat\((?:'en'|lang), \{ style: 'currency', currency: currency \}\)/g, ''))
+      .not.toMatch(/setAttribute\(\s*['"]style['"]|\.cssText|\bstyle\s*:|\.style\./);
     expect(TEAM_CODE).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
     const texts = [...TEAM_CODE.matchAll(/text: '([^']*)'/g)].map((m) => m[1]);
     expect([...new Set(texts)].sort()).toEqual(['#', '—', ' · '].sort());

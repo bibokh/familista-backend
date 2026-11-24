@@ -63,6 +63,16 @@
       download: function (text, name) { download(text, name); },
       delimiter: function () { return st.delimiter; },
       currentProject: ctx.currentProject, openDesign: ctx.openDesign, productLabel: ctx.productLabel,
+      // M4: a request for quotation sent from a collection's order sheet opens in the Requests tab.
+      openRequest: function (id) { st.tab = 'requests'; if (RQ) RQ.open(id); },
+    }) : null;
+    // M4: the club's requests for quotation, the panel's third tab (pd-requests.js), when the room loaded it.
+    var RQ = ctx.requests ? ctx.requests.create({
+      h: h, btn: btn, icon: icon, T: T, tf: tf, api: api, date: ctx.date, lang: ctx.lang,
+      render: function () { render(); },
+      note: function (text) { st.note = text; var n = el.querySelector('[data-pd-team-status]'); if (n) n.textContent = text; },
+      show: function (view) { st.view = view; st.note = ''; render(); },
+      confirm: function (text, go, run) { st.confirm = { text: text, go: go, run: run }; render(); },
     }) : null;
 
     // ── rows: what the inputs hold, and what they amount to ────────────────
@@ -138,7 +148,7 @@
       var from = st.view;
       st.view = 'list'; st.cur = null; st.pending = null; st.conflict = null; st.confirm = null; st.note = '';
       if (st.preview !== null) { st.preview = null; pushPreview(); }
-      if (from === 'collection' && CO) { CO.leave(); CO.loadList(); } else loadList();
+      if (from === 'collection' && CO) { CO.leave(); CO.loadList(); } else if (from === 'request' && RQ) { RQ.leave(); RQ.loadList(); } else loadList();
     }
     function startNew() {
       st.cur = { id: null, version: 0, name: T('Team roster'), rows: [toRow(R.blankEntry())], dirty: true, state: 'ready' };
@@ -279,15 +289,16 @@
       var active = document.activeElement && el.contains(document.activeElement) ? document.activeElement : null;
       var focusKey = active ? (active.getAttribute('data-pd-team-row') !== null ? 'r' + active.getAttribute('data-pd-team-row') + ':' + active.getAttribute('data-pd-team-col') : active.getAttribute('data-pd-team-key')) : null;
       while (el.firstChild) el.removeChild(el.firstChild);
-      var roster = st.view === 'roster' && st.cur, collection = st.view === 'collection' && CO;
+      var roster = st.view === 'roster' && st.cur, collection = st.view === 'collection' && CO, requestView = st.view === 'request' && RQ;
       var head = h('div', { class: 'pd-dock-head pd-team-head' }, [
-        roster || collection ? btn({ class: 'pd-btn pd-btn--ghost pd-team-back', 'data-pd-act': 'team-back', 'data-pd-team-key': 'back', 'data-pd-team-focus': '' },
-          [ctx.dirArrow('←'), h('span', { text: collection ? T('Collections') : T('Rosters') })]) : null,
-        h('h2', { class: 'pd-h2', id: 'pd-team-title' }, [icon('people', 16), h('span', { text: collection ? T('Collection') : roster ? T('Team roster') : T('Team') })]),
+        roster || collection || requestView ? btn({ class: 'pd-btn pd-btn--ghost pd-team-back', 'data-pd-act': 'team-back', 'data-pd-team-key': 'back', 'data-pd-team-focus': '' },
+          [ctx.dirArrow('←'), h('span', { text: requestView ? T('Requests') : collection ? T('Collections') : T('Rosters') })]) : null,
+        h('h2', { class: 'pd-h2', id: 'pd-team-title' }, [icon('people', 16), h('span', { text: requestView ? T('Request for quotation') : collection ? T('Collection') : roster ? T('Team roster') : T('Team') })]),
         btn({ class: 'pd-icbtn', 'data-pd-act': 'team-close', 'data-pd-team-key': 'close', 'aria-label': T('Close') }, [icon('close')]),
       ]);
       var body = h('div', { class: 'pd-dock-body pd-team-body', tabindex: '0' }, [confirmBlock(), conflictBlock()]
-        .concat(roster ? rosterBody() : collection ? CO.editorBody() : [tabsBlock()].concat(st.tab === 'collections' && CO ? CO.listBody() : listBody())));
+        .concat(roster ? rosterBody() : collection ? CO.editorBody() : requestView ? RQ.detailBody()
+          : [tabsBlock()].concat(st.tab === 'collections' && CO ? CO.listBody() : st.tab === 'requests' && RQ ? RQ.listBody() : listBody())));
       var status = h('p', { class: 'pd-note pd-team-status', role: 'status', 'aria-live': 'polite', 'data-pd-team-status': '', text: st.note });
       el.appendChild(head); el.appendChild(body); el.appendChild(status); el.appendChild(file);
       body.scrollTop = scroll;
@@ -320,7 +331,8 @@
     /** The panel's two lists: the club's rosters, and its collections (M3b). */
     function tabsBlock() {
       if (!CO) return null;
-      return h('div', { class: 'pd-tabs pd-team-tabs', role: 'tablist', 'aria-label': T('Team') }, [['rosters', L('Rosters')], ['collections', L('Collections')]].map(function (t) {
+      var tabs = [['rosters', L('Rosters')], ['collections', L('Collections')]].concat(RQ ? [['requests', L('Requests')]] : []);
+      return h('div', { class: 'pd-tabs pd-team-tabs', role: 'tablist', 'aria-label': T('Team') }, tabs.map(function (t) {
         return btn({ class: 'pd-tab', role: 'tab', 'data-pd-act': 'team-tab-' + t[0], 'data-pd-team-key': 'tab-' + t[0], 'aria-selected': st.tab === t[0] ? 'true' : 'false', tabindex: st.tab === t[0] ? '0' : '-1', text: T(t[1]) });
       }));
     }
@@ -506,12 +518,14 @@
     // ── events ──────────────────────────────────────────────────────────────
     function onAction(act, t) {
       if (CO && act.indexOf('col-') === 0) return CO.onAction(act, t);
+      if (RQ && act.indexOf('req-') === 0) return RQ.onAction(act, t);
       if (act.indexOf('team-') !== 0) return false;
       var c = st.cur, i = Number(t.getAttribute('data-pd-row'));
       switch (act) {
         case 'team-close': close(); return true;
         case 'team-tab-rosters': if (st.tab !== 'rosters') { st.tab = 'rosters'; st.note = ''; loadList(); } return true;
         case 'team-tab-collections': if (st.tab !== 'collections' && CO) { st.tab = 'collections'; st.note = ''; CO.loadList(); } return true;
+        case 'team-tab-requests': if (st.tab !== 'requests' && RQ) { st.tab = 'requests'; st.note = ''; RQ.loadList(); } return true;
         case 'team-retry': loadList(); return true;
         case 'team-filter-active': if (st.list.archived) { st.list.archived = false; loadList(); } return true;
         case 'team-filter-archived': if (!st.list.archived) { st.list.archived = true; loadList(); } return true;
@@ -601,13 +615,27 @@
     return {
       el: el,
       open: open, close: close, repaint: render,
+      /** Open the panel on one of its lists (the club's side rail opens its requests). */
+      openTab: function (tab, trigger) {
+        if (tab === 'requests' && !RQ) return;
+        var go = function () {
+          if (st.view !== 'list' || st.tab !== tab) {
+            if (CO) CO.leave(); if (RQ) RQ.leave();
+            st.view = 'list'; st.tab = tab; st.cur = null; st.pending = null; st.note = '';
+            if (st.preview !== null) { st.preview = null; pushPreview(); }
+            if (tab === 'requests') RQ.loadList(); else if (tab === 'collections' && CO) CO.loadList(); else loadList();
+          } else render();
+        };
+        if (!st.open) open(trigger);
+        guard(st.view === 'collection' ? T('Leave this collection? Its unsaved changes are lost.') : T('Leave this roster? Its unsaved changes are lost.'), go);
+      },
       isOpen: function () { return st.open; },
       onAction: onAction, onInput: onInput, onChange: onChange, onSaveKey: onSaveKey,
       stopPreview: function () { if (st.preview !== null) { st.preview = null; pushPreview(); render(); } },
       metrics: function () {
         return { open: st.open, view: st.view, list: st.list.state, rosters: st.list.rosters.length, rows: st.cur ? st.cur.rows.length : 0,
           dirty: !!(st.cur && st.cur.dirty), preview: st.preview, pending: st.pending ? st.pending.kind : null, conflict: !!st.conflict,
-          tab: st.tab, collections: CO ? CO.metrics() : null };
+          tab: st.tab, collections: CO ? CO.metrics() : null, requests: RQ ? RQ.metrics() : null };
       },
     };
   }

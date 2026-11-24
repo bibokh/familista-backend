@@ -40,6 +40,7 @@
       projects: { state: 'idle', list: [] },
       rosters: { state: 'idle', list: [] },
       sheet: { state: 'idle', data: null },
+      ask: null,        // M4: the request-for-quotation form, open: { note, neededBy }
       busy: false, seq: 0,
     };
 
@@ -315,12 +316,57 @@
         table.appendChild(tb);
         kids.push(h('div', { class: 'pd-team-scroll pd-col-sheet-wrap', role: 'region', 'aria-label': T('Order sheet'), tabindex: '0' }, [table]));
         if (d.garments.some(function (g) { return g.unsized; })) kids.push(h('p', { class: 'pd-note pd-note--warn', text: T('Some entries have no size for a garment: give them one in the roster before ordering.') }));
+        var unsized = d.garments.some(function (g) { return g.unsized || !g.form; });
         kids.push(h('div', { class: 'pd-team-tools' }, [
           btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'col-export', 'data-pd-team-key': 'col-export' }, [icon('export', 14), h('span', { text: T('Export the order sheet') })]),
+          shell.openRequest ? btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'col-ask', 'data-pd-team-key': 'col-ask', 'aria-expanded': st.ask ? 'true' : 'false',
+            'aria-disabled': unsized ? 'true' : null, 'data-pd-why': unsized ? T('Give every entry a size for every garment before asking for a quotation.') : null }, [icon('factory', 14), h('span', { text: T('Request a quotation') })]) : null,
         ]));
+        if (st.ask) kids.push(askForm());
         kids.push(h('p', { class: 'pd-note', text: T('Quantities only: no supplier has quoted for them, and nothing is ordered.') }));
       }
       return h('section', { class: 'pd-col-sheet-block', 'aria-label': T('Order sheet') }, kids);
+    }
+
+    /** M4: what the club adds to a request for quotation: a note for Familista and the date it needs the kit by. */
+    function askForm() {
+      var note = h('textarea', { class: 'pd-input pd-col-ask-note', rows: '3', maxlength: '1000', 'data-pd-col-ask': 'note', 'data-pd-team-key': 'col-ask-note', 'data-user-content': '', dir: 'auto', 'aria-label': T('A note for Familista (optional)') });
+      note.value = st.ask.note;
+      var min = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      var date = h('input', { class: 'pd-input', type: 'date', min: min, 'data-pd-col-ask': 'neededBy', 'data-pd-team-key': 'col-ask-date', 'aria-label': T('Needed by (optional)') });
+      date.value = st.ask.neededBy;
+      return h('div', { class: 'pd-dock-alert pd-col-ask', role: 'group', 'aria-label': T('Request a quotation') }, [
+        h('p', { class: 'pd-note', text: T('Familista asks verified suppliers for quotations for exactly this collection and roster, as they are now, and publishes them in Requests. Nothing is ordered or charged until you accept one and Familista confirms it.') }),
+        h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('A note for Familista (optional)') }), note]),
+        h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('Needed by (optional)') }), date]),
+        h('div', { class: 'pd-dock-btns' }, [
+          btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'col-ask-cancel', 'data-pd-team-key': 'col-ask-cancel' }, [h('span', { text: T('Cancel') })]),
+          btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'col-ask-send', 'data-pd-team-key': 'col-ask-send', 'aria-disabled': st.busy ? 'true' : null, 'data-pd-why': st.busy ? T('Sending…') : null }, [h('span', { text: T('Send the request') })]),
+        ]),
+      ]);
+    }
+    var INCOMPLETE = {
+      'no-roster': L('Choose the roster the kit is made for, and save the collection.'),
+      unsized: L('Give every entry a size for every garment before asking for a quotation.'),
+      'no-designs': L('Add the collection’s designs first.'),
+      'not-released': L('A design is not of a released garment.'),
+      'roster-archived': L('The roster is archived: return it to the list first.'),
+      'empty-roster': L('The roster has no entries.'),
+      'collection-archived': L('This collection is archived.'),
+      'too-many-open': L('The club has too many open requests: close one first.'),
+    };
+    function sendAsk() {
+      var c = st.cur;
+      if (!c || !c.id || st.busy || !st.ask) return;
+      st.busy = true; shell.note(T('Sending…'));
+      api.submitRequest(c.id, { rosterId: c.rosterId || null, note: st.ask.note.trim() || null, neededBy: st.ask.neededBy || null }).then(function (r) {
+        st.busy = false;
+        if (r.ok && r.data && r.data.request) { st.ask = null; shell.note(T('Request sent to Familista.')); shell.openRequest(r.data.request.id); return; }
+        if (r.code === 'REQUEST_INCOMPLETE' || r.code === 'REQUEST_LIMIT') shell.note(T(INCOMPLETE[r.reason] || L('The request cannot be sent as it is.')));
+        else if (r.code === 'QUOTE_INVALID') shell.note(T('Choose a date from tomorrow on, or none.'));
+        else shell.note(r.status === 0 ? T('Not sent: the server could not be reached.') : T('The request could not be sent.'));
+        shell.render();
+      });
     }
 
     // ── events ────────────────────────────────────────────────────────────
@@ -351,6 +397,9 @@
         case 'col-add-here': addItem(shell.currentProject()); return true;
         case 'col-open-design': shell.openDesign(t.getAttribute('data-pd-id')); return true;
         case 'col-export': exportSheet(); return true;
+        case 'col-ask': st.ask = st.ask ? null : { note: '', neededBy: '' }; shell.render(); return true;
+        case 'col-ask-cancel': st.ask = null; shell.render(); return true;
+        case 'col-ask-send': sendAsk(); return true;
         case 'col-save': save(); return true;
         default: return false;
       }
@@ -366,6 +415,8 @@
         return true;
       }
       if (r !== null && c.items[Number(r)]) { c.items[Number(r)].role = t.value; touch(); shell.render(); return true; }
+      var ask = t.getAttribute('data-pd-col-ask');
+      if (ask && st.ask) { st.ask[ask] = t.value; return true; }
       return t.hasAttribute('data-pd-col-pick');
     }
 
@@ -373,7 +424,7 @@
       listBody: listBody, editorBody: editorBody, onAction: onAction, onInput: onInput, loadList: loadList,
       save: function () { save(); },
       dirty: function () { return !!(st.cur && st.cur.dirty && st.cur.state === 'ready'); },
-      leave: function () { st.cur = null; st.conflict = null; st.sheet = { state: 'idle', data: null }; },
+      leave: function () { st.cur = null; st.conflict = null; st.ask = null; st.sheet = { state: 'idle', data: null }; },
       metrics: function () {
         return { list: st.list.state, collections: st.list.items.length, items: st.cur ? st.cur.items.length : 0, dirty: !!(st.cur && st.cur.dirty),
           conflict: !!st.conflict, sheet: st.sheet.state, garments: st.sheet.data ? st.sheet.data.garments.length : 0 };

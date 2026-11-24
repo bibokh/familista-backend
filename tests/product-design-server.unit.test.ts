@@ -56,8 +56,9 @@ describe('what it may call', () => {
     // PUT is a club's brand colours (M2c), a roster's save (M3a) and a collection's (M3b); DELETE erases a roster or a
     // collection, and nothing else.
     expect([...new Set(verbs)].sort()).toEqual(['DELETE', 'GET', 'POST', 'PUT']);
-    expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/brand-kit/colours', '/rosters/', '/collections/']);
-    expect([...CODE.matchAll(/call\('DELETE', '([^']+)'/g)].map((m) => m[1])).toEqual(['/rosters/', '/collections/']);
+    // M4: the Platform Owner's console saves a supplier (PUT) and discards a draft quotation (DELETE).
+    expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/brand-kit/colours', '/rosters/', '/collections/', '/suppliers/']);
+    expect([...CODE.matchAll(/call\('DELETE', '([^']+)'/g)].map((m) => m[1])).toEqual(['/rosters/', '/collections/', '/requests/']);
   });
 
   it('sends JSON with the session as every owner room does, never cached', async () => {
@@ -129,6 +130,26 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
     expect([...new Set(used)].sort()).toEqual(served);
     expect(calls.some((c) => c.url.includes('club-1') || String(c.init.body || '').includes('club-1'))).toBe(false);
     expect(calls[0].init.headers).toMatchObject({ Authorization: 'Bearer tkn' });
+  });
+
+  it('the Platform Owner’s manufacturing console (M4) calls its own mount only, every path a route it serves with its verb', async () => {
+    const MFG_ROUTES = fs.readFileSync(path.join(ROOT, 'src/routes/manufacturing.routes.ts'), 'utf8');
+    const served = [...MFG_ROUTES.matchAll(/router\.(get|post|put|delete)\('([^']+)'/g)].map((m) => `${m[1].toUpperCase()} ${m[2]}`).sort();
+    const { P, calls } = load({ token: 'tkn' });
+    const M = P.manufacturing();
+    expect(P.manufacturing()).toBe(M); // made once
+    await M.listSuppliers(); await M.createSupplier({ name: 'X' }); await M.openSupplier(id); await M.saveSupplier(id, { version: 1 }); await M.setSupplierStatus(id, 'VERIFIED', 'checked it');
+    await M.listRequests(); await M.listRequests('QUOTED'); await M.openRequest(id);
+    for (const step of ['review', 'refuse', 'order', 'produce', 'ship', 'deliver']) await M.step(id, step, 'note');
+    expect(await M.step(id, 'pay', 'note')).toMatchObject({ ok: false, code: 'BAD_STEP' }); // a step the server has no route for is never sent
+    await M.recordQuote(id, {}); await M.publishQuote(id, id); await M.withdrawQuote(id, id, 'why'); await M.discardDraft(id, id); await M.specDesign(id, id);
+    expect(calls.every((c) => c.url.startsWith('/api/v1/system/manufacturing/'))).toBe(true);
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/manufacturing', '').replace(/\?.*$/, '')
+      .replace(`/quotes/${id}`, '/quotes/:quoteId').replace(`/designs/${id}`, '/designs/:projectId').replace(`/requests/${id}`, '/requests/:requestId').replace(`/suppliers/${id}`, '/suppliers/:supplierId')}`);
+    expect([...new Set(used)].sort()).toEqual(served);
+    // and the club's and the platform's design clients have none of it
+    expect(P.api.listSuppliers).toBeUndefined();
+    expect(P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }).api.recordQuote).toBeUndefined();
   });
 
   it('keeps each workspace’s record apart: the platform’s, this club’s and another club’s never overwrite each other', () => {
