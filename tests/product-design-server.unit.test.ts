@@ -57,7 +57,7 @@ describe('what it may call', () => {
     // collection, and nothing else.
     expect([...new Set(verbs)].sort()).toEqual(['DELETE', 'GET', 'POST', 'PUT']);
     // M4: the Platform Owner's console saves a supplier (PUT) and discards a draft quotation (DELETE).
-    expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/brand-kit/colours', '/rosters/', '/collections/', '/suppliers/']);
+    expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/rollout/', '/brand-kit/colours', '/rosters/', '/collections/', '/suppliers/']);
     expect([...CODE.matchAll(/call\('DELETE', '([^']+)'/g)].map((m) => m[1])).toEqual(['/rosters/', '/collections/', '/requests/']);
   });
 
@@ -76,13 +76,17 @@ describe('what it may call', () => {
   });
 
   it('every path it calls is a route the server has, with the verb the server has', async () => {
-    const served = [...ROUTES.matchAll(/router\.(get|post)\('([^']+)'/g)].map((m) => `${m[1].toUpperCase()} ${m[2]}`).sort();
+    const served = [...ROUTES.matchAll(/router\.(get|post|put)\('([^']+)'/g)].map((m) => `${m[1].toUpperCase()} ${m[2]}`).sort();
     const { P, calls } = load();
     const id = '11111111-1111-4111-8111-111111111111';
     await P.api.listProjects('active'); await P.api.createProject({}, 'EDITOR'); await P.api.openProject(id);
     await P.api.saveRevision(id, 1, {}); await P.api.listRevisions(id); await P.api.restoreRevision(id, 2, 5);
+    // M8a: the Owner's rollout control, on the platform's client alone; a club id that is not one is never sent.
+    await P.api.rollout(); await P.api.setRollout('club-1', { studio: 'on' });
+    expect((await P.api.setRollout('../x', { studio: 'on' })).code).toBe('BAD_CLUB');
+    expect(P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }).api.rollout).toBeUndefined();
     await P.api.archive(id); await P.api.unarchive(id); await P.api.getRevision(id, 3);
-    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/product-design', '').replace(/\?.*$/, '').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/product-design', '').replace(/\?.*$/, '').replace('/rollout/club-1', '/rollout/:clubId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
     // DS-1c: the room now calls every route, the single-version read included (the 3D comparison, read only).
     expect([...new Set(used)].sort()).toEqual(served);
     expect(calls[calls.length - 1].init).toMatchObject({ method: 'GET' });
@@ -146,7 +150,7 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
     await M.listRequests(); await M.listRequests('QUOTED'); await M.openRequest(id);
     for (const step of ['review', 'refuse', 'order', 'produce', 'ship', 'deliver']) await M.step(id, step, 'note');
     expect(await M.step(id, 'pay', 'note')).toMatchObject({ ok: false, code: 'BAD_STEP' }); // a step the server has no route for is never sent
-    await M.recordQuote(id, {}); await M.publishQuote(id, id); await M.withdrawQuote(id, id, 'why'); await M.discardDraft(id, id); await M.specDesign(id, id);
+    await M.recordQuote(id, {}); await M.publishQuote(id, id); await M.withdrawQuote(id, id, 'why'); await M.discardDraft(id, id); await M.specDesign(id, id); await M.requestFit(id);
     expect(calls.every((c) => c.url.startsWith('/api/v1/system/manufacturing/'))).toBe(true);
     const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/manufacturing', '').replace(/\?.*$/, '')
       .replace(`/quotes/${id}`, '/quotes/:quoteId').replace(`/designs/${id}`, '/designs/:projectId').replace(`/requests/${id}`, '/requests/:requestId').replace(`/suppliers/${id}`, '/suppliers/:supplierId')}`);

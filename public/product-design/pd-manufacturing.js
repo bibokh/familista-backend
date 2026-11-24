@@ -38,6 +38,12 @@
   var QSTATUS = { DRAFT: L('Draft'), PUBLISHED: L('Published'), ACCEPTED: L('Accepted'), SUPERSEDED: L('Set aside'), WITHDRAWN: L('Withdrawn') };
   var SSTATUS = { PROSPECT: L('Prospect'), VERIFIED: L('Verified'), SUSPENDED: L('Suspended') };
   var FORM = { top: L('Top'), shorts: L('Shorts'), socks: L('Socks') };
+  // M8a: what the Owner releases to a club: the studio, and each of its parts.
+  var REL_KEYS = [['studio', L('Club Design Studio')], ['teamKit', L('Team kit: rosters, collections and the order sheet')], ['brandKit', L('Brand kit: colours and logos')],
+    ['manufacturing', L('Requests for quotation and orders')], ['reviews', L('Design reviews and approvals')]];
+  var REL_TO = [['on', L('On for this club')], ['default', L('As the plan says')], ['off', L('Off for this club')]];
+  // M7d: how a verified supplier fits a request, from what was recorded about it.
+  var FIT = { fits: L('Fits'), incomplete: L('Not everything recorded'), 'does-not-fit': L('Does not fit') };
   var METHOD = { SUBLIMATION: L('Sublimation'), SCREEN_PRINT: L('Screen print'), EMBROIDERY: L('Embroidery'), HEAT_TRANSFER: L('Heat transfer') };
   // The Owner's steps, by the status they start from: [step, label, note required].
   var STEPS = {
@@ -91,6 +97,8 @@
       open: false, trigger: null, tab: 'requests', view: 'list', note: '', busy: false, seq: 0, filter: 'open',
       requests: { state: 'idle', items: [] }, suppliers: { state: 'idle', items: [] },
       cur: null,       // the request open: { id, state, data }
+      fit: null,       // M7d: how each verified supplier fits it: { id, state, data }
+      rel: { state: 'idle', data: null, cur: null, busy: false }, // M8a: the clubs and what is released to each
       sup: null,       // the supplier open: { id|null, fields, version, status }
       ask: null,       // a note asked for a step: { label, hint, min, run }
       quote: null,     // the quotation form: { supplierId, currency, amount, leadTimeDays, validUntil, supplierReference, evidence }
@@ -130,6 +138,47 @@
         st.cur = r.ok && r.data ? { id: id, state: 'ready', data: r.data.request } : { id: id, state: 'error' };
         render();
       });
+      loadFit(id);
+    }
+    function loadFit(id) {
+      if (!api.requestFit) return;
+      st.fit = { id: id, state: 'loading', data: null };
+      api.requestFit(id).then(function (r) {
+        if (!st.fit || st.fit.id !== id) return;
+        st.fit = r.ok && r.data ? { id: id, state: 'ready', data: r.data } : { id: id, state: 'error', data: null };
+        if (st.view === 'request') render();
+      });
+    }
+    /** M7d: the verified suppliers against the request, best first; each criterion as recorded, or "not recorded". */
+    function fitBlock(lang) {
+      var f = st.fit, out = [h('h3', { class: 'pd-prop-sub', id: 'pd-mfg-fit-h', text: T('Supplier fit') })];
+      if (!f || f.state === 'loading') { out.push(h('p', { class: 'pd-dock-row is-skeleton', 'aria-busy': 'true' }, [h('span', { class: 'pd-dock-bar' })])); return out; }
+      if (f.state === 'error') { out.push(h('p', { class: 'pd-note pd-note--warn', text: T('The supplier fit could not be worked out.') })); return out; }
+      var d = f.data;
+      if (!d.suppliers.length) { out.push(h('p', { class: 'pd-empty', text: T('No verified supplier yet. Record one in Factories & suppliers and verify it.') })); return out; }
+      var NR = T('Not recorded');
+      var tb = h('tbody');
+      d.suppliers.forEach(function (x) {
+        var fo = x.fit.forms, mi = x.fit.minimum, lt = x.fit.leadTime;
+        var forms = fo.met === null ? NR : fo.met ? T('Makes them all') : tf('Does not make: %s', fo.missing.map(function (m) { return T(FORM[m]); }).join(', '));
+        var minimum = mi.met === null ? NR : mi.met ? tf('From %d sets: met', mi.minOrderSets) : tf('From %d sets: not met', mi.minOrderSets);
+        var lead = lt.met === null ? (lt.leadTimeDays === null ? NR : tf('%d days; no date needed by', lt.leadTimeDays))
+          : lt.met ? tf('Ready by %s: in time', day(lt.readyBy, lang)) : tf('Ready by %s: too late', day(lt.readyBy, lang));
+        tb.appendChild(h('tr', { 'data-pd-fit': x.fit.overall, 'data-pd-supplier': x.id }, [
+          h('th', { scope: 'row' }, [h('span', { 'data-user-content': '', text: x.name }), h('span', { class: 'pd-dock-kicker', text: ' · ' + region(x.country, lang) })]),
+          h('td', { 'data-met': String(fo.met), text: forms }), h('td', { 'data-met': String(mi.met), text: minimum }), h('td', { 'data-met': String(lt.met), text: lead }),
+          h('td', null, [h('span', { class: 'pd-chip pd-fit-chip', 'data-fit': x.fit.overall, text: T(FIT[x.fit.overall]) })]),
+          h('td', { class: 'pd-team-acts' }, [st.cur && st.cur.data && (st.cur.data.status === 'IN_REVIEW' || st.cur.data.status === 'QUOTED')
+            ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-quote-from', 'data-pd-id': x.id, 'aria-label': tf('Record a quotation from %s', x.name) }, [h('span', { text: T('Record a quotation') })]) : null]),
+        ]));
+      });
+      var table = h('table', { class: 'pd-team-table pd-col-sheet pd-fit-table', 'aria-labelledby': 'pd-mfg-fit-h' }, [h('thead', null, [h('tr', null, [
+        h('th', { scope: 'col', text: T('Supplier') }), h('th', { scope: 'col', text: T('Garments') }), h('th', { scope: 'col', text: T('Minimum order') }), h('th', { scope: 'col', text: T('Lead time') }),
+        h('th', { scope: 'col', text: T('Fit') }), h('th', { scope: 'col' }, [h('span', { class: 'pd-sr', text: T('Actions') })]),
+      ])]), tb]);
+      out.push(h('div', { class: 'pd-team-scroll pd-col-sheet-wrap', role: 'region', 'aria-labelledby': 'pd-mfg-fit-h', tabindex: '0' }, [table]));
+      out.push(h('p', { class: 'pd-note', text: tf('From what was recorded about each verified supplier, against %d sets of this request, today. Decoration methods are not compared: a request does not name one.', d.sets) }));
+      return out;
     }
     function landed(r, okText, fallback) {
       st.busy = false;
@@ -150,6 +199,7 @@
       el.setAttribute('data-open', 'true');
       if (st.tab === 'requests' && st.requests.state !== 'ready') loadRequests();
       if (st.tab === 'suppliers' && st.suppliers.state !== 'ready') loadSuppliers();
+      if (st.tab === 'releases' && st.rel.state !== 'ready') loadReleases();
       render();
       ctx.onToggle(true);
       var first = el.querySelector('[role="tab"][aria-selected="true"]') || el.querySelector('button');
@@ -193,14 +243,15 @@
       var detail = st.view !== 'list';
       var head = h('div', { class: 'pd-dock-head pd-team-head' }, [
         detail ? btn({ class: 'pd-btn pd-btn--ghost pd-team-back', 'data-pd-act': 'mfg-back', 'data-pd-mfg-key': 'back' },
-          [ctx.dirArrow('←'), h('span', { text: st.tab === 'suppliers' ? T('Suppliers') : T('Requests') })]) : null,
-        h('h2', { class: 'pd-h2', id: 'pd-mfg-title' }, [icon('factory', 16), h('span', { text: st.view === 'request' ? T('Request for quotation') : st.view === 'supplier' ? T('Supplier') : T('Manufacturing') })]),
+          [ctx.dirArrow('←'), h('span', { text: st.tab === 'suppliers' ? T('Suppliers') : st.tab === 'releases' ? T('Club releases') : T('Requests') })]) : null,
+        h('h2', { class: 'pd-h2', id: 'pd-mfg-title' }, [icon('factory', 16), h('span', { text: st.view === 'request' ? T('Request for quotation') : st.view === 'supplier' ? T('Supplier') : st.view === 'club' ? T('Club release') : T('Manufacturing') })]),
         btn({ class: 'pd-icbtn', 'data-pd-act': 'mfg-close', 'data-pd-mfg-key': 'close', 'aria-label': T('Close') }, [icon('close')]),
       ]);
       var kids = [askBlock()];
       if (st.view === 'request') kids = kids.concat(requestBody());
       else if (st.view === 'supplier') kids = kids.concat(supplierBody());
-      else kids = kids.concat([tabs()], st.tab === 'suppliers' ? suppliersList() : requestsList());
+      else if (st.view === 'club') kids = kids.concat(clubBody());
+      else kids = kids.concat([tabs()], st.tab === 'suppliers' ? suppliersList() : st.tab === 'releases' ? releasesList() : requestsList());
       var body = h('div', { class: 'pd-dock-body pd-team-body', tabindex: '0' }, kids);
       el.appendChild(head); el.appendChild(body);
       el.appendChild(h('p', { class: 'pd-note pd-team-status', role: 'status', 'aria-live': 'polite', 'data-pd-mfg-status': '', text: st.note }));
@@ -208,9 +259,75 @@
       if (active) { var back = el.querySelector('[data-pd-mfg-key="' + active + '"]'); if (back) back.focus({ preventScroll: true }); }
     }
     function tabs() {
-      return h('div', { class: 'pd-tabs pd-team-tabs', role: 'tablist', 'aria-label': T('Manufacturing') }, [['requests', L('Requests')], ['suppliers', L('Suppliers')]].map(function (t) {
+      return h('div', { class: 'pd-tabs pd-team-tabs', role: 'tablist', 'aria-label': T('Manufacturing') }, [['requests', L('Requests')], ['suppliers', L('Suppliers')]].concat(ctx.rollout ? [['releases', L('Club releases')]] : []).map(function (t) {
         return btn({ class: 'pd-tab', role: 'tab', 'data-pd-act': 'mfg-tab-' + t[0], 'data-pd-mfg-key': 'tab-' + t[0], 'aria-selected': st.tab === t[0] ? 'true' : 'false', tabindex: st.tab === t[0] ? '0' : '-1', text: T(t[1]) });
       }));
+    }
+    // ── M8a: club releases ────────────────────────────────────────────────
+    function loadReleases() {
+      if (!ctx.rollout) return;
+      st.rel.state = 'loading'; render();
+      ctx.rollout.rollout().then(function (r) {
+        st.rel.state = r.ok && r.data ? 'ready' : 'error'; st.rel.data = r.ok ? r.data : null;
+        render();
+      });
+    }
+    function relClub(id) { return st.rel.data ? st.rel.data.clubs.filter(function (c) { return c.id === id; })[0] : null; }
+    function included(on) { return h('span', { class: 'pd-chip pd-rel-chip', 'data-included': on ? 'true' : 'false', text: on ? T('Included') : T('Not included') }); }
+    function releasesList() {
+      var Rl = st.rel, out = [h('p', { class: 'pd-note', text: T('The Club Design Studio is off for every club until you release it here. Its parts follow it: each is on where the studio is, unless the club’s plan or your choice here says otherwise.') })];
+      if (Rl.state === 'loading' || Rl.state === 'idle') { out.push(h('ul', { class: 'pd-dock-list', 'aria-busy': 'true' }, [0, 1, 2].map(function () { return h('li', { class: 'pd-dock-row is-skeleton' }, [h('span', { class: 'pd-dock-bar' })]); }))); return out; }
+      if (Rl.state === 'error') { out.push(h('div', { class: 'pd-dock-state', role: 'alert' }, [h('p', { class: 'pd-empty', text: T('The clubs could not be loaded.') }), btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-rel-retry', 'data-pd-mfg-key': 'rel-retry' }, [h('span', { text: T('Try again') })])])); return out; }
+      if (!Rl.data.clubs.length) { out.push(h('p', { class: 'pd-empty', text: T('No club on the platform yet.') })); return out; }
+      var ul = h('ul', { class: 'pd-dock-list', role: 'list' });
+      Rl.data.clubs.forEach(function (c) {
+        ul.appendChild(h('li', { class: 'pd-dock-row', 'data-pd-rel-club': c.id }, [
+          h('div', { class: 'pd-dock-text' }, [
+            h('span', { class: 'pd-dock-name', 'data-user-content': '', text: c.name }),
+            h('span', { class: 'pd-dock-kicker' }, [T('Plan'), ' ', h('bdi', { 'data-user-content': '', text: c.plan }), ' · ', c.effective.studio ? T('Studio released') : T('Studio not released')]),
+          ]),
+          h('div', { class: 'pd-dock-btns' }, [btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'mfg-rel-open', 'data-pd-id': c.id, 'data-pd-mfg-key': 'rel-' + c.id, 'aria-label': tf('Manage %s', c.name) }, [h('span', { text: T('Manage') })])]),
+        ]));
+      });
+      out.push(ul);
+      if (Rl.data.truncated) out.push(h('p', { class: 'pd-note', text: tf('The first %d clubs, by name.', Rl.data.limit) }));
+      return out;
+    }
+    function clubBody() {
+      var c = relClub(st.rel.cur);
+      if (!c) return [h('p', { class: 'pd-empty', text: T('This club is no longer on the platform.') })];
+      var out = [h('div', { class: 'pd-dock-current' }, [h('div', { class: 'pd-dock-text' }, [
+        h('span', { class: 'pd-dock-kicker', text: T('Club') }), h('strong', { class: 'pd-dock-name', 'data-user-content': '', text: c.name }),
+        h('span', { class: 'pd-dock-kicker' }, [T('Plan'), ' ', h('bdi', { 'data-user-content': '', text: c.plan })]),
+      ])])];
+      REL_KEYS.forEach(function (k, i) {
+        var gid = 'pd-rel-' + k[0];
+        var group = h('div', { class: 'pd-rel-opts', role: 'radiogroup', 'aria-labelledby': gid });
+        REL_TO.forEach(function (o) {
+          var r = h('input', { type: 'radio', name: gid, value: o[0], 'data-pd-rel-key': k[0], 'data-pd-mfg-key': 'rel-' + k[0] + '-' + o[0], 'aria-disabled': st.rel.busy ? 'true' : null });
+          r.checked = c.settings[k[0]] === o[0];
+          group.appendChild(h('label', { class: 'pd-rel-opt' }, [r, h('span', { text: T(o[1]) })]));
+        });
+        out.push(h('section', { class: 'pd-rel-row' + (i ? ' is-part' : ''), 'data-pd-rel': k[0] }, [
+          h('div', { class: 'pd-rel-head' }, [h('h3', { class: 'pd-dock-h', id: gid, text: T(k[1]) }), included(c.effective[k[0]])]),
+          group,
+        ]));
+        if (!i && !c.effective.studio) out.push(h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: T('The studio is not released to this club, so none of its parts is included, whatever they are set to.') })]));
+      });
+      out.push(h('p', { class: 'pd-note', text: T('Each change applies at once and is recorded in the platform audit log with the club.') }));
+      return out;
+    }
+    function setRelease(key, to) {
+      var c = relClub(st.rel.cur);
+      if (!c || st.rel.busy || c.settings[key] === to) return;
+      var change = {}; change[key] = to;
+      st.rel.busy = true; say(T('Sending…'));
+      ctx.rollout.setRollout(c.id, change).then(function (r) {
+        st.rel.busy = false;
+        if (r.ok && r.data && r.data.club) { c.settings = r.data.club.settings; c.effective = r.data.club.effective; say(T('Saved. The club sees the change the next time it opens the studio.')); }
+        else say(r.status === 404 ? T('This club is no longer on the platform.') : T('The change was not saved.'));
+        render();
+      });
     }
     function askBlock() {
       if (!st.ask) return null;
@@ -285,6 +402,8 @@
         btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-sheet', 'data-pd-mfg-key': 'sheet' }, [icon('export', 14), h('span', { text: tf('Export the production sheet (%d entries)', spec.entries.length) })]),
       ]));
       out.push(h('p', { class: 'pd-note', text: T('The production sheet holds people’s names: share it only with the supplier making this order.') }));
+      // M7d: while it is being sourced, how each verified supplier fits it.
+      if (r.status === 'SUBMITTED' || r.status === 'IN_REVIEW' || r.status === 'QUOTED') out = out.concat(fitBlock(lang));
       // Quotations.
       out.push(h('h3', { class: 'pd-prop-sub', text: T('Quotations') }));
       if (!r.quotes.length) out.push(h('p', { class: 'pd-empty', text: T('No quotation recorded yet. Record one a verified supplier gave you.') }));
@@ -428,9 +547,12 @@
       var c = st.cur, r = c && c.data, id = t.getAttribute('data-pd-id');
       switch (act) {
         case 'mfg-close': close(); return true;
-        case 'mfg-back': st.view = 'list'; st.cur = null; st.sup = null; st.ask = null; st.quote = null; st.note = ''; if (st.tab === 'requests') loadRequests(); else loadSuppliers(); return true;
+        case 'mfg-back': st.view = 'list'; st.cur = null; st.sup = null; st.ask = null; st.quote = null; st.note = ''; if (st.tab === 'requests') loadRequests(); else if (st.tab === 'releases') loadReleases(); else loadSuppliers(); return true;
         case 'mfg-tab-requests': if (st.tab !== 'requests') { st.tab = 'requests'; loadRequests(); ctx.onToggle(true); } return true;
         case 'mfg-tab-suppliers': if (st.tab !== 'suppliers') { st.tab = 'suppliers'; loadSuppliers(); ctx.onToggle(true); } return true;
+        case 'mfg-tab-releases': if (st.tab !== 'releases' && ctx.rollout) { st.tab = 'releases'; loadReleases(); ctx.onToggle(true); } return true;
+        case 'mfg-rel-retry': loadReleases(); return true;
+        case 'mfg-rel-open': st.rel.cur = t.getAttribute('data-pd-id'); st.view = 'club'; st.note = ''; render(); { var f = el.querySelector('[data-pd-rel-key="studio"]:checked'); if (f) f.focus({ preventScroll: true }); } return true;
         case 'mfg-filter-open': st.filter = 'open'; render(); return true;
         case 'mfg-filter-all': st.filter = 'all'; render(); return true;
         case 'mfg-open-request': openRequest(id); return true;
@@ -445,8 +567,8 @@
           });
           return true;
         }
-        case 'mfg-quote-new':
-          st.quote = { supplierId: '', currency: 'EUR', amount: '', leadTimeDays: '', validUntil: '', supplierReference: '', evidence: '' };
+        case 'mfg-quote-new': case 'mfg-quote-from':
+          st.quote = { supplierId: act === 'mfg-quote-from' ? t.getAttribute('data-pd-id') || '' : '', currency: 'EUR', amount: '', leadTimeDays: '', validUntil: '', supplierReference: '', evidence: '' };
           if (st.suppliers.state !== 'ready') loadSuppliers(); else render();
           return true;
         case 'mfg-quote-cancel': st.quote = null; render(); return true;
@@ -514,6 +636,8 @@
         return true;
       }
       if (t.hasAttribute('data-pd-mfg-note') && st.ask) { st.ask.value = t.value; return true; }
+      k = t.getAttribute('data-pd-rel-key');
+      if (k && t.checked && ev.type === 'change') { setRelease(k, t.value); return true; }
       return true;
     }
 
@@ -523,7 +647,8 @@
       onAction: onAction, onInput: onInput, onChange: onInput,
       metrics: function () {
         return { open: st.open, tab: st.tab, view: st.view, requests: st.requests.items.length, suppliers: st.suppliers.items.length,
-          status: st.cur && st.cur.data ? st.cur.data.status : null, quotes: st.cur && st.cur.data ? st.cur.data.quotes.length : 0 };
+          status: st.cur && st.cur.data ? st.cur.data.status : null, quotes: st.cur && st.cur.data ? st.cur.data.quotes.length : 0,
+          fit: st.fit ? st.fit.state : null, releases: st.rel.state, releaseBusy: st.rel.busy };
       },
     };
   }

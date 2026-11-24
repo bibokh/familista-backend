@@ -95,6 +95,15 @@
       archive: function (projectId) { return call('POST', '/projects/' + id(projectId) + '/archive', {}); },
       unarchive: function (projectId) { return call('POST', '/projects/' + id(projectId) + '/unarchive', {}); },
     };
+    // M8a: the Platform Owner's rollout control: which clubs the Club Design Studio and its parts are released to. Only
+    // the platform's client has it; the server refuses it to anyone but the Owner.
+    if (base === BASE) {
+      api.rollout = function () { return call('GET', '/rollout'); };
+      api.setRollout = function (clubId, changes) {
+        if (!CLUB_ID.test(String(clubId))) return Promise.resolve({ ok: false, status: 0, code: 'BAD_CLUB', data: null, message: '', errors: [] });
+        return call('PUT', '/rollout/' + encodeURIComponent(clubId), changes);
+      };
+    }
     // A club's brand kit (M2c): only a club's client has one; the platform's routes serve none.
     if (base === CLUB_BASE) {
       api.brandKit = function (state) { return call('GET', '/brand-kit?state=' + (state === 'archived' ? 'archived' : 'active')); };
@@ -165,6 +174,8 @@
         withdrawQuote: function (requestId, quoteId, note) { return call('POST', '/requests/' + id(requestId) + '/quotes/' + id(quoteId) + '/withdraw', { note: note }); },
         discardDraft: function (requestId, quoteId) { return call('DELETE', '/requests/' + id(requestId) + '/quotes/' + id(quoteId)); },
         specDesign: function (requestId, projectId) { return call('GET', '/requests/' + id(requestId) + '/designs/' + id(projectId)); },
+        // M7d: how each verified supplier fits the request, from what was recorded about it.
+        requestFit: function (requestId) { return call('GET', '/requests/' + id(requestId) + '/fit'); },
       };
     }
 

@@ -20,6 +20,8 @@
  *   GET  /projects/:id/revisions/:number           one revision, with its document
  *   POST /projects/:id/revisions/:number/restore   copy it into a new revision: { baseRevision }, or 409
  *   POST /projects/:id/archive | /unarchive        archive a project, or return it to the list
+ *   GET  /rollout                                  M8a: which clubs the Club Design Studio and its parts are released to
+ *   PUT  /rollout/:clubId                          set a club's release: { studio?, teamKit?, brandKit?, manufacturing?, reviews? }
  *
  * Documents are validated by the editor's own core (src/platform/product-design/core.ts);
  * a refused document answers 400 DESIGN_DOCUMENT_INVALID with the core's codes and paths.
@@ -32,6 +34,7 @@ import {
   archiveDesign, createDesign, listDesignRevisions, listDesigns, openDesign, openDesignRevision, restoreDesignRevision,
   saveDesign, setDesignScope, unarchiveDesign,
 } from '../platform/product-design/http';
+import { changeRollout, readRollout } from '../platform/product-design/rollout-http';
 
 const router = Router();
 router.use(authenticate);
@@ -47,6 +50,9 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
 });
 
 router.get('/projects', listDesigns);
+// M8a: the Owner releases the Club Design Studio, and each of its parts, to the clubs invited to it.
+router.get('/rollout', readRollout);
+router.put('/rollout/:clubId', changeRollout);
 router.post('/projects', createDesign);
 router.get('/projects/:id', openDesign);
 router.post('/projects/:id/revisions', saveDesign);

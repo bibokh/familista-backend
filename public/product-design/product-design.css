@@ -766,6 +766,24 @@ body.pd-studio-open { overflow: hidden; }
   .pd-tabbar-btn[aria-expanded="true"] { color: var(--fam-text-primary); }
 }
 
+/* M8a — club releases: one row per key, its three choices as native radios, what it amounts to beside its name. */
+.pd-rel-row { display: flex; flex-direction: column; gap: var(--fam-space-2); padding: var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-sunken); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
+.pd-rel-row.is-part { margin-inline-start: var(--fam-space-4); }
+.pd-rel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-2); }
+.pd-rel-opts { display: flex; flex-wrap: wrap; gap: var(--fam-space-2); }
+.pd-rel-opt { display: inline-flex; align-items: center; gap: 6px; padding: 4px var(--fam-space-2); border-radius: var(--fam-radius-md); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); cursor: pointer; font-size: var(--fam-font-size-sm); }
+.pd-rel-opt:has(input:checked) { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-module-accent) 60%, transparent); background: color-mix(in srgb, var(--fam-module-accent) 14%, transparent); }
+.pd-rel-opt input { accent-color: var(--fam-module-accent); margin: 0; }
+.pd-rel-chip[data-included="true"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-success) 60%, transparent); }
+.pd-rel-chip[data-included="false"] { color: var(--fam-text-secondary); }
+
+/* M7d — supplier fit: a met criterion is plain, an unmet one is a result (red), one not recorded is secondary. */
+.pd-fit-table td[data-met="false"] { color: var(--fam-status-critical); }
+.pd-fit-table td[data-met="null"] { color: var(--fam-text-secondary); }
+.pd-fit-chip[data-fit="fits"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-success) 60%, transparent); }
+.pd-fit-chip[data-fit="does-not-fit"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-critical) 60%, transparent); }
+.pd-fit-chip[data-fit="incomplete"] { color: var(--fam-text-secondary); }
+
 /* M7c — colourways: the design recoloured, three to a row in the inspector, each a button with its home view. */
 .pd-cways { display: flex; flex-direction: column; gap: var(--fam-space-2); }
 .pd-cways-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--fam-space-2); }

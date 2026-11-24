@@ -115,6 +115,7 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     return {
       get: (url: string) => withAuth(request(app).get(API + url)),
       post: (url: string, body: Row = {}) => withAuth(request(app).post(API + url)).send(body),
+      put: (url: string, body: Row = {}) => withAuth(request(app).put(API + url)).send(body),
       /** The same session on any other route. */
       raw: (url: string) => withAuth(request(app).get(url)),
       /** The same session on the club routes. */
@@ -948,6 +949,58 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
         await sysExec(`DELETE FROM "FeatureFlag" WHERE "key" = 'club_design_manufacturing'`);
         await sysExec(`UPDATE "Club" SET "plan" = 'BASIC' WHERE "id" = $1`, C2);
         expect(await parts('clubAdmin')).toEqual({ teamKit: true, brandKit: true, manufacturing: true, reviews: true });
+      });
+    });
+
+    describe('the Owner’s rollout control (M8a)', () => {
+      const limitsOf = async (club: string) => (await sys('SELECT "featuresEnabled" AS on, "featuresDisabled" AS off FROM "OrganizationLimits" WHERE "clubId" = $1', club))[0];
+
+      it('lists every club with its five settings and what they amount to, as the routes enforce them; the Owner’s alone', async () => {
+        const r = await as('owner').get('/rollout');
+        expect(r.status).toBe(200);
+        expect(r.body.data.keys.map((k: Row) => k.feature)).toEqual(['club_design_studio', 'club_design_team_kit', 'club_design_brand_kit', 'club_design_manufacturing', 'club_design_reviews']);
+        const mine = r.body.data.clubs.find((c: Row) => c.id === C1);
+        expect(mine.settings).toEqual({ studio: 'on', teamKit: 'default', brandKit: 'default', manufacturing: 'default', reviews: 'default' });
+        // the same answer the session gives the club's own administrator
+        const ctx = (await as('clubAdmin').raw('/api/v1/me/context')).body.data.effectiveAccess.clubDesignParts;
+        expect(mine.effective).toEqual({ studio: true, ...ctx });
+        for (const who of ['clubAdmin', 'manager', 'otherAdmin'] as Who[]) expect((await as(who).get('/rollout')).status).toBe(403);
+      });
+
+      it('releases and withdraws the studio and its parts for one club, touching nothing else, each change audited', async () => {
+        await sysExec(`UPDATE "OrganizationLimits" SET "featuresEnabled" = array_append("featuresEnabled", 'some_other_feature') WHERE "clubId" = $1`, C2);
+        const off = await as('owner').put(`/rollout/${C2}`, { studio: 'off', reviews: 'off' });
+        expect([off.status, off.body.data.club.settings.studio, off.body.data.club.effective]).toEqual([200, 'off', { studio: false, teamKit: false, brandKit: false, manufacturing: false, reviews: false }]);
+        expect((await as('otherAdmin').club.get('/projects')).body.code).toBe('DESIGN_STUDIO_NOT_ENABLED');
+        expect(await limitsOf(C2)).toEqual({ on: ['some_other_feature'], off: ['club_design_studio', 'club_design_reviews'] });
+        const on = await as('owner').put(`/rollout/${C2}`, { studio: 'on', reviews: 'default' });
+        expect(on.body.data.club.effective).toEqual({ studio: true, teamKit: true, brandKit: true, manufacturing: true, reviews: true });
+        expect((await as('otherAdmin').club.get('/projects')).status).toBe(200);
+        expect(await limitsOf(C2)).toEqual({ on: ['some_other_feature', 'club_design_studio'], off: [] });
+        // setting what is already set changes nothing and audits nothing
+        const n0 = Number((await sys(`SELECT count(*)::int AS n FROM "PlatformAuditLog" WHERE "action" = 'design.rollout.changed' AND "resourceId" = $1`, C2))[0].n);
+        await as('owner').put(`/rollout/${C2}`, { studio: 'on' });
+        const audit = await sys(`SELECT "metadata" FROM "PlatformAuditLog" WHERE "action" = 'design.rollout.changed' AND "resourceId" = $1 ORDER BY "createdAt"`, C2);
+        expect(audit.length).toBe(n0);
+        expect(audit.map((a) => a.metadata.changed)).toEqual([
+          [{ key: 'club_design_studio', from: 'on', to: 'off' }, { key: 'club_design_reviews', from: 'default', to: 'off' }],
+          [{ key: 'club_design_studio', from: 'off', to: 'on' }, { key: 'club_design_reviews', from: 'off', to: 'default' }],
+        ]);
+        await sysExec(`UPDATE "OrganizationLimits" SET "featuresEnabled" = array_remove("featuresEnabled", 'some_other_feature') WHERE "clubId" = $1`, C2);
+      });
+
+      it('two changes at once to different keys both land (one statement per key, never a read-modify-write)', async () => {
+        await Promise.all([as('owner').put(`/rollout/${C2}`, { teamKit: 'off' }), as('owner').put(`/rollout/${C2}`, { brandKit: 'off' }), as('owner').put(`/rollout/${C2}`, { manufacturing: 'on' })]);
+        expect(await limitsOf(C2)).toEqual({ on: ['club_design_studio', 'club_design_manufacturing'], off: expect.arrayContaining(['club_design_team_kit', 'club_design_brand_kit']) });
+        await as('owner').put(`/rollout/${C2}`, { teamKit: 'default', brandKit: 'default', manufacturing: 'default' });
+        expect(await limitsOf(C2)).toEqual({ on: ['club_design_studio'], off: [] });
+      });
+
+      it('refuses what it does not know: no setting, another key, another value, a club that does not exist', async () => {
+        for (const body of [{}, { studio: 'maybe' }, { billing: 'on' }, { studio: 'on', extra: 1 }]) expect((await as('owner').put(`/rollout/${C2}`, body)).status).toBe(400);
+        expect((await as('owner').put('/rollout/no-such-club', { studio: 'on' })).status).toBe(404);
+        expect((await as('otherAdmin').put(`/rollout/${C2}`, { studio: 'off' })).status).toBe(403);
+        expect((await limitsOf(C2)).on).toContain('club_design_studio');
       });
     });
 

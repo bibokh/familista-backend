@@ -812,6 +812,13 @@
         "POST /system/product-design/projects/:id/unarchive"
       ]
     },
+    "product-design.routes :clubId": {
+      "basis": "cross-club-by-design",
+      "reason": "The Platform Owner releases the Club Design Studio to invited clubs (M8a rollout control): the route is behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts) and names a club by design. It sets only the five Design Studio keys of that club's limits (src/platform/product-design/rollout.service.ts), each change audited with the club; no club route reaches it.",
+      "routes": [
+        "PUT /system/product-design/rollout/:clubId"
+      ]
+    },
     "product-design.routes :number": {
       "basis": "platform-only",
       "reason": "A revision number within one design (1, 2, 3\u2026), not a row id: it is read only together with that design's id under the same PLATFORM scope and the same assertPlatformOwner guard.",
@@ -842,6 +849,7 @@
       "reason": "The Platform Owner brokers every club's requests for quotation (owner-brokered manufacturing, the Owner's decision of 23 November 2026): the console behind authenticate and assertPlatformOwner runs on the named system path and reaches each club's request by design. A club reaches only its own, through /club-design behind tenantParam('manufacturingRequest'), and row-level security holds requests, quotations and events to their club.",
       "routes": [
         "GET /system/manufacturing/requests/:requestId",
+        "GET /system/manufacturing/requests/:requestId/fit",
         "POST /system/manufacturing/requests/:requestId/review",
         "POST /system/manufacturing/requests/:requestId/refuse",
         "POST /system/manufacturing/requests/:requestId/quotes",

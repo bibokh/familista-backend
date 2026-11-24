@@ -286,6 +286,20 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
     expect((await as('admin').get(`${OWNER}/requests/${req}/designs/${shirt}`)).status).toBe(403);
   });
 
+  it('M7d: the Owner sees how each verified supplier fits the request, from what was recorded only; nobody else does', async () => {
+    const f = await as('owner').get(`${OWNER}/requests/${req}/fit`);
+    expect(f.status).toBe(200);
+    expect([f.body.data.forms, f.body.data.sets, f.body.data.neededBy]).toEqual([['shorts', 'top'], 3, inDays(60)]);
+    // the prospect is not offered; the verified one makes both forms, has no minimum recorded and its lead time ends in time
+    expect(f.body.data.suppliers.map((x: Row) => x.id)).toEqual([verified]);
+    expect(f.body.data.suppliers[0].fit).toEqual({
+      forms: { met: true, missing: [] }, minimum: { met: null, minOrderSets: null, sets: 3 },
+      leadTime: { met: true, leadTimeDays: 30, readyBy: inDays(30), neededBy: inDays(60) }, overall: 'incomplete',
+    });
+    expect((await as('admin').get(`${OWNER}/requests/${req}/fit`)).status).toBe(403);
+    expect((await as('owner').get(`${OWNER}/requests/00000000-0000-4000-8000-000000000000/fit`)).status).toBe(404);
+  });
+
   it('refusal and cancellation; a suspended supplier’s quotation cannot be accepted; a withdrawn last quotation returns the request to review', async () => {
     const r2 = (await as('admin').post(`${CLUB}/collections/${kit}/requests`, {})).body.data.request.id;
     expect((await as('owner').post(`${OWNER}/requests/${r2}/refuse`)).body.reason).toBe('note-required');

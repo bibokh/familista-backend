@@ -24,6 +24,7 @@ import type { DesignActor } from '../product-design/service';
 import { approvalsFor } from '../product-design/review.service';
 import { isCurrency, isMinor } from './money';
 import { FINAL, step, type Action } from './state';
+import { byFit, supplierFit, type FitRequest } from './fit';
 import { ownerAudit } from './supplier.service';
 
 /** At most this many open requests in a club at once. */
@@ -237,6 +238,26 @@ export async function listAllRequests(status?: S) {
 }
 
 export async function getRequest(id: string) { return getRequestTx(prisma, id); }
+
+/**
+ * M7d: how each verified supplier fits a request, from what the Owner recorded about it and what the request froze
+ * (see fit.ts). The Owner's alone: a club never sees another supplier than the one on a published quotation.
+ */
+export async function requestFit(id: string) {
+  const r = await prisma.manufacturingRequest.findUnique({ where: { id }, select: { id: true, spec: true, setsTotal: true, neededBy: true } });
+  if (!r) throw new NotFoundError('Request');
+  const spec = r.spec as unknown as RequestSpec;
+  const want: FitRequest = { forms: spec.garments.map((g) => g.form), sets: r.setsTotal, neededBy: r.neededBy };
+  const suppliers = await prisma.manufacturingSupplier.findMany({
+    where: { status: ManufacturingSupplierStatus.VERIFIED }, take: 200,
+    select: { id: true, name: true, country: true, forms: true, methods: true, minOrderSets: true, leadTimeDays: true },
+  });
+  const on = today();
+  return {
+    requestId: r.id, at: on.toISOString().slice(0, 10), forms: [...new Set(want.forms)].sort(), sets: want.sets, neededBy: r.neededBy ? r.neededBy.toISOString().slice(0, 10) : null,
+    suppliers: suppliers.map((s) => ({ id: s.id, name: s.name, country: s.country, methods: s.methods, fit: supplierFit(s, want, on) })).sort(byFit),
+  };
+}
 async function getRequestTx(tx: Prisma.TransactionClient, id: string) {
   const r = await tx.manufacturingRequest.findUnique({
     where: { id },

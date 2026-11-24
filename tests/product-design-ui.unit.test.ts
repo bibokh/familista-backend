@@ -160,6 +160,8 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
       'src/platform/manufacturing/club-http.ts', 'src/platform/manufacturing/owner-http.ts', 'src/platform/manufacturing/request.service.ts',
       'src/platform/manufacturing/supplier.service.ts',
       'src/platform/product-design/core.ts', 'src/platform/product-design/http.ts',
+      // M8a: the Owner's rollout control releases the Club Design Studio to clubs.
+      'src/platform/product-design/rollout-http.ts', 'src/platform/product-design/rollout.service.ts',
       // M3: the server's copy of the roster core reads public/product-design/pd-roster.js, as core.ts reads pd-core.js.
       'src/platform/product-design/roster-core.ts', 'src/routes/club-design.routes.ts',
       'src/routes/index.ts', 'src/routes/product-design.routes.ts', 'src/services/context.service.ts',
@@ -167,7 +169,7 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     // M2c: the club's brand kit: its image pipeline, its service and its handlers. M3: the team rosters' core, service and
     // handlers, and the audit entry both write. M7b: a design's review, its service and handlers.
     expect(fs.readdirSync(path.join(ROOT, 'src/platform/product-design')).sort()).toEqual(['brand-http.ts', 'brand-image.ts', 'brand-kit.service.ts',
-      'club-audit.ts', 'collection-http.ts', 'collection.service.ts', 'core.ts', 'entitlements.ts', 'http.ts', 'review-http.ts', 'review.service.ts', 'roster-core.ts', 'roster-http.ts',
+      'club-audit.ts', 'collection-http.ts', 'collection.service.ts', 'core.ts', 'entitlements.ts', 'http.ts', 'review-http.ts', 'review.service.ts', 'rollout-http.ts', 'rollout.service.ts', 'roster-core.ts', 'roster-http.ts',
       'roster.service.ts', 'service.ts']);
     // M2: a club's designs have their own mount, behind authenticate, the club roles that design kits, the club's
     // entitlement, and an ownership check of every project id, all before any handler.

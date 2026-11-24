@@ -20,7 +20,7 @@ import { assertPlatformOwner } from '../platform/system.service';
 import {
   ownerConfirmOrder, ownerCreateSupplier, ownerDiscardDraft, ownerListRequests, ownerListSuppliers, ownerOpenRequest, ownerOpenSupplier,
   ownerPublishQuote, ownerRecordDelivery, ownerRecordQuote, ownerRecordShipping, ownerRefuseRequest, ownerReviewRequest, ownerSaveSupplier,
-  ownerSetSupplierStatus, ownerSpecDesign, ownerStartProduction, ownerWithdrawQuote,
+  ownerRequestFit, ownerSetSupplierStatus, ownerSpecDesign, ownerStartProduction, ownerWithdrawQuote,
 } from '../platform/manufacturing/owner-http';
 
 const router = Router();
@@ -53,5 +53,7 @@ router.post('/requests/:requestId/production', ownerStartProduction);
 router.post('/requests/:requestId/shipped', ownerRecordShipping);
 router.post('/requests/:requestId/delivered', ownerRecordDelivery);
 router.get('/requests/:requestId/designs/:projectId', ownerSpecDesign);
+// M7d: how each verified supplier fits the request, from what was recorded about it.
+router.get('/requests/:requestId/fit', ownerRequestFit);
 
 export default router;

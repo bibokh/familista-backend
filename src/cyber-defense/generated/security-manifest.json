@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-24T10:51:07.731Z",
+  "generatedAt": "2026-11-24T14:38:59.883Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 61,
-    "handlers": 836,
+    "handlers": 839,
     "publicHandlers": 21,
     "publicRoutes": [
       {
@@ -336,14 +336,14 @@
       {
         "path": "/system/product-design",
         "module": "product-design.routes",
-        "handlers": 9,
+        "handlers": 11,
         "public": 0,
         "routerWideAuth": true
       },
       {
         "path": "/system/manufacturing",
         "module": "manufacturing.routes",
-        "handlers": 18,
+        "handlers": 19,
         "public": 0,
         "routerWideAuth": true
       },
@@ -620,9 +620,9 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 415,
+      "idParameters": 417,
       "guarded": 171,
-      "exempt": 244,
+      "exempt": 246,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
@@ -735,7 +735,7 @@
         },
         "manufacturing.routes": {
           "guarded": 0,
-          "exempt": 19,
+          "exempt": 20,
           "unguarded": 0
         },
         "match-center.routes": {
@@ -805,7 +805,7 @@
         },
         "product-design.routes": {
           "guarded": 0,
-          "exempt": 9,
+          "exempt": 10,
           "unguarded": 0
         },
         "provisioning.routes": {
@@ -871,13 +871,13 @@
       }
     },
     "authorization": {
-      "handlers": 836,
+      "handlers": 839,
       "byKind": {
         "public": 21,
         "member": 350,
         "scoped": 60,
         "roles": 279,
-        "platform-owner": 126
+        "platform-owner": 129
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -993,7 +993,7 @@
           "roles": 4
         },
         "manufacturing.routes": {
-          "platform-owner": 18
+          "platform-owner": 19
         },
         "match-center.routes": {
           "member": 7
@@ -1058,7 +1058,7 @@
           "roles": 1
         },
         "product-design.routes": {
-          "platform-owner": 9
+          "platform-owner": 11
         },
         "provisioning.routes": {
           "roles": 7,
@@ -1499,6 +1499,7 @@
         "GET /system/manufacturing/requests": "platform-owner",
         "GET /system/manufacturing/requests/:requestId": "platform-owner",
         "GET /system/manufacturing/requests/:requestId/designs/:projectId": "platform-owner",
+        "GET /system/manufacturing/requests/:requestId/fit": "platform-owner",
         "GET /system/manufacturing/suppliers": "platform-owner",
         "GET /system/manufacturing/suppliers/:supplierId": "platform-owner",
         "GET /system/modules": "platform-owner",
@@ -1509,6 +1510,7 @@
         "GET /system/product-design/projects/:id": "platform-owner",
         "GET /system/product-design/projects/:id/revisions": "platform-owner",
         "GET /system/product-design/projects/:id/revisions/:number": "platform-owner",
+        "GET /system/product-design/rollout": "platform-owner",
         "GET /system/security": "platform-owner",
         "GET /system/signals": "platform-owner",
         "GET /system/sources": "platform-owner",
@@ -1949,6 +1951,7 @@
         "PUT /staff-market/notes/:staffUserId": "scoped:requireMembership(HEAD_COACH)+requireClubWideManage",
         "PUT /staff-market/shortlist/:staffUserId": "scoped:requireActingClubMembership(HEAD_COACH)",
         "PUT /system/manufacturing/suppliers/:supplierId": "platform-owner",
+        "PUT /system/product-design/rollout/:clubId": "platform-owner",
         "PUT /teams/:id": "roles:CLUB_ADMIN,HEAD_COACH",
         "PUT /training/:id": "roles:CLUB_ADMIN,HEAD_COACH",
         "PUT /training/:id/attendance": "roles:CLUB_ADMIN,HEAD_COACH",
@@ -2147,7 +2150,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "171 of 415 route id parameter(s) checked against the caller's club before the handler; 244 exempted by name with a reason; 0 unguarded."
+      "note": "171 of 417 route id parameter(s) checked against the caller's club before the handler; 246 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2371,7 +2374,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "836 handler(s) classified: 21 public, 350 member, 60 scoped, 279 roles, 126 platform-owner; every member-level handler reviewed by name."
+      "note": "839 handler(s) classified: 21 public, 350 member, 60 scoped, 279 roles, 129 platform-owner; every member-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",

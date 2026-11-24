@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-24T11:07:45.387Z",
+  "generatedAt": "2026-11-24T15:18:38.489Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1101,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 248 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 250 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "652 TypeScript modules under src/."
+      "note": "655 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1629,8 +1629,8 @@
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 652,
-    "testSuites": 248,
+    "totalTypeScript": 655,
+    "testSuites": 250,
     "migrations": 56,
     "prismaModels": 357,
     "prismaEnums": 219
@@ -1943,15 +1943,15 @@
       "path": "/system/product-design",
       "router": "productDesignRoutes",
       "file": "src/routes/product-design.routes.ts",
-      "writes": 5,
-      "reads": 4
+      "writes": 6,
+      "reads": 5
     },
     {
       "path": "/system/manufacturing",
       "router": "manufacturingRoutes",
       "file": "src/routes/manufacturing.routes.ts",
       "writes": 13,
-      "reads": 5
+      "reads": 6
     },
     {
       "path": "/club-design",

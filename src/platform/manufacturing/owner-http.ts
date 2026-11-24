@@ -7,7 +7,7 @@ import { ManufacturingRequestStatus, ManufacturingSupplierStatus } from '@prisma
 import { z } from 'zod';
 import type { DesignActor } from '../product-design/service';
 import { refusals } from './errors';
-import { discardDraft, getRequest, listAllRequests, ownerStep, publishQuote, recordQuote, specDesign, withdrawQuote } from './request.service';
+import { discardDraft, getRequest, listAllRequests, ownerStep, publishQuote, recordQuote, requestFit, specDesign, withdrawQuote } from './request.service';
 import { createSupplier, getSupplier, listSuppliers, setSupplierStatus, updateSupplier } from './supplier.service';
 
 const Id = z.string().guid();
@@ -65,4 +65,5 @@ export const ownerWithdrawQuote = handler(async (req, res) => {
   res.json({ success: true, data: await withdrawQuote(actorOf(req), Id.parse(req.params.requestId), Id.parse(req.params.quoteId), WithdrawBody.parse(req.body).note) });
 });
 export const ownerDiscardDraft = handler(async (req, res) => { res.json({ success: true, data: await discardDraft(actorOf(req), Id.parse(req.params.requestId), Id.parse(req.params.quoteId)) }); });
+export const ownerRequestFit = handler(async (req, res) => { res.json({ success: true, data: await requestFit(Id.parse(req.params.requestId)) }); });
 export const ownerSpecDesign = handler(async (req, res) => { res.json({ success: true, data: await specDesign(Id.parse(req.params.requestId), Id.parse(req.params.projectId)) }); });

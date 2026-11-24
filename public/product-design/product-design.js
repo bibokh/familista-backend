@@ -901,6 +901,8 @@
     return {
       roster: window.FamilistaProductDesignRoster, api: SERVER.manufacturing(), host: S.host, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say,
       dirArrow: dirArrow, date: when, lang: function () { return LANG; }, onToggle: function () { syncMfgTriggers(); }, approvalChip: approvalChip,
+      // M8a: the Owner's rollout control, on the platform's own client.
+      rollout: P.api.rollout ? P.api : null,
     };
   }
   function syncMfgTriggers() {
@@ -2203,6 +2205,8 @@
     // M4, owner-brokered: the manufacturing console, as a floating panel over the room.
     { act: 'mfg', tab: 'requests', icon: 'box', label: L('Orders') },
     { act: 'mfg', tab: 'suppliers', icon: 'factory', label: L('Factories & suppliers') },
+    // M8a: which clubs the Club Design Studio, and each of its parts, is released to.
+    { act: 'mfg', tab: 'releases', icon: 'shield', label: L('Club releases') },
     { reason: 'store', icon: 'store', label: L('Global Store') },
     { reason: 'payments', icon: 'card', label: L('Payments') },
   ];

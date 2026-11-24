@@ -104,8 +104,22 @@ module.exports = async function p20(H) {
     await op.click(OWNP + ' [data-pd-act="mfg-step"][data-pd-step="review"]');
     await op.click(OWNP + ' [data-pd-act="mfg-ask-go"]');
     await op.waitForFunction(() => window.__familistaProductDesignMetrics().mfg.status === 'IN_REVIEW', null, { timeout: 15000 });
-    await op.click(OWNP + ' [data-pd-act="mfg-quote-new"]');
+    // M7d: how the verified supplier fits the request, from what was recorded: both garments made, no minimum and no
+    // lead time recorded, so the fit is incomplete; the quotation is recorded from its row, the supplier already chosen.
+    await op.waitForFunction(() => window.__familistaProductDesignMetrics().mfg.fit === 'ready', null, { timeout: 15000 });
+    const fit = await op.evaluate(([sel, id]) => {
+      const row = document.querySelector(sel + ' tr[data-pd-supplier="' + id + '"]');
+      return row ? { overall: row.getAttribute('data-pd-fit'), cells: [...row.querySelectorAll('td[data-met]')].map((td) => [td.getAttribute('data-met'), td.textContent]),
+        chip: row.querySelector('.pd-fit-chip').textContent, rows: document.querySelectorAll(sel + ' .pd-fit-table tbody tr').length } : null;
+    }, [OWNP, sup.id]);
+    const api = await call('owner', 'GET', '/api/v1/system/manufacturing/requests/' + req.id + '/fit');
+    check('P20 M7d: the console shows how the verified supplier fits the request, from what was recorded only; what was not recorded says so',
+      !!fit && fit.rows === 1 && fit.overall === 'incomplete' && fit.chip === 'Not everything recorded'
+      && JSON.stringify(fit.cells) === JSON.stringify([['true', 'Makes them all'], ['null', 'Not recorded'], ['null', 'Not recorded']])
+      && api.status === 200 && api.body.data.suppliers[0].fit.overall === 'incomplete', { fit, api: api.body.data && api.body.data.suppliers });
+    await op.click(OWNP + ' [data-pd-act="mfg-quote-from"][data-pd-id="' + sup.id + '"]');
     await op.waitForFunction((id) => !!document.querySelector('#pd-root .pd-mfg [data-pd-mfg-q="supplierId"] option[value="' + id + '"]'), sup.id, { timeout: 15000 });
+    check('P20 M7d: recorded from the fit row, the quotation form has that supplier chosen', (await op.inputValue(OWNP + ' [data-pd-mfg-q="supplierId"]')) === sup.id);
     await op.selectOption(OWNP + ' [data-pd-mfg-q="supplierId"]', sup.id);
     await op.selectOption(OWNP + ' [data-pd-mfg-q="currency"]', 'EUR');
     await op.fill(OWNP + ' [data-pd-mfg-q="amount"]', '1234.50');
