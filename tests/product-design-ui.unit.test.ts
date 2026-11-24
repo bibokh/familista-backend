@@ -37,7 +37,7 @@ const JS = read('public/product-design/product-design.js');
 const CODE = strip(JS);
 // M3: the Team panel is the room's own module; its words are the room's catalogue's, and it holds the room's rules.
 const TEAM = read('public/product-design/pd-team.js') + read('public/product-design/pd-collections.js') + read('public/product-design/pd-requests.js')
-  + read('public/product-design/pd-manufacturing.js');
+  + read('public/product-design/pd-manufacturing.js') + read('public/product-design/pd-review.js');
 const TEAM_CODE = strip(TEAM);
 const CORE = read('public/product-design/pd-core.js');
 const CSS = read('public/product-design/product-design.css');
@@ -93,8 +93,8 @@ describe('the Interface Studio is preserved', () => {
 describe('wiring: an owner room of its own, its design routes guarded on the server', () => {
   it('app.js loads it on demand behind the platform-owner check, its core, its server client, its garment and 3D view, then its editor, under one version that the room also uses', () => {
     // DS-1c adds the garment geometry and the 3D view before the editor; Babylon itself is loaded only when 3D is chosen (pd-3d.js).
-    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261124-product-design-m4', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-manufacturing.js', '/product-design/product-design.js'], done);");
-    expect(JS).toContain("var VERSION = '20261124-product-design-m4';");
+    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261124-product-design-m7b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-manufacturing.js', '/product-design/product-design.js'], done);");
+    expect(JS).toContain("var VERSION = '20261124-product-design-m7b';");
     expect(APP).toContain("if (page === 'product-design' && !(_PD_ROOM && _PD_ROOM.state === 'ready')) {");
     expect(APP).toMatch(/_loadProductDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'owner-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
     // The owner rooms keep their platform-owner check; the same asset loader serves the club's room behind its capability.
@@ -103,7 +103,7 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
   });
 
   it('M2b: opens in a club’s workspace for whoever its capability names, the same files under the same version, and falls back to the club’s home', () => {
-    expect(APP).toContain("_famLoadRoom(_PD_ROOM, '20261124-product-design-m4', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-collections.js', '/product-design/pd-requests.js', '/product-design/pd-team.js', '/product-design/product-design.js'], done,\n    function () { return _access('canDesignClubKits'); });");
+    expect(APP).toContain("_famLoadRoom(_PD_ROOM, '20261124-product-design-m7b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-collections.js', '/product-design/pd-requests.js', '/product-design/pd-review.js', '/product-design/pd-team.js', '/product-design/product-design.js'], done,\n    function () { return _access('canDesignClubKits'); });");
     expect(APP).toContain("if (!_access('canDesignClubKits')) { try { navTo('club-home', null, _opts); } catch (_) {} return; }");
     expect(APP).toMatch(/_loadClubDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'club-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
     const nav = APP.slice(APP.indexOf('var CLUB_NAV_ITEMS = ['), APP.indexOf('];', APP.indexOf('var CLUB_NAV_ITEMS = [')));
@@ -165,9 +165,10 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
       'src/routes/index.ts', 'src/routes/product-design.routes.ts', 'src/services/context.service.ts',
     ]);
     // M2c: the club's brand kit: its image pipeline, its service and its handlers. M3: the team rosters' core, service and
-    // handlers, and the audit entry both write.
+    // handlers, and the audit entry both write. M7b: a design's review, its service and handlers.
     expect(fs.readdirSync(path.join(ROOT, 'src/platform/product-design')).sort()).toEqual(['brand-http.ts', 'brand-image.ts', 'brand-kit.service.ts',
-      'club-audit.ts', 'collection-http.ts', 'collection.service.ts', 'core.ts', 'entitlements.ts', 'http.ts', 'roster-core.ts', 'roster-http.ts', 'roster.service.ts', 'service.ts']);
+      'club-audit.ts', 'collection-http.ts', 'collection.service.ts', 'core.ts', 'entitlements.ts', 'http.ts', 'review-http.ts', 'review.service.ts', 'roster-core.ts', 'roster-http.ts',
+      'roster.service.ts', 'service.ts']);
     // M2: a club's designs have their own mount, behind authenticate, the club roles that design kits, the club's
     // entitlement, and an ownership check of every project id, all before any handler.
     expect(read('src/routes/index.ts')).toContain("router.use('/club-design', clubDesignRoutes);");
@@ -177,8 +178,12 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     order.forEach((x) => expect(club).toContain(x));
     order.slice(1).forEach((x, i) => expect(club.indexOf(order[i])).toBeLessThan(club.indexOf(x)));
     const idRoutes = [...club.matchAll(/^router\.(get|post)\('([^']*:id[^']*)', (.*)\);$/gm)];
-    expect(idRoutes).toHaveLength(7);
-    idRoutes.forEach((m) => expect(m[3]).toMatch(/^tenantParam\('designProject'\), \w+$/));
+    // DS-1b's seven, and M7b's five review routes: the reviews part's gate first, then the design's ownership, then a
+    // comment's own, then the handler.
+    expect(idRoutes).toHaveLength(12);
+    expect(idRoutes.filter((m) => /^tenantParam\('designProject'\), \w+$/.test(m[3]))).toHaveLength(7);
+    expect(idRoutes.filter((m) => /^reviews, tenantParam\('designProject'\), (tenantParam\('designReviewComment', 'commentId'\), )?\w+$/.test(m[3]))).toHaveLength(5);
+    idRoutes.filter((m) => m[2].includes(':commentId')).forEach((m) => expect(m[3]).toContain("tenantParam('designReviewComment', 'commentId')"));
     expect(read('src/middleware/tenant-guard.middleware.ts')).toContain("designProject:            (id: string): Promise<Owner> => prisma.designProject.findUnique({ where: { id }, select: { clubId: true } }),");
     expect(read('src/routes/index.ts').match(/product-design/g)).toHaveLength(2);
     expect(read('src/routes/index.ts')).toContain("router.use('/system/product-design', productDesignRoutes);");

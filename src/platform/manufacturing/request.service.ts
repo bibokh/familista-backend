@@ -21,6 +21,7 @@ import { clubAudit } from '../product-design/club-audit';
 import { templateForm } from '../product-design/core';
 import { rosterSummary, validateRosterEntries, type RosterEntry } from '../product-design/roster-core';
 import type { DesignActor } from '../product-design/service';
+import { approvalsFor } from '../product-design/review.service';
 import { isCurrency, isMinor } from './money';
 import { FINAL, step, type Action } from './state';
 import { ownerAudit } from './supplier.service';
@@ -31,6 +32,8 @@ export const OPEN_REQUEST_LIMIT = 50;
 export interface SpecGarment {
   projectId: string; name: string; role: string; templateKey: string; templateVersion: number; form: 'top' | 'shorts' | 'socks';
   revision: number; sha256: string; sizes: Array<{ size: string; sets: number }>; sets: number;
+  /** M7b: the club administrator's decision on that version when the request was sent, or null (not reviewed). */
+  approval: { decision: 'APPROVED' | 'CHANGES_REQUESTED'; at: string } | null;
 }
 export interface RequestSpec {
   format: 'familista.manufacturing-spec'; version: 1;
@@ -107,6 +110,7 @@ async function buildSpec(tx: Prisma.TransactionClient, clubId: string, collectio
   const sum = rosterSummary(entries);
   if (!sum.sets) throw refuse('empty-roster', 'The roster has no entries');
   const garments: SpecGarment[] = [];
+  const approvals = await approvalsFor(tx, clubId, coll.items.map((i) => ({ projectId: i.projectId, revision: i.project.headRevision })));
   for (const item of coll.items) {
     const form = templateForm(item.project.templateKey, item.project.templateVersion);
     if (!form) throw refuse('not-released', 'A design is not of a released garment');
@@ -114,7 +118,8 @@ async function buildSpec(tx: Prisma.TransactionClient, clubId: string, collectio
     const head = await tx.designRevision.findUnique({ where: { projectId_number: { projectId: item.projectId, number: item.project.headRevision } }, select: { sha256: true } });
     if (!head) throw refuse('no-revision', 'A design has no saved revision');
     garments.push({ projectId: item.projectId, name: item.project.name, role: item.role, templateKey: item.project.templateKey, templateVersion: item.project.templateVersion,
-      form, revision: item.project.headRevision, sha256: head.sha256, sizes: sum.sizes[form], sets: sum.sets });
+      form, revision: item.project.headRevision, sha256: head.sha256, sizes: sum.sizes[form], sets: sum.sets,
+      approval: ((a) => (a ? { decision: a.decision, at: a.at.toISOString() } : null))(approvals.get(`${item.projectId}@${item.project.headRevision}`)) });
   }
   return { format: 'familista.manufacturing-spec', version: 1, collection: { id: coll.id, name: coll.name, season: coll.season },
     roster: { id: roster.id, name: roster.name, version: roster.version }, garments, entries, sets: sum.sets };

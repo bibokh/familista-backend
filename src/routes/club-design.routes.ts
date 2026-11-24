@@ -48,6 +48,7 @@ import {
   acceptManufacturingQuote, cancelManufacturingRequest, confirmManufacturingDelivery, declineManufacturingQuotes, listManufacturingRequests,
   openManufacturingRequest, submitManufacturingRequest,
 } from '../platform/manufacturing/club-http';
+import { commentOnDesign, decideOnDesign, readDesignReview, reopenDesignComment, resolveDesignComment } from '../platform/product-design/review-http';
 
 const router = Router();
 router.use(authenticate);
@@ -81,7 +82,7 @@ function requirePart(part: DesignPart) {
     } catch (err) { next(err); }
   };
 }
-const teamKit = requirePart('teamKit'), brandKit = requirePart('brandKit'), manufacturing = requirePart('manufacturing');
+const teamKit = requirePart('teamKit'), brandKit = requirePart('brandKit'), manufacturing = requirePart('manufacturing'), reviews = requirePart('reviews');
 
 router.get('/projects', listDesigns);
 router.post('/projects', createDesign);
@@ -92,6 +93,14 @@ router.get('/projects/:id/revisions/:number', tenantParam('designProject'), open
 router.post('/projects/:id/revisions/:number/restore', tenantParam('designProject'), restoreDesignRevision);
 router.post('/projects/:id/archive', tenantParam('designProject'), archiveDesign);
 router.post('/projects/:id/unarchive', tenantParam('designProject'), unarchiveDesign);
+
+// Reviews and approvals (M7b): comments on a saved version, and a club administrator's decision on the newest one (the
+// service refuses a manager). A comment id is checked against the caller's club before its handler runs.
+router.get('/projects/:id/review', reviews, tenantParam('designProject'), readDesignReview);
+router.post('/projects/:id/comments', reviews, tenantParam('designProject'), commentOnDesign);
+router.post('/projects/:id/comments/:commentId/resolve', reviews, tenantParam('designProject'), tenantParam('designReviewComment', 'commentId'), resolveDesignComment);
+router.post('/projects/:id/comments/:commentId/reopen', reviews, tenantParam('designProject'), tenantParam('designReviewComment', 'commentId'), reopenDesignComment);
+router.post('/projects/:id/decisions', reviews, tenantParam('designProject'), decideOnDesign);
 
 // The club's brand kit (M2c): its colours and its logos. An upload is raw image bytes, at most UPLOAD_LIMITS.bytes,
 // read by this route alone; what is kept is the PNG the server re-encodes from it (brand-image.ts).

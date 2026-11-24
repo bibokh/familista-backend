@@ -8,6 +8,7 @@
  *   club_design_team_kit       team rosters, collections and their order sheet (M3)
  *   club_design_brand_kit      the brand kit: colours and logos (M2c)
  *   club_design_manufacturing  requests for quotation and orders (M4)
+ *   club_design_reviews        comments on a saved version, and a club administrator's approval (M7b)
  * A part is evaluated in the same order as any feature, with one difference: a part whose flag is not in the database is
  * on, since it is part of a studio the club is already entitled to. So the parts change nothing until the Owner sets
  * them, and a part is never on where the studio is off.
@@ -20,10 +21,11 @@ export const DESIGN_PARTS = Object.freeze({
   teamKit: 'club_design_team_kit',
   brandKit: 'club_design_brand_kit',
   manufacturing: 'club_design_manufacturing',
+  reviews: 'club_design_reviews',
 } as const);
 export type DesignPart = keyof typeof DESIGN_PARTS;
-export interface DesignParts { teamKit: boolean; brandKit: boolean; manufacturing: boolean }
-export const NO_PARTS: Readonly<DesignParts> = Object.freeze({ teamKit: false, brandKit: false, manufacturing: false });
+export interface DesignParts { teamKit: boolean; brandKit: boolean; manufacturing: boolean; reviews: boolean }
+export const NO_PARTS: Readonly<DesignParts> = Object.freeze({ teamKit: false, brandKit: false, manufacturing: false, reviews: false });
 
 /** Whether one part is included for the club, assuming the studio is (the caller checks the studio). */
 export async function designPartEnabled(clubId: string, part: DesignPart): Promise<boolean> {
@@ -41,8 +43,8 @@ export async function designPartEnabled(clubId: string, part: DesignPart): Promi
 /** Every part, for the session's capabilities: all off where the studio is off. */
 export async function designParts(clubId: string): Promise<DesignParts> {
   if (!(await isFeatureEnabled(clubId, CLUB_DESIGN_FEATURE))) return { ...NO_PARTS };
-  const [teamKit, brandKit, manufacturing] = await Promise.all([
-    designPartEnabled(clubId, 'teamKit'), designPartEnabled(clubId, 'brandKit'), designPartEnabled(clubId, 'manufacturing'),
+  const [teamKit, brandKit, manufacturing, reviews] = await Promise.all([
+    designPartEnabled(clubId, 'teamKit'), designPartEnabled(clubId, 'brandKit'), designPartEnabled(clubId, 'manufacturing'), designPartEnabled(clubId, 'reviews'),
   ]);
-  return { teamKit, brandKit, manufacturing };
+  return { teamKit, brandKit, manufacturing, reviews };
 }

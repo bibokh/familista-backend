@@ -184,6 +184,8 @@ body.pd-studio-open { overflow: hidden; }
   background: linear-gradient(135deg, color-mix(in srgb, var(--fam-module-accent) 50%, var(--fam-surface-canvas)), color-mix(in srgb, var(--fam-module-accent-2) 30%, var(--fam-surface-canvas)));
 }
 .pd-tab[aria-disabled="true"] { color: var(--fam-text-tertiary); }
+/* A filter (Active / Archived, Open / Resolved) is pressed, not selected: an edge and a whisper of the accent. */
+.pd-tab[aria-pressed="true"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-module-accent) 60%, transparent); background: color-mix(in srgb, var(--fam-module-accent) 14%, transparent); }
 .pd-chip {
   display: inline-flex; align-items: center; height: 18px; padding-inline: 6px; border-radius: var(--fam-radius-full);
   font-size: var(--fam-font-size-2xs); font-weight: var(--fam-font-weight-bold); letter-spacing: var(--fam-font-tracking-wide); text-transform: uppercase; white-space: nowrap;
@@ -635,7 +637,21 @@ body.pd-studio-open { overflow: hidden; }
 .pd-req-history li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: var(--fam-space-2); align-items: start; }
 .pd-req-dot { width: 8px; height: 8px; margin-top: 6px; border-radius: var(--fam-radius-full); border: 2px solid color-mix(in srgb, var(--fam-module-accent) 70%, transparent); }
 .pd-req-event { font-weight: var(--fam-font-weight-semibold); }
-.pd-col-ask textarea, .pd-mfg textarea { resize: vertical; min-height: 64px; }
+.pd-col-ask textarea, .pd-mfg textarea, .pd-rv-compose textarea, .pd-rv-ask textarea { resize: vertical; min-height: 64px; }
+/* M7b — a design's review: a decision is a result, so approved is the one green; changes requested is a warning. */
+.pd-rv-chip[data-decision="APPROVED"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-success) 60%, transparent); }
+.pd-rv-chip[data-decision="CHANGES_REQUESTED"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-warning) 60%, transparent); }
+.pd-rv-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.pd-rv-cell { display: inline-flex; margin-inline-start: 6px; vertical-align: middle; }
+.pd-rv-compose { display: flex; flex-direction: column; gap: var(--fam-space-2); padding: var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-sunken); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
+.pd-rv-surface { width: auto; min-width: 160px; align-self: flex-start; height: 32px; }
+.pd-rv-decide { justify-content: flex-start; }
+.pd-rv-list { gap: var(--fam-space-2); }
+.pd-rv-comment { display: flex; flex-direction: column; gap: 6px; padding: var(--fam-space-2) var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
+.pd-rv-comment.is-resolved { opacity: .72; }
+.pd-rv-comment .pd-dock-btns { justify-content: flex-start; }
+.pd-rv-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.pd-rv-older { font-style: italic; }
 .pd-mfg-checks { display: flex; flex-wrap: wrap; gap: var(--fam-space-2) var(--fam-space-3); }
 .pd-mfg-check { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fam-font-size-sm); }
 

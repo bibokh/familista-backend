@@ -62,6 +62,12 @@ every club's requests on the named system path, behind `assertPlatformOwner`.
 `ManufacturingSupplier` is platform data with no club and no policy: only the
 Owner's routes reach it.
 
+Design reviews (`20261124100000_design_reviews`, M7b) add `DesignReviewComment`
+and `DesignApproval`, each isolated by its own `clubId` both ways and held to its
+design's club by a composite key onto `DesignProject(id, clubId)`. A decision is
+append-only: `DesignApproval_immutable` refuses UPDATE and DELETE and
+`DesignApproval_no_truncate` refuses TRUNCATE, on the system path too.
+
 The AI agent worker runs each job's deterministic handler in that job's own
 club context (`runInClubContext(job.clubId, …)`), not on a system path: the
 finance agent reads `OperationsPayment` as the club it works for.

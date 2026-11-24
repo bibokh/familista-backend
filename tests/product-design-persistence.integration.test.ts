@@ -915,8 +915,8 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
 
       it('by default every part is included where the studio is: the parts change nothing until the Owner restricts one', async () => {
         for (const url of ['/rosters', '/brand-kit', '/requests', '/collections']) expect([url, (await as('manager').club.get(url)).status]).toEqual([url, 200]);
-        expect(await parts('manager')).toEqual({ teamKit: true, brandKit: true, manufacturing: true });
-        expect(await parts('coach')).toEqual({ teamKit: false, brandKit: false, manufacturing: false });
+        expect(await parts('manager')).toEqual({ teamKit: true, brandKit: true, manufacturing: true, reviews: true });
+        expect(await parts('coach')).toEqual({ teamKit: false, brandKit: false, manufacturing: false, reviews: false });
       });
 
       it('restricted to a plan: refused before anything is written for a club on another plan, served to one on it', async () => {
@@ -926,7 +926,7 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
         expect(await refusedFor('clubAdmin', `/collections/${someId}/requests`, 'post')).toBe('club_design_manufacturing');
         expect(Number((await sys('SELECT count(*)::int AS n FROM "ManufacturingRequest"'))[0].n)).toBe(before);
         expect((await as('clubAdmin').club.get('/rosters')).status).toBe(200); // the other parts are untouched
-        expect(await parts('clubAdmin')).toEqual({ teamKit: true, brandKit: true, manufacturing: false });
+        expect(await parts('clubAdmin')).toEqual({ teamKit: true, brandKit: true, manufacturing: false, reviews: true });
         await sysExec(`UPDATE "Club" SET "plan" = 'PRO' WHERE "id" = $1`, C2);
         expect((await as('otherAdmin').club.get('/requests')).status).toBe(200);
         expect(await parts('otherAdmin')).toMatchObject({ manufacturing: true });
@@ -937,17 +937,107 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
           "featuresDisabled" = array_append("featuresDisabled", 'club_design_brand_kit') WHERE "clubId" = $1`, C1);
         expect((await as('clubAdmin').club.get('/requests')).status).toBe(200);
         expect(await refusedFor('clubAdmin', '/brand-kit')).toBe('club_design_brand_kit');
-        expect(await parts('clubAdmin')).toEqual({ teamKit: true, brandKit: false, manufacturing: true });
+        expect(await parts('clubAdmin')).toEqual({ teamKit: true, brandKit: false, manufacturing: true, reviews: true });
         // The studio switched off for a club: every route says so, whatever its parts.
         await sysExec(`UPDATE "OrganizationLimits" SET "featuresDisabled" = array_append("featuresDisabled", 'club_design_studio') WHERE "clubId" = $1`, C2);
         for (const url of ['/rosters', '/requests', '/brand-kit']) expect([url, (await as('otherAdmin').club.get(url)).body.code]).toEqual([url, 'DESIGN_STUDIO_NOT_ENABLED']);
-        expect(await parts('otherAdmin')).toEqual({ teamKit: false, brandKit: false, manufacturing: false });
+        expect(await parts('otherAdmin')).toEqual({ teamKit: false, brandKit: false, manufacturing: false, reviews: false });
         // and back as it was, for the tests after these
         await sysExec(`UPDATE "OrganizationLimits" SET "featuresEnabled" = array_remove("featuresEnabled", 'club_design_manufacturing'),
           "featuresDisabled" = array_remove(array_remove("featuresDisabled", 'club_design_brand_kit'), 'club_design_studio') WHERE "clubId" IN ($1, $2)`, C1, C2);
         await sysExec(`DELETE FROM "FeatureFlag" WHERE "key" = 'club_design_manufacturing'`);
         await sysExec(`UPDATE "Club" SET "plan" = 'BASIC' WHERE "id" = $1`, C2);
-        expect(await parts('clubAdmin')).toEqual({ teamKit: true, brandKit: true, manufacturing: true });
+        expect(await parts('clubAdmin')).toEqual({ teamKit: true, brandKit: true, manufacturing: true, reviews: true });
+      });
+    });
+
+    describe('reviews and approvals (M7b)', () => {
+      let kitDesign = '';
+      beforeAll(async () => {
+        kitDesign = (await as('clubAdmin').club.post('/projects', { document: doc('Review kit'), origin: 'EDITOR' })).body.data.project.id;
+        expect(kitDesign).toBeTruthy();
+      });
+
+      it('the migration made both tables, their checks, the decisions’ append-only trigger and their row-level security', async () => {
+        const rls = await db.$queryRawUnsafe<Row[]>(`SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname IN ('DesignReviewComment', 'DesignApproval') ORDER BY relname`);
+        expect(rls).toEqual(['DesignApproval', 'DesignReviewComment'].map((relname) => ({ relname, relrowsecurity: true, relforcerowsecurity: true })));
+        const trig = await db.$queryRawUnsafe<Row[]>(`SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = '"DesignApproval"'::regclass ORDER BY tgname`);
+        expect(trig.map((t) => t.tgname)).toEqual(['DesignApproval_immutable', 'DesignApproval_no_truncate']);
+      });
+
+      it('comments on a saved version, on the garment or one of its surfaces; refuses what is not there; resolves and reopens', async () => {
+        const ok = await as('manager').club.post(`/projects/${kitDesign}/comments`, { revision: 1, surface: 'back', body: 'Make the number taller' });
+        expect(ok.status).toBe(201);
+        expect((await as('clubAdmin').club.post(`/projects/${kitDesign}/comments`, { revision: 1, surface: null, body: 'Looks good overall' })).status).toBe(201);
+        for (const [body, reason] of [[{ revision: 1, surface: 'hood', body: 'x' }, 'unknown-surface'], [{ revision: 9, surface: null, body: 'x' }, 'unknown-revision'],
+          [{ revision: 1, surface: null, body: '   ' }, 'required']] as Array<[Row, string]>) {
+          const r = await as('manager').club.post(`/projects/${kitDesign}/comments`, body);
+          expect([r.status, r.body.code, r.body.reason]).toEqual([400, 'REVIEW_INVALID', reason]);
+        }
+        const cid = ok.body.data.commentId;
+        expect((await as('clubAdmin').club.post(`/projects/${kitDesign}/comments/${cid}/resolve`)).status).toBe(200);
+        let review = (await as('manager').club.get(`/projects/${kitDesign}/review`)).body.data.review;
+        expect(review.comments.map((c: Row) => [c.surface, c.body, !!c.resolvedAt, typeof c.by])).toEqual([['back', 'Make the number taller', true, 'string'], [null, 'Looks good overall', false, 'string']]);
+        expect(review.surfaces).toEqual(['front', 'back', 'sleeve-right', 'sleeve-left']);
+        expect((await as('manager').club.post(`/projects/${kitDesign}/comments/${cid}/reopen`)).status).toBe(200);
+        review = (await as('manager').club.get(`/projects/${kitDesign}/review`)).body.data.review;
+        expect(review.comments[0].resolvedAt).toBeNull();
+        const audit = (await sys(`SELECT "action", "metadata" FROM "PlatformAuditLog" WHERE "resourceId" = $1 AND "action" LIKE 'design.review.%' ORDER BY "createdAt"`, kitDesign));
+        expect(audit.map((a) => a.action)).toEqual(['design.review.commented', 'design.review.commented', 'design.review.resolved', 'design.review.reopened']);
+        expect(JSON.stringify(audit)).not.toContain('taller'); // counts and places, never the text
+      });
+
+      it('a club administrator alone decides, on the newest version only; a new version needs its own approval', async () => {
+        const manager = await as('manager').club.post(`/projects/${kitDesign}/decisions`, { revision: 1, decision: 'APPROVED' });
+        expect(manager.status).toBe(403);
+        expect((await as('clubAdmin').club.post(`/projects/${kitDesign}/decisions`, { revision: 1, decision: 'CHANGES_REQUESTED' })).body.reason).toBe('required');
+        expect((await as('clubAdmin').club.post(`/projects/${kitDesign}/decisions`, { revision: 1, decision: 'APPROVED', note: 'Ready to order' })).status).toBe(201);
+        let review = (await as('manager').club.get(`/projects/${kitDesign}/review`)).body.data.review;
+        expect([review.headRevision, review.current.decision, review.current.revision, typeof review.current.by]).toEqual([1, 'APPROVED', 1, 'string']);
+        // a new version is not approved by the old one's approval
+        expect((await as('manager').club.post(`/projects/${kitDesign}/revisions`, { baseRevision: 1, document: doc('Review kit v2') })).status).toBe(201);
+        review = (await as('manager').club.get(`/projects/${kitDesign}/review`)).body.data.review;
+        expect([review.headRevision, review.current]).toEqual([2, null]);
+        const stale = await as('clubAdmin').club.post(`/projects/${kitDesign}/decisions`, { revision: 1, decision: 'APPROVED' });
+        expect([stale.status, stale.body.code, stale.body.data.headRevision]).toEqual([409, 'REVIEW_STALE', 2]);
+        expect((await as('clubAdmin').club.post(`/projects/${kitDesign}/decisions`, { revision: 2, decision: 'CHANGES_REQUESTED', note: 'The sponsor is too small' })).status).toBe(201);
+        review = (await as('manager').club.get(`/projects/${kitDesign}/review`)).body.data.review;
+        expect([review.current.decision, review.decisions.map((d: Row) => d.decision)]).toEqual(['CHANGES_REQUESTED', ['CHANGES_REQUESTED', 'APPROVED']]);
+        const [row] = await sys(`SELECT "sha256" FROM "DesignApproval" WHERE "projectId" = $1 AND "revision" = 2`, kitDesign);
+        const [rev] = await sys(`SELECT "sha256" FROM "DesignRevision" WHERE "projectId" = $1 AND "number" = 2`, kitDesign);
+        expect(row.sha256).toBe(rev.sha256); // pinned to the version's own hash
+      });
+
+      it('decisions are never changed or removed, on the system path too; another club reaches none of it', async () => {
+        await expect(sysExec(`UPDATE "DesignApproval" SET "decision" = 'APPROVED' WHERE "projectId" = $1`, kitDesign)).rejects.toThrow(/DesignApproval_immutable/);
+        await expect(sysExec(`DELETE FROM "DesignApproval" WHERE "projectId" = $1`, kitDesign)).rejects.toThrow(/DesignApproval_immutable/);
+        const before = Number((await sys('SELECT count(*)::int AS n FROM "DesignReviewComment"'))[0].n);
+        for (const r of [await as('otherAdmin').club.get(`/projects/${kitDesign}/review`), await as('otherAdmin').club.post(`/projects/${kitDesign}/comments`, { revision: 1, surface: null, body: 'Taken' }),
+          await as('otherAdmin').club.post(`/projects/${kitDesign}/decisions`, { revision: 2, decision: 'APPROVED' })]) expect(r.status).toBe(404);
+        expect(Number((await sys('SELECT count(*)::int AS n FROM "DesignReviewComment"'))[0].n)).toBe(before);
+        const seen = await inClub(C2, (tx) => tx.designApproval.count({ where: { projectId: kitDesign } }));
+        expect(seen).toBe(0);
+      });
+
+      it('the reviews part off for a club: its review routes are refused before anything is written', async () => {
+        await sysExec(`UPDATE "OrganizationLimits" SET "featuresDisabled" = array_append("featuresDisabled", 'club_design_reviews') WHERE "clubId" = $1`, C1);
+        try {
+          const before = Number((await sys('SELECT count(*)::int AS n FROM "DesignReviewComment"'))[0].n);
+          for (const r of [await as('clubAdmin').club.get(`/projects/${kitDesign}/review`), await as('clubAdmin').club.post(`/projects/${kitDesign}/comments`, { revision: 1, surface: null, body: 'x' }),
+            await as('clubAdmin').club.post(`/projects/${kitDesign}/decisions`, { revision: 2, decision: 'APPROVED' })]) expect([r.status, r.body.feature]).toEqual([403, 'club_design_reviews']);
+          expect(Number((await sys('SELECT count(*)::int AS n FROM "DesignReviewComment"'))[0].n)).toBe(before);
+          expect((await as('clubAdmin').raw('/api/v1/me/context')).body.data.effectiveAccess.clubDesignParts).toMatchObject({ reviews: false, teamKit: true });
+          expect((await as('clubAdmin').club.get(`/projects/${kitDesign}`)).status).toBe(200); // the studio itself is untouched
+        } finally {
+          await sysExec(`UPDATE "OrganizationLimits" SET "featuresDisabled" = array_remove("featuresDisabled", 'club_design_reviews') WHERE "clubId" = $1`, C1);
+        }
+      });
+
+      it('a collection shows each design’s current decision on its newest version', async () => {
+        const kit = (await as('clubAdmin').club.post('/collections', { name: 'Reviewed kit', items: [{ projectId: kitDesign, role: 'HOME' }] })).body.data.collection;
+        expect(kit.items[0]).toMatchObject({ revision: 2, approval: { revision: 2, decision: 'CHANGES_REQUESTED' } });
+        await as('clubAdmin').club.post(`/projects/${kitDesign}/decisions`, { revision: 2, decision: 'APPROVED' });
+        expect((await as('manager').club.get(`/collections/${kit.id}`)).body.data.collection.items[0].approval).toMatchObject({ decision: 'APPROVED' });
       });
     });
   });

@@ -100,6 +100,14 @@ const BUILTIN_FLAGS: ReadonlyArray<Omit<UpsertFeatureFlagInput, 'description'> &
     isInternal: false,
   },
   {
+    key: 'club_design_reviews',
+    name: 'Club Design Studio: reviews and approvals',
+    description: 'Comments on a saved design version, and a club administrator’s approval before ordering.',
+    defaultEnabled: true,
+    enabledForPlans: [],
+    isInternal: false,
+  },
+  {
     key: 'impersonation',
     name: 'Operator impersonation',
     description: 'Allow platform admins to impersonate users in this org.',

@@ -28,7 +28,7 @@ export interface DesignDocument {
   surfaces: unknown[];
 }
 
-interface ProductTemplate { key: string; templateVersion: number; form?: string }
+interface ProductTemplate { key: string; templateVersion: number; form?: string; surfaces?: Array<{ id: string }> }
 
 interface PdCore {
   FORMAT: string;
@@ -78,6 +78,12 @@ export function templateForm(key: string, version: number): 'top' | 'shorts' | '
   const t = load().templates.get(`${key}@${version}`);
   if (!t) return null;
   return t.form === 'shorts' || t.form === 'socks' ? t.form : 'top';
+}
+
+/** The surface ids a released template draws, in order (M7b: a review comment may name one), or null. */
+export function templateSurfaces(key: string, version: number): string[] | null {
+  const t = load().templates.get(`${key}@${version}`);
+  return t && Array.isArray(t.surfaces) ? t.surfaces.map((s) => s.id) : null;
 }
 
 /** The core's limits (bytes, name length), for the routes' own envelope checks. */

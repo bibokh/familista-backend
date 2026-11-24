@@ -273,7 +273,9 @@
       spec.garments.forEach(function (x) {
         var cell = h('td');
         x.sizes.forEach(function (y, i) { if (i) cell.appendChild(document.createTextNode(' · ')); cell.appendChild(h('bdi', { dir: 'ltr', text: y.size + ' × ' + y.sets })); });
-        gb.appendChild(h('tr', null, [h('th', { scope: 'row' }, [h('span', { 'data-user-content': '', text: x.name }), h('span', { class: 'pd-dock-kicker', text: ' · ' + tf('version %d', x.revision) })]),
+        // M7b: whether a club administrator approved the version asked for, as the club recorded it.
+        gb.appendChild(h('tr', null, [h('th', { scope: 'row' }, [h('span', { 'data-user-content': '', text: x.name }), h('span', { class: 'pd-dock-kicker', text: ' · ' + tf('version %d', x.revision) }),
+          ctx.approvalChip ? h('span', { class: 'pd-rv-cell', title: T('The club’s review of this version') }, [ctx.approvalChip(x.approval)]) : null]),
           h('td', { text: T(FORM[x.form]) }), cell,
           h('td', { class: 'pd-team-acts' }, [btn({ class: 'pd-icbtn', 'data-pd-act': 'mfg-design', 'data-pd-id': x.projectId, 'aria-label': tf('Download %s as submitted', x.name), title: T('Download the design as submitted') }, [icon('export', 14)])])]));
       });

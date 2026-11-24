@@ -143,7 +143,8 @@
       spec.garments.forEach(function (g) {
         var cell = h('td');
         g.sizes.forEach(function (x, i) { if (i) cell.appendChild(document.createTextNode(' · ')); cell.appendChild(h('bdi', { dir: 'ltr', text: x.size + ' × ' + x.sets })); });
-        tb.appendChild(h('tr', null, [h('th', { scope: 'row' }, [h('span', { 'data-user-content': '', text: g.name }), h('span', { class: 'pd-dock-kicker', text: ' · ' + tf('version %d', g.revision) })]),
+        tb.appendChild(h('tr', null, [h('th', { scope: 'row' }, [h('span', { 'data-user-content': '', text: g.name }), h('span', { class: 'pd-dock-kicker', text: ' · ' + tf('version %d', g.revision) }),
+          shell.approvalChip ? h('span', { class: 'pd-rv-cell' }, [shell.approvalChip(g.approval)]) : null]),
           h('td', { text: T(FORM[g.form]) }), cell]));
       });
       table.appendChild(tb);

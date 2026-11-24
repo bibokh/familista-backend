@@ -53,7 +53,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 const REGIONS = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/design-studio/reference-regions.json'), 'utf8'));
 const REFERENCE = path.join(ROOT, 'docs/design-studio', REGIONS.reference);
 // PROOF_ONLY=P16 runs only the DS-1c 3D sections (P16), PROOF_ONLY=P17 only the catalogue (M1), PROOF_ONLY=P18 only the Club Design
-// Studio (M2), PROOF_ONLY=P19 only the Team panel (M3), PROOF_ONLY=P20 only manufacturing (M4); unset, everything runs.
+// Studio (M2), PROOF_ONLY=P19 only the Team panel (M3), PROOF_ONLY=P20 only manufacturing (M4), PROOF_ONLY=P21 only a design's
+// review (M7b); unset, everything runs.
 const want = (n) => !process.env.PROOF_ONLY || process.env.PROOF_ONLY.split(',').includes(n);
 const roomWord = (code, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/i18n', code + '.json'), 'utf8'))[en];
 
@@ -62,6 +63,8 @@ const COACH = { id: 'u-coach', email: 'coach@familista.test', role: 'COACH' };
 // M2: the administrator of the entitled club, and of a club that is not entitled (P18).
 const CLUB_ADMIN = { id: 'u-cadmin', email: 'cadmin@familista.test', role: 'CLUB_ADMIN' };
 const OTHER_ADMIN = { id: 'u-admin2', email: 'admin2@familista.test', role: 'CLUB_ADMIN', clubId: 'club-2' };
+// M7b (P21): a manager of Home FC, who comments on a design and may not decide on it.
+const CLUB_MANAGER = { id: 'u-cmanager', email: 'cmanager@familista.test', role: 'MANAGER' };
 let CURRENT = OWNER; // eslint-disable-line no-unused-vars -- kept for open()'s signature; the database decides who is who
 
 // ── the database: real PostgreSQL, created for this run and dropped after it ──────────────────────────────────────────
@@ -96,6 +99,7 @@ async function prepareDatabase() {
     // M2 (P18): a second club; the Club Design Studio as shipped (off everywhere), released to Home FC by an override.
     await tx.club.create({ data: { id: 'club-2', name: 'Away FC', city: 'Y' } });
     for (const u of [CLUB_ADMIN, OTHER_ADMIN]) await tx.user.create({ data: { id: u.id, clubId: u.clubId || 'club-1', email: u.email, passwordHash: 'x', firstName: 'Admin', lastName: 'Proof', role: u.role } });
+    await tx.user.create({ data: { id: CLUB_MANAGER.id, clubId: 'club-1', email: CLUB_MANAGER.email, passwordHash: 'x', firstName: 'Manager', lastName: 'Proof', role: CLUB_MANAGER.role } });
     await tx.featureFlag.create({ data: { key: 'club_design_studio', name: 'Club Design Studio', defaultEnabled: false, enabledForPlans: [] } });
     await tx.organizationLimits.create({ data: { clubId: 'club-1', featuresEnabled: ['club_design_studio'] } });
     // M3 (P19): Home FC's squad: three active players, one who has left, one whose surname cannot be printed; and Away FC's.
@@ -141,7 +145,8 @@ const budget = (name, values, ok, detail) => {
   const BASE = 'http://127.0.0.1:47934';
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--no-sandbox'] });
   const TOKENS = { owner: signToken('access', { sub: OWNER.id, role: OWNER.role }, { expiresIn: '60m' }), coach: signToken('access', { sub: COACH.id, role: COACH.role }, { expiresIn: '60m' }),
-    clubAdmin: signToken('access', { sub: CLUB_ADMIN.id, role: CLUB_ADMIN.role }, { expiresIn: '60m' }), otherAdmin: signToken('access', { sub: OTHER_ADMIN.id, role: OTHER_ADMIN.role }, { expiresIn: '60m' }) };
+    clubAdmin: signToken('access', { sub: CLUB_ADMIN.id, role: CLUB_ADMIN.role }, { expiresIn: '60m' }), otherAdmin: signToken('access', { sub: OTHER_ADMIN.id, role: OTHER_ADMIN.role }, { expiresIn: '60m' }),
+    clubManager: signToken('access', { sub: CLUB_MANAGER.id, role: CLUB_MANAGER.role }, { expiresIn: '60m' }) };
 
   async function open(viewport, locale, opts) {
     opts = opts || {};
@@ -178,6 +183,7 @@ const budget = (name, values, ok, detail) => {
   async function proofClub() { await require('./product-design-club-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   async function proofTeam() { await require('./product-design-team-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   async function proofManufacturing() { await require('./product-design-manufacturing-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofReview() { await require('./product-design-review-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   const boxOf = (pg, sel) => pg.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }, sel);
 
   try {
@@ -710,6 +716,7 @@ const budget = (name, values, ok, detail) => {
     if (want('P18')) await proofClub();
     if (want('P19')) await proofTeam();
     if (want('P20')) await proofManufacturing();
+    if (want('P21')) await proofReview();
   } catch (e) {
     fail('proof crashed', String(e && e.stack || e).slice(0, 1200));
   } finally {

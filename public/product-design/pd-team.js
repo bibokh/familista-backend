@@ -62,13 +62,13 @@
       confirm: function (text, go, run) { st.confirm = { text: text, go: go, run: run }; render(); },
       download: function (text, name) { download(text, name); },
       delimiter: function () { return st.delimiter; },
-      currentProject: ctx.currentProject, openDesign: ctx.openDesign, productLabel: ctx.productLabel,
+      currentProject: ctx.currentProject, openDesign: ctx.openDesign, productLabel: ctx.productLabel, approvalChip: ctx.approvalChip || null,
       // M4: a request for quotation sent from a collection's order sheet opens in the Requests tab.
       openRequest: ctx.requests ? function (id) { st.tab = 'requests'; if (RQ) RQ.open(id); } : null,
     }) : null;
     // M4: the club's requests for quotation, the panel's third tab (pd-requests.js), when the room loaded it.
     var RQ = ctx.requests ? ctx.requests.create({
-      h: h, btn: btn, icon: icon, T: T, tf: tf, api: api, date: ctx.date, lang: ctx.lang,
+      h: h, btn: btn, icon: icon, T: T, tf: tf, api: api, date: ctx.date, lang: ctx.lang, approvalChip: ctx.approvalChip || null,
       render: function () { render(); },
       note: function (text) { st.note = text; var n = el.querySelector('[data-pd-team-status]'); if (n) n.textContent = text; },
       show: function (view) { st.view = view; st.note = ''; render(); },

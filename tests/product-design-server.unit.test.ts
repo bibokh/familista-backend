@@ -125,8 +125,12 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
     // M4: the club's requests for quotation, every route of them.
     await C.api.submitRequest(id, { rosterId: null }); await C.api.listRequests(); await C.api.openRequest(id);
     await C.api.cancelRequest(id); await C.api.declineQuotes(id); await C.api.confirmDelivery(id); await C.api.acceptQuote(id, id);
+    // M7b: a design's review, every route of it (the comment id is another id, so its place in the path is checked).
+    const cid = '22222222-2222-4222-8222-222222222222';
+    await C.api.readReview(id); await C.api.commentOnDesign(id, { revision: 1, surface: 'back', body: 'Taller' });
+    await C.api.resolveComment(id, cid); await C.api.reopenComment(id, cid); await C.api.decideOnDesign(id, { revision: 1, decision: 'APPROVED', note: null });
     expect(calls.every((c) => c.url.startsWith('/api/v1/club-design/'))).toBe(true);
-    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(`/assets/${id}`, '/assets/:assetId').replace(`/rosters/${id}`, '/rosters/:rosterId').replace(`/collections/${id}`, '/collections/:collectionId').replace(`/requests/${id}/quotes/${id}`, '/requests/:requestId/quotes/:quoteId').replace(`/requests/${id}`, '/requests/:requestId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(`/assets/${id}`, '/assets/:assetId').replace(`/rosters/${id}`, '/rosters/:rosterId').replace(`/collections/${id}`, '/collections/:collectionId').replace(`/requests/${id}/quotes/${id}`, '/requests/:requestId/quotes/:quoteId').replace(`/requests/${id}`, '/requests/:requestId').replace(`/comments/${cid}`, '/comments/:commentId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
     expect([...new Set(used)].sort()).toEqual(served);
     expect(calls.some((c) => c.url.includes('club-1') || String(c.init.body || '').includes('club-1'))).toBe(false);
     expect(calls[0].init.headers).toMatchObject({ Authorization: 'Bearer tkn' });

@@ -11027,6 +11027,8 @@ model DesignProject {
 
   revisions       DesignRevision[]
   collectionItems DesignCollectionItem[]
+  reviewComments  DesignReviewComment[]
+  approvals       DesignApproval[]
 
   /// A collection's item names a project and its club together (M3b), so the database holds an item to its club's projects.
   @@unique([id, clubId])
@@ -11338,5 +11340,52 @@ model ManufacturingQuote {
 
   @@index([requestId])
   @@index([supplierId])
+  @@index([clubId])
+}
+
+// ── Design reviews and approvals (M7b) ──────────────────────────────────────
+
+/// A club administrator's decision on one saved version of a design.
+enum DesignReviewDecision {
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+/// A comment on one saved version of a club's design, on the whole garment or on one of its surfaces (M7b). Under
+/// row-level security (20261124100000); held to its club's design by a composite key.
+model DesignReviewComment {
+  id           String        @id @default(uuid())
+  clubId       String
+  projectId    String
+  project      DesignProject @relation(fields: [projectId, clubId], references: [id, clubId], onDelete: Cascade)
+  /// The revision number it was made on.
+  revision     Int
+  /// A surface id of the design's template, or null for the whole garment.
+  surface      String?
+  body         String
+  authorId     String
+  resolvedAt   DateTime?     @db.Timestamptz(3)
+  resolvedById String?
+  createdAt    DateTime      @default(now()) @db.Timestamptz(3)
+
+  @@index([projectId, revision, createdAt])
+  @@index([clubId])
+}
+
+/// A club administrator's decision on one saved version, pinned to its revision and its SHA-256: approving a version
+/// says nothing about the next one. Never changed or removed (a trigger holds it); the newest for a revision is current.
+model DesignApproval {
+  id          String               @id @default(uuid())
+  clubId      String
+  projectId   String
+  project     DesignProject        @relation(fields: [projectId, clubId], references: [id, clubId], onDelete: Cascade)
+  revision    Int
+  sha256      String
+  decision    DesignReviewDecision
+  note        String?
+  decidedById String
+  createdAt   DateTime             @default(now()) @db.Timestamptz(3)
+
+  @@index([projectId, revision, createdAt])
   @@index([clubId])
 }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-24T10:10:42.376Z",
+  "generatedAt": "2026-11-24T10:50:25.854Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -324,7 +324,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "355 models, 218 enums, 55 migrations."
+      "note": "357 models, 219 enums, 56 migrations."
     },
     {
       "id": "prisma-orm",
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "650 TypeScript modules under src/."
+      "note": "652 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1629,18 +1629,18 @@
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 650,
+    "totalTypeScript": 652,
     "testSuites": 248,
-    "migrations": 55,
-    "prismaModels": 355,
-    "prismaEnums": 218
+    "migrations": 56,
+    "prismaModels": 357,
+    "prismaEnums": 219
   },
   "database": {
     "provider": "postgresql",
-    "models": 355,
-    "enums": 218,
-    "migrations": 55,
-    "latestMigration": "20261123220000_manufacturing_requests"
+    "models": 357,
+    "enums": 219,
+    "migrations": 56,
+    "latestMigration": "20261124100000_design_reviews"
   },
   "typescript": {
     "target": "ES2020",
@@ -1957,8 +1957,8 @@
       "path": "/club-design",
       "router": "clubDesignRoutes",
       "file": "src/routes/club-design.routes.ts",
-      "writes": 24,
-      "reads": 14
+      "writes": 28,
+      "reads": 15
     },
     {
       "path": "/telemetry",

@@ -20,6 +20,7 @@ import { ConflictError, NotFoundError } from '../../utils/errors';
 import { clubAudit } from './club-audit';
 import { templateForm } from './core';
 import { rosterSummary, validateRosterEntries, type RosterSummary } from './roster-core';
+import { approvalsFor, type ApprovalState } from './review.service';
 import type { DesignActor } from './service';
 
 /** At most this many collections in a club at once (archived ones do not count). */
@@ -32,6 +33,8 @@ export interface CollectionInput { name: string; season: string | null; rosterId
 export interface CollectionItemView {
   projectId: string; role: DesignCollectionRole; position: number; name: string; templateKey: string; templateVersion: number;
   form: 'top' | 'shorts' | 'socks' | null; archived: boolean;
+  /** M7b: the newest version's current decision by a club administrator, or null when it has none. */
+  revision: number; approval: ApprovalState | null;
 }
 export interface CollectionSummaryView { id: string; name: string; season: string | null; rosterId: string | null; version: number; archivedAt: Date | null; updatedAt: Date; items: number }
 export interface CollectionView extends Omit<CollectionSummaryView, 'items'> { createdAt: Date; items: CollectionItemView[] }
@@ -57,17 +60,19 @@ export class CollectionConflictError extends ConflictError {
 const SUMMARY_SELECT = { id: true, name: true, season: true, rosterId: true, version: true, archivedAt: true, updatedAt: true, _count: { select: { items: true } } } as const;
 const FULL_SELECT = {
   id: true, name: true, season: true, rosterId: true, version: true, archivedAt: true, updatedAt: true, createdAt: true,
-  items: { orderBy: { position: 'asc' as const }, select: { projectId: true, role: true, position: true, project: { select: { name: true, templateKey: true, templateVersion: true, archivedAt: true } } } },
+  items: { orderBy: { position: 'asc' as const }, select: { projectId: true, role: true, position: true, project: { select: { name: true, templateKey: true, templateVersion: true, archivedAt: true, headRevision: true } } } },
 };
 type FullRow = Prisma.DesignCollectionGetPayload<{ select: typeof FULL_SELECT }>;
 
-function view(row: FullRow): CollectionView {
+async function view(tx: Prisma.TransactionClient, clubId: string, row: FullRow): Promise<CollectionView> {
   const { items, ...rest } = row;
+  const approvals = await approvalsFor(tx, clubId, items.map((i) => ({ projectId: i.projectId, revision: i.project.headRevision })));
   return {
     ...rest,
     items: items.map((i) => ({
       projectId: i.projectId, role: i.role, position: i.position, name: i.project.name, templateKey: i.project.templateKey,
       templateVersion: i.project.templateVersion, form: templateForm(i.project.templateKey, i.project.templateVersion), archived: !!i.project.archivedAt,
+      revision: i.project.headRevision, approval: approvals.get(`${i.projectId}@${i.project.headRevision}`) ?? null,
     })),
   };
 }
@@ -125,7 +130,7 @@ export async function listCollections(clubId: string, opts: { archived?: boolean
 export async function getCollection(clubId: string, id: string): Promise<{ collection: CollectionView }> {
   const row = await prisma.designCollection.findFirst({ where: { id, clubId }, select: FULL_SELECT });
   if (!row) throw new NotFoundError('Collection');
-  return { collection: view(row) };
+  return { collection: await view(prisma, clubId, row) };
 }
 
 /** A new collection. */
@@ -141,7 +146,7 @@ export async function createCollection(clubId: string, actor: DesignActor, raw: 
     });
     await writeItems(tx, clubId, created.id, input.items);
     await audit(tx, clubId, actor, 'design.collection.created', created.id, { designs: input.items.length, roster: !!input.rosterId }, 'A design collection was created');
-    return { collection: view(await tx.designCollection.findFirstOrThrow({ where: { id: created.id, clubId }, select: FULL_SELECT })) };
+    return { collection: await view(tx, clubId, await tx.designCollection.findFirstOrThrow({ where: { id: created.id, clubId }, select: FULL_SELECT })) };
   });
 }
 
@@ -162,7 +167,7 @@ export async function saveCollection(clubId: string, actor: DesignActor, id: str
     await writeItems(tx, clubId, id, input.items);
     const row = await tx.designCollection.findFirstOrThrow({ where: { id, clubId }, select: FULL_SELECT });
     await audit(tx, clubId, actor, 'design.collection.saved', id, { designs: input.items.length, roster: !!input.rosterId, version: row.version }, 'A design collection was saved');
-    return { collection: view(row) };
+    return { collection: await view(tx, clubId, row) };
   });
 }
 

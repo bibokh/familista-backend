@@ -137,6 +137,12 @@
       api.declineQuotes = function (requestId, note) { return call('POST', '/requests/' + id(requestId) + '/decline', { note: note || null }); };
       api.confirmDelivery = function (requestId, note) { return call('POST', '/requests/' + id(requestId) + '/delivered', { note: note || null }); };
       api.acceptQuote = function (requestId, quoteId) { return call('POST', '/requests/' + id(requestId) + '/quotes/' + id(quoteId) + '/accept', {}); };
+      // Reviews (M7b): comments on a saved version, and a club administrator's decision on the newest one.
+      api.readReview = function (projectId) { return call('GET', '/projects/' + id(projectId) + '/review'); };
+      api.commentOnDesign = function (projectId, c) { return call('POST', '/projects/' + id(projectId) + '/comments', { revision: c.revision, surface: c.surface || null, body: c.body }); };
+      api.resolveComment = function (projectId, commentId) { return call('POST', '/projects/' + id(projectId) + '/comments/' + id(commentId) + '/resolve', {}); };
+      api.reopenComment = function (projectId, commentId) { return call('POST', '/projects/' + id(projectId) + '/comments/' + id(commentId) + '/reopen', {}); };
+      api.decideOnDesign = function (projectId, d) { return call('POST', '/projects/' + id(projectId) + '/decisions', { revision: d.revision, decision: d.decision, note: d.note || null }); };
     }
 
     // The Platform Owner's manufacturing console (M4): suppliers, every club's requests, quotations and order steps.

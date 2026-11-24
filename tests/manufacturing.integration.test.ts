@@ -180,12 +180,18 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
       expect([r.status, r.body.code, r.body.reason]).toEqual([409, 'REQUEST_INCOMPLETE', reason]);
     }
     expect(await rows()).toEqual(before);
+    // M7b: a club administrator approved the shirt and not the shorts; the request still goes, and says which is which.
+    expect((await as('admin').post(`${CLUB}/projects/${shirt}/decisions`, { revision: 1, decision: 'APPROVED' })).status).toBe(201);
     const r = await as('manager').post(`${CLUB}/collections/${kit}/requests`, { note: 'For the first home game', neededBy: inDays(60) });
     expect(r.status).toBe(201);
     req = r.body.data.request.id;
     const spec = r.body.data.request.spec;
     expect([r.body.data.request.status, r.body.data.request.sets, spec.garments.map((g: Row) => [g.form, g.revision, g.sha256.length])]).toEqual(['SUBMITTED', 3, [['top', 1, 64], ['shorts', 1, 64]]]);
     expect(spec.garments[0].sizes).toEqual([{ size: 'M', sets: 1 }, { size: 'L', sets: 2 }]);
+    expect(spec.garments.map((g: Row) => g.approval && g.approval.decision)).toEqual(['APPROVED', null]);
+    const seen = (await as('owner').get(`${OWNER}/requests/${req}`)).body.data.request.spec.garments;
+    // frozen with the specification: the decision as it stood when the club asked, for the version it asked for
+    expect(seen.map((g: Row) => g.approval && [g.approval.decision, typeof g.approval.at, g.revision])).toEqual([['APPROVED', 'string', 1], null]);
     // the database never lets the specification change, on the system path either
     await expect(sysExec(`UPDATE "ManufacturingRequest" SET "spec" = '{}'::jsonb WHERE "id" = $1`, req)).rejects.toThrow(/ManufacturingRequest_frozen/);
     const [a] = await sys(`SELECT "metadata" FROM "PlatformAuditLog" WHERE "resourceId" = $1 AND "action" = 'manufacturing.request.submitted'`, req);

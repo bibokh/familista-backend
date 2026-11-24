@@ -81,7 +81,7 @@
     function fromView(v) {
       return {
         id: v.id, version: v.version, name: v.name, season: v.season || '', rosterId: v.rosterId || '', dirty: false, state: 'ready', archived: !!v.archivedAt,
-        items: v.items.map(function (i) { return { projectId: i.projectId, role: i.role, name: i.name, templateKey: i.templateKey, form: i.form, archived: i.archived }; }),
+        items: v.items.map(function (i) { return { projectId: i.projectId, role: i.role, name: i.name, templateKey: i.templateKey, form: i.form, archived: i.archived, revision: i.revision || null, approval: i.approval || null }; }),
       };
     }
     function open(id) {
@@ -255,6 +255,8 @@
             h('div', { class: 'pd-dock-text' }, [
               h('span', { class: 'pd-dock-name', 'data-user-content': '', text: it.name }),
               h('span', { class: 'pd-dock-kicker', text: [shell.productLabel(it.templateKey), it.archived ? T('Archived') : ''].filter(Boolean).join(' · ') }),
+              // M7b: the club's decision on the design's newest version, where its plan includes reviews.
+              shell.approvalChip && it.revision ? h('span', { class: 'pd-rv-line', 'data-pd-col-approval': it.approval ? it.approval.decision : 'none' }, [shell.approvalChip(it.approval), h('span', { class: 'pd-note', text: tf('version %d', it.revision) })]) : null,
             ]),
             h('div', { class: 'pd-dock-btns' }, [
               role,
@@ -335,8 +337,14 @@
       var min = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
       var date = h('input', { class: 'pd-input', type: 'date', min: min, 'data-pd-col-ask': 'neededBy', 'data-pd-team-key': 'col-ask-date', 'aria-label': T('Needed by (optional)') });
       date.value = st.ask.neededBy;
+      // M7b: asking before every design is approved is allowed, and said.
+      var items = st.cur ? st.cur.items : [], approved = items.filter(function (it) { return it.approval && it.approval.decision === 'APPROVED'; }).length;
+      var unreviewed = shell.approvalChip && items.length && approved < items.length
+        ? h('p', { class: 'pd-note pd-note--warn', 'data-pd-col-unapproved': String(items.length - approved) }, [icon('alert', 14), h('span', { text: tf('%d of %d designs are approved by a club administrator. You can still ask for a quotation; approve them in Review first if they should be final.', approved, items.length) })])
+        : null;
       return h('div', { class: 'pd-dock-alert pd-col-ask', role: 'group', 'aria-label': T('Request a quotation') }, [
         h('p', { class: 'pd-note', text: T('Familista asks verified suppliers for quotations for exactly this collection and roster, as they are now, and publishes them in Requests. Nothing is ordered or charged until you accept one and Familista confirms it.') }),
+        unreviewed,
         h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('A note for Familista (optional)') }), note]),
         h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('Needed by (optional)') }), date]),
         h('div', { class: 'pd-dock-btns' }, [
