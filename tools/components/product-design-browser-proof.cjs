@@ -54,7 +54,7 @@ const REGIONS = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/design-studio/r
 const REFERENCE = path.join(ROOT, 'docs/design-studio', REGIONS.reference);
 // PROOF_ONLY=P16 runs only the DS-1c 3D sections (P16), PROOF_ONLY=P17 only the catalogue (M1), PROOF_ONLY=P18 only the Club Design
 // Studio (M2), PROOF_ONLY=P19 only the Team panel (M3), PROOF_ONLY=P20 only manufacturing (M4), PROOF_ONLY=P21 only a design's
-// review (M7b); unset, everything runs.
+// review (M7b), PROOF_ONLY=P22 only a collection's presentation sheet (M7b-2); unset, everything runs.
 const want = (n) => !process.env.PROOF_ONLY || process.env.PROOF_ONLY.split(',').includes(n);
 const roomWord = (code, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/i18n', code + '.json'), 'utf8'))[en];
 
@@ -184,6 +184,7 @@ const budget = (name, values, ok, detail) => {
   async function proofTeam() { await require('./product-design-team-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   async function proofManufacturing() { await require('./product-design-manufacturing-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   async function proofReview() { await require('./product-design-review-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofPresent() { await require('./product-design-present-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   const boxOf = (pg, sel) => pg.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }, sel);
 
   try {
@@ -717,6 +718,7 @@ const budget = (name, values, ok, detail) => {
     if (want('P19')) await proofTeam();
     if (want('P20')) await proofManufacturing();
     if (want('P21')) await proofReview();
+    if (want('P22')) await proofPresent();
   } catch (e) {
     fail('proof crashed', String(e && e.stack || e).slice(0, 1200));
   } finally {

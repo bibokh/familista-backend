@@ -496,7 +496,8 @@
       "Familista",
       "Sublimation",
       "Designs",
-      "Website"
+      "Website",
+      "Familista Design Studio"
     ],
     "product-design/fr": [
       "Chevron",
@@ -526,7 +527,8 @@
       "version %d",
       "Prospect",
       "Sublimation",
-      "Designs"
+      "Designs",
+      "Familista Design Studio"
     ],
     "product-design/es": [
       "Club",
@@ -538,14 +540,16 @@
       "Material",
       "Owner Control",
       "Familista",
-      "ref. %s"
+      "ref. %s",
+      "Familista Design Studio"
     ],
     "product-design/ar": [
       "Club Design Studio",
       "Creator Studio",
       "Design Studio",
       "Design Studio Control",
-      "Familista"
+      "Familista",
+      "Familista Design Studio"
     ]
   },
   "catalogue": {

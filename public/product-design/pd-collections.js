@@ -285,6 +285,8 @@
       out.push(sheetBlock());
       out.push(h('div', { class: 'pd-dock-btns pd-team-save' }, [
         h('span', { class: 'pd-dock-kicker', 'data-pd-col-dirty': '', text: c.dirty ? T('Unsaved changes') : (c.id ? T('Saved') : '') }),
+        // M7b-2: the saved collection as a page to show or print.
+        shell.present && c.id && !c.dirty && c.items.length ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'col-present', 'data-pd-team-key': 'col-present' }, [icon('eye', 14), h('span', { text: T('Present') })]) : null,
         btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'col-save', 'data-pd-team-key': 'col-save', 'aria-disabled': st.busy ? 'true' : null, 'data-pd-why': st.busy ? T('Saving…') : null, 'aria-keyshortcuts': 'Control+S' }, [icon('save', 14), h('span', { text: T('Save collection') })]),
       ]));
       return out;
@@ -405,6 +407,12 @@
         case 'col-add-here': addItem(shell.currentProject()); return true;
         case 'col-open-design': shell.openDesign(t.getAttribute('data-pd-id')); return true;
         case 'col-export': exportSheet(); return true;
+        case 'col-present':
+          if (shell.present && c && c.id && !c.dirty && c.items.length) {
+            shell.present({ id: c.id, name: c.name, season: c.season, items: c.items.map(function (x) { return { projectId: x.projectId, role: x.role, roleLabel: T(ROLE[x.role]), name: x.name, templateKey: x.templateKey, approval: x.approval }; }) },
+              st.sheet.state === 'ready' ? st.sheet.data : null, t);
+          }
+          return true;
         case 'col-ask': st.ask = st.ask ? null : { note: '', neededBy: '' }; shell.render(); return true;
         case 'col-ask-cancel': st.ask = null; shell.render(); return true;
         case 'col-ask-send': sendAsk(); return true;

@@ -881,5 +881,14 @@
   "No comments yet. Comment on the whole garment or on one part of it.": "Aún no hay comentarios. Comente la prenda completa o una de sus partes.",
   "No resolved comments.": "No hay comentarios resueltos.",
   "Decisions": "Decisiones",
-  "Save the design to review it. A review belongs to a saved version, so everyone comments on the same design.": "Guarde el diseño para revisarlo. Una revisión pertenece a una versión guardada, para que todos comenten el mismo diseño."
+  "Save the design to review it. A review belongs to a saved version, so everyone comments on the same design.": "Guarde el diseño para revisarlo. Una revisión pertenece a una versión guardada, para que todos comenten el mismo diseño.",
+  "Present": "Presentar",
+  "Opening the print dialog. Choose “Save as PDF” to keep a file.": "Se abre el cuadro de impresión. Elija «Guardar como PDF» para conservar un archivo.",
+  "Presentation": "Presentación",
+  "Designs drawn: %d of %d": "Diseños dibujados: %d de %d",
+  "Drawing the designs…": "Dibujando los diseños…",
+  "Print or save as PDF": "Imprimir o guardar como PDF",
+  "Designs: %d · prepared %s": "Diseños: %d · preparado el %s",
+  "Familista Design Studio": "Familista Design Studio",
+  "Colours on screen and in print are approximate.": "Los colores en pantalla y en la impresión son aproximados."
 }

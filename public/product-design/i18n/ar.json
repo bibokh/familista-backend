@@ -881,5 +881,14 @@
   "No comments yet. Comment on the whole garment or on one part of it.": "لا توجد تعليقات بعد. علّق على القطعة كاملة أو على جزء منها.",
   "No resolved comments.": "لا توجد تعليقات محلولة.",
   "Decisions": "القرارات",
-  "Save the design to review it. A review belongs to a saved version, so everyone comments on the same design.": "احفظ التصميم لمراجعته. تخص المراجعة نسخة محفوظة، ليعلّق الجميع على التصميم نفسه."
+  "Save the design to review it. A review belongs to a saved version, so everyone comments on the same design.": "احفظ التصميم لمراجعته. تخص المراجعة نسخة محفوظة، ليعلّق الجميع على التصميم نفسه.",
+  "Present": "عرض",
+  "Opening the print dialog. Choose “Save as PDF” to keep a file.": "يُفتح مربع الطباعة. اختر «حفظ بتنسيق PDF» للاحتفاظ بملف.",
+  "Presentation": "العرض التقديمي",
+  "Designs drawn: %d of %d": "التصاميم المرسومة: %d من %d",
+  "Drawing the designs…": "جارٍ رسم التصاميم…",
+  "Print or save as PDF": "طباعة أو حفظ بتنسيق PDF",
+  "Designs: %d · prepared %s": "التصاميم: %d · أُعدّ في %s",
+  "Familista Design Studio": "Familista Design Studio",
+  "Colours on screen and in print are approximate.": "الألوان على الشاشة وفي الطباعة تقريبية."
 }

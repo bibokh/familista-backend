@@ -881,5 +881,14 @@
   "No comments yet. Comment on the whole garment or on one part of it.": "No comments yet. Comment on the whole garment or on one part of it.",
   "No resolved comments.": "No resolved comments.",
   "Decisions": "Decisions",
-  "Save the design to review it. A review belongs to a saved version, so everyone comments on the same design.": "Save the design to review it. A review belongs to a saved version, so everyone comments on the same design."
+  "Save the design to review it. A review belongs to a saved version, so everyone comments on the same design.": "Save the design to review it. A review belongs to a saved version, so everyone comments on the same design.",
+  "Present": "Present",
+  "Opening the print dialog. Choose “Save as PDF” to keep a file.": "Opening the print dialog. Choose “Save as PDF” to keep a file.",
+  "Presentation": "Presentation",
+  "Designs drawn: %d of %d": "Designs drawn: %d of %d",
+  "Drawing the designs…": "Drawing the designs…",
+  "Print or save as PDF": "Print or save as PDF",
+  "Designs: %d · prepared %s": "Designs: %d · prepared %s",
+  "Familista Design Studio": "Familista Design Studio",
+  "Colours on screen and in print are approximate.": "Colours on screen and in print are approximate."
 }

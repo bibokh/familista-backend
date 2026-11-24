@@ -280,7 +280,7 @@
       // M2c-2: the logos image layers show, by brand asset id: { state: loading | ready | missing, data: data: URL }.
       images: {},
       // M3: the Team panel, made once per opening of the room, and the roster entry the garment previews ({ name, number }).
-      team: null, review: null, preview: null,
+      team: null, review: null, present: null, preview: null,
       // M4: the Platform Owner's manufacturing console, in the platform's room only.
       mfg: null,
     };
@@ -832,7 +832,9 @@
       case 'confirm-cancel': sv.confirm = null; renderDock(); return true;
       case 'conflict-keep': if (sv.conflict) { var head = sv.conflict.head; sv.state = 'dirty'; serverSave(head); } return true;
       case 'conflict-open': if (sv.link) { var pid = sv.link.projectId; sv.state = 'dirty'; sv.conflict = null; openProject(pid); } return true;
-      default: return S.review && act.indexOf('rv-') === 0 ? S.review.onAction(act, t) : false;
+      default:
+        if (S.present && act.indexOf('present-') === 0) return S.present.onAction(act, t);
+        return S.review && act.indexOf('rv-') === 0 ? S.review.onAction(act, t) : false;
     }
   }
 
@@ -846,6 +848,8 @@
       onPreview: setPreview, nameFit: nameFit,
       // M7b: where the club's plan includes reviews, each design's decision beside it in collections and requests.
       approvalChip: part('reviews') ? approvalChip : null,
+      // M7b-2: a saved collection's presentation sheet, over the room.
+      present: S.present ? function (kit, sheet, trigger) { S.present.open(kit, sheet, trigger); } : null,
       // M3b: the saved design on screen, opening one (behind the unsaved-change guard), and a design's product name.
       currentProject: function () { var l = S.srv.link; return l ? { id: l.projectId, name: S.doc.name, templateKey: S.doc.template.key } : null; },
       openDesign: function (id) { replacing('open', id, function () { openProject(id); }); },
@@ -861,6 +865,25 @@
       link: function () { return S.srv.link; }, unsaved: isUnsaved, role: function () { return WS.role; },
       surfaceLabel: function (id) { var f = (TEMPLATE.surfaces || []).filter(function (x) { return x.id === id; })[0]; return f && f.label ? T(f.label) : id; },
     };
+  }
+  /** What the presentation sheet is handed (M7b-2): the room's builders and words, its renderer and its templates. */
+  function presentContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, date: when, productLabel: productLabel,
+      approvalChip: part('reviews') ? approvalChip : null, clubName: function () { return WS.clubName || ''; },
+      host: function () { return S.host; }, onToggle: function () {},
+      draw: drawDesign, template: templateFor,
+      validate: function (raw, tpl) { try { return C.validateDocument(raw, tpl); } catch (_) { return null; } },
+    };
+  }
+  /**
+   * One view of a saved design that is not the one in the editor, drawn by the editor's own renderer: the design and its
+   * template stand in for the editor's while it draws, synchronously, and are put back before anything else can run.
+   */
+  function drawDesign(doc, tpl, viewId, prefix) {
+    var d = S.doc, t = TEMPLATE, p = S.preview;
+    S.doc = doc; TEMPLATE = tpl; S.preview = null;
+    try { return garment(viewId, { prefix: prefix, shaded: true, cls: 'pd-present-svg' }); } finally { S.doc = d; TEMPLATE = t; S.preview = p; }
   }
   function percent(f) {
     try { return new Intl.NumberFormat(LANG, { style: 'percent', maximumFractionDigits: 0 }).format(f); } catch (_) { return Math.round(f * 100) + '%'; }
@@ -1135,6 +1158,7 @@
         S.images[assetId] = { state: 'ready', data: String(fr.result) };
         renderCanvas(); scheduleThumbs();
         if (S.v3.ctl) S.v3.ctl.invalidate();
+        if (S.present) S.present.repaint();
       };
       fr.onerror = function () { if (S === mine) S.images[assetId].state = 'missing'; };
       fr.readAsDataURL(r.blob);
@@ -1643,6 +1667,8 @@
   function typing(t) { return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable); }
   function onKeyDown(ev) {
     var mod = ev.ctrlKey || ev.metaKey, k = ev.key;
+    // M7b-2: the presentation is modal while it is open: Escape and Tab are its own, and the editor's shortcuts wait.
+    if (S.present && S.present.isOpen()) { S.present.onKey(ev); return; }
     if (mod && (k === 'z' || k === 'Z') && !typing(ev.target)) { ev.preventDefault(); undoRedo(ev.shiftKey ? 'redo' : 'undo'); return; }
     if (mod && (k === 'y' || k === 'Y') && !typing(ev.target)) { ev.preventDefault(); undoRedo('redo'); return; }
     if (mod && (k === 's' || k === 'S')) { ev.preventDefault(); if (S.team && S.team.onSaveKey(ev)) return; serverSave(); return; }
@@ -3030,6 +3056,8 @@
     E.live = h('div', { class: 'pd-sr', role: 'status', 'aria-live': 'polite' });
     // M3: the Team panel, in a club's workspace only. Its two scripts are loaded by the club's room alone (app.js), and
     // looked up here rather than when this file runs, so a room loaded without them simply has no Team panel.
+    // M7b-2: a collection's presentation sheet, made before the Team panel that offers it.
+    if (!S.present && part('teamKit') && P.api.openCollection && window.FamilistaProductDesignPresent) S.present = window.FamilistaProductDesignPresent.create(presentContext());
     if (!S.team && part('teamKit') && P.api.listRosters && window.FamilistaProductDesignRoster && window.FamilistaProductDesignTeam) {
       S.team = window.FamilistaProductDesignTeam.create(teamContext());
     }
@@ -3051,6 +3079,7 @@
       (E.dock = h('section', { class: 'pd-dock', id: 'pd-dock', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'pd-dock-title', 'data-open': S.srv.open ? 'true' : 'false' })),
       S.team ? S.team.el : null,
       S.mfg ? S.mfg.el : null,
+      S.present ? S.present.el : null,
       E.live,
     ]);
     host.appendChild(E.shell);
@@ -3515,7 +3544,7 @@
       renderMsMedian: ms.length ? ms[Math.floor(ms.length / 2)] : null, renderMsMax: ms.length ? ms[ms.length - 1] : null,
       edits: S.metrics.editMs.length, editMsMedian: ed.length ? ed[Math.floor(ed.length / 2)] : null, editMsP95: ed.length ? ed[Math.floor(ed.length * 0.95)] : null,
       template: TEMPLATE ? TEMPLATE.key : null, products: INDEX ? INDEX.map(function (e) { return e.product; }) : [],
-      workspace: WS.kind, team: S.team ? S.team.metrics() : null, mfg: S.mfg ? S.mfg.metrics() : null, review: S.review ? S.review.metrics() : null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
+      workspace: WS.kind, team: S.team ? S.team.metrics() : null, mfg: S.mfg ? S.mfg.metrics() : null, review: S.review ? S.review.metrics() : null, present: S.present ? S.present.metrics() : null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
       layers: S.doc.surfaces.map(function (x) { return x.layers.length; }), findings: S.findings.length,
       saveState: S.saveState, lastSaveBytes: S.metrics.lastSaveBytes, announced: S.announced, lang: LANG, dir: DIR,
       server: { state: S.srv.state, busy: S.srv.busy, linked: !!S.srv.link, projectId: S.srv.link ? S.srv.link.projectId : null, revision: S.srv.link ? S.srv.link.revision : null,

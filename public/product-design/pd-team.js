@@ -62,7 +62,7 @@
       confirm: function (text, go, run) { st.confirm = { text: text, go: go, run: run }; render(); },
       download: function (text, name) { download(text, name); },
       delimiter: function () { return st.delimiter; },
-      currentProject: ctx.currentProject, openDesign: ctx.openDesign, productLabel: ctx.productLabel, approvalChip: ctx.approvalChip || null,
+      currentProject: ctx.currentProject, openDesign: ctx.openDesign, productLabel: ctx.productLabel, approvalChip: ctx.approvalChip || null, present: ctx.present || null,
       // M4: a request for quotation sent from a collection's order sheet opens in the Requests tab.
       openRequest: ctx.requests ? function (id) { st.tab = 'requests'; if (RQ) RQ.open(id); } : null,
     }) : null;
