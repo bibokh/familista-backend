@@ -640,6 +640,8 @@ body.pd-studio-open { overflow: hidden; }
 .pd-col-ask textarea, .pd-mfg textarea, .pd-rv-compose textarea, .pd-rv-ask textarea { resize: vertical; min-height: 64px; }
 /* M7b — a design's review: a decision is a result, so approved is the one green; changes requested is a warning. */
 .pd-rv-chip[data-decision="APPROVED"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-success) 60%, transparent); }
+/* No decision is information too: muted in weight, never below the contrast of secondary text (it sits on table rows). */
+.pd-rv-chip[data-decision="none"] { color: var(--fam-text-secondary); }
 .pd-rv-chip[data-decision="CHANGES_REQUESTED"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-warning) 60%, transparent); }
 .pd-rv-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .pd-rv-cell { display: inline-flex; margin-inline-start: 6px; vertical-align: middle; }
