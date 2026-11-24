@@ -132,7 +132,13 @@ suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
       'ManufacturingRequestPerson', 'ManufacturingRequestEvent', 'ManufacturingQuote', 'DesignReviewComment', 'DesignApproval'];
     const checks = await sys(`SELECT conrelid::regclass::text AS t FROM pg_constraint WHERE contype = 'c' AND conname LIKE '%\\_one\\_owner' ORDER BY 1`);
     expect(checks.map((c) => c.t.replace(/"/g, '')).sort()).toEqual([...tables].sort());
-    const pol = await sys(`SELECT tablename, policyname, qual, with_check FROM pg_policies WHERE tablename = ANY($1::text[]) ORDER BY tablename`, [...tables, 'DesignProject']);
+    const pol = await sys(`SELECT tablename, policyname, qual, with_check FROM pg_policies WHERE tablename = ANY($1::text[]) AND policyname LIKE '%\\_tenant\\_isolation' ORDER BY tablename`, [...tables, 'DesignProject']);
+    // P4: what a live share adds beside the owner's isolation: reads, and a grantee's own review notes; nothing else.
+    const shared = await sys(`SELECT tablename, policyname, cmd FROM pg_policies WHERE policyname LIKE '%\\_shared\\_%' OR tablename = 'DesignShare' ORDER BY tablename, policyname`);
+    expect(shared.map((q) => [q.tablename, q.policyname, q.cmd])).toEqual([
+      ['DesignApproval', 'DesignApproval_shared_read', 'SELECT'], ['DesignProject', 'DesignProject_shared_read', 'SELECT'],
+      ['DesignReviewComment', 'DesignReviewComment_shared_read', 'SELECT'], ['DesignReviewComment', 'DesignReviewComment_shared_write', 'INSERT'],
+      ['DesignRevision', 'DesignRevision_shared_read', 'SELECT'], ['DesignShare', 'DesignShare_grantee_read', 'SELECT'], ['DesignShare', 'DesignShare_tenant_isolation', 'ALL']]);
     expect(pol.map((p) => [p.tablename, p.policyname, p.qual, p.with_check])).toEqual([...tables, 'DesignProject'].sort()
       .map((t) => [t, `${t}_tenant_isolation`, 'familista_rls_owner_ok("clubId", "creatorId")', 'familista_rls_owner_ok("clubId", "creatorId")']));
     const fks = await sys(`SELECT conname FROM pg_constraint WHERE contype = 'f' AND conname LIKE '%\\_creatorId\\_fkey' AND conname NOT LIKE '%\\_creatorId\\_creatorId%' ORDER BY 1`);

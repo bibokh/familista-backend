@@ -202,7 +202,10 @@ suite('Design Studio persistence, on real PostgreSQL', () => {
     const rls = await db.$queryRawUnsafe<Row[]>(`SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname IN ('DesignProject', 'DesignRevision') ORDER BY relname`);
     expect(rls).toEqual(['DesignProject', 'DesignRevision'].map((relname) => ({ relname, relrowsecurity: true, relforcerowsecurity: true })));
     const policies = await db.$queryRawUnsafe<Row[]>(
-      `SELECT tablename, policyname, cmd, permissive, qual, with_check FROM pg_policies WHERE tablename IN ('DesignProject', 'DesignRevision') ORDER BY tablename`);
+      `SELECT tablename, policyname, cmd, permissive, qual, with_check FROM pg_policies WHERE tablename IN ('DesignProject', 'DesignRevision') AND policyname LIKE '%\\_tenant\\_isolation' ORDER BY tablename`);
+    // P4: beside its owner's isolation, a design and its versions are readable through a live share, and only read.
+    const shared = await db.$queryRawUnsafe<Row[]>(`SELECT tablename, policyname, cmd FROM pg_policies WHERE tablename IN ('DesignProject', 'DesignRevision') AND policyname NOT LIKE '%\\_tenant\\_isolation' ORDER BY tablename`);
+    expect(shared.map((q) => [q.tablename, q.policyname, q.cmd])).toEqual([['DesignProject', 'DesignProject_shared_read', 'SELECT'], ['DesignRevision', 'DesignRevision_shared_read', 'SELECT']]);
     expect(policies.map((q) => [q.tablename, q.policyname, q.cmd, q.permissive])).toEqual([
       ['DesignProject', 'DesignProject_tenant_isolation', 'ALL', 'PERMISSIVE'], ['DesignRevision', 'DesignRevision_tenant_isolation', 'ALL', 'PERMISSIVE']]);
     // P2: a project's owner is a club or a creator; its revisions follow the project's.

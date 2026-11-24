@@ -47,7 +47,7 @@ export type RlsContextMode = 'off' | 'observe' | 'on';
  * (20261005100000_rls_club_private_tables) and the Design Studio's projects and
  * revisions (20261122200000_design_studio_club_projects), its brand kits (20261123100000), its team rosters
  * (20261123200000) and its collections (20261123210000); and manufacturing's requests, events and quotations
- * (20261123220000); and design reviews and approvals (20261124100000). Extended table by table; the
+ * (20261123220000); and design reviews and approvals (20261124100000); and creators' shares (20261125200000). Extended table by table; the
  * posture check holds this list and the migrations to each other.
  */
 export const RLS_PILOT_MODELS: ReadonlySet<string> = new Set([
@@ -57,6 +57,7 @@ export const RLS_PILOT_MODELS: ReadonlySet<string> = new Set([
   'TrainingAttendanceRecord', 'MatchAttendanceRecord', 'OperationsPayment', 'ClubCalendarEntry', 'StaffClubNote',
   'DesignProject', 'DesignRevision', 'DesignBrandKit', 'DesignBrandAsset', 'DesignRoster', 'DesignCollection', 'DesignCollectionItem',
   'ManufacturingRequest', 'ManufacturingRequestEvent', 'ManufacturingQuote', 'DesignReviewComment', 'DesignApproval', 'ManufacturingRequestPerson',
+  'DesignShare',
 ]);
 
 const store = new AsyncLocalStorage<Held>();

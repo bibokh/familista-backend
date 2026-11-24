@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-24T20:40:31.976Z",
+  "generatedAt": "2026-11-24T21:03:50.714Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -324,7 +324,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "362 models, 222 enums, 58 migrations."
+      "note": "363 models, 223 enums, 59 migrations."
     },
     {
       "id": "prisma-orm",
@@ -1631,16 +1631,16 @@
     "fabricModules": 52,
     "totalTypeScript": 668,
     "testSuites": 251,
-    "migrations": 58,
-    "prismaModels": 362,
-    "prismaEnums": 222
+    "migrations": 59,
+    "prismaModels": 363,
+    "prismaEnums": 223
   },
   "database": {
     "provider": "postgresql",
-    "models": 362,
-    "enums": 222,
-    "migrations": 58,
-    "latestMigration": "20261125100000_creator_tenancy"
+    "models": 363,
+    "enums": 223,
+    "migrations": 59,
+    "latestMigration": "20261125200000_creator_sharing"
   },
   "typescript": {
     "target": "ES2020",

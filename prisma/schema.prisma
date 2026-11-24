@@ -11034,6 +11034,7 @@ model DesignProject {
   collectionItems DesignCollectionItem[]
   reviewComments  DesignReviewComment[]
   approvals       DesignApproval[]
+  shares          DesignShare[]
 
   /// A collection's item names a project and its club together (M3b), so the database holds an item to its club's projects.
   @@unique([id, clubId])
@@ -11553,4 +11554,27 @@ model CreatorEmailToken {
   createdAt DateTime            @default(now()) @db.Timestamptz(3)
 
   @@index([creatorId, purpose])
+}
+
+enum DesignShareRole {
+  VIEW
+  COMMENT
+}
+
+/// A creator's design shared with another creator (P4): to see it, or to comment on it too. Only ever revoked, never
+/// changed; one live share per design and grantee (a partial unique index in SQL). The owner alone edits and approves.
+model DesignShare {
+  id        String          @id @default(uuid())
+  projectId String
+  project   DesignProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// The design's owner; held to the project's own creator by a composite key in SQL.
+  creatorId String
+  /// The creator it is shared with (SQL foreign key onto CreatorAccount).
+  granteeId String
+  role      DesignShareRole
+  createdAt DateTime        @default(now()) @db.Timestamptz(3)
+  revokedAt DateTime?       @db.Timestamptz(3)
+
+  @@index([granteeId])
+  @@index([creatorId])
 }

@@ -1482,7 +1482,8 @@
     "ManufacturingQuote",
     "DesignReviewComment",
     "DesignApproval",
-    "ManufacturingRequestPerson"
+    "ManufacturingRequestPerson",
+    "DesignShare"
   ],
   "rlsSystemPaths": {
     "platform-owner": "A platform owner acts across clubs by role (authenticate); the owner rooms are pinned separately (owner-rooms-pinned).",
