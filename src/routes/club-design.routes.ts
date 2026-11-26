@@ -50,7 +50,7 @@ import {
 } from '../platform/manufacturing/club-http';
 import { commentOnDesign, decideOnDesign, readDesignReview, reopenDesignComment, resolveDesignComment } from '../platform/product-design/review-http';
 import { clubErasePerson } from '../platform/privacy/privacy-http';
-import { clubBilling, clubCancelPlan, clubCheckout, clubFeature, clubProExport, clubRequestPlan, clubTechPack } from '../platform/commercial/http';
+import { clubBilling, clubGettingStarted, clubCancelPlan, clubCheckout, clubFeature, clubProExport, clubRequestPlan, clubTechPack } from '../platform/commercial/http';
 
 const router = Router();
 router.use(authenticate);
@@ -155,6 +155,8 @@ router.post('/requests/:requestId/quotes/:quoteId/accept', manufacturing, tenant
 router.get('/projects/:id/tech-pack', clubFeature('manufacturing_prep'), tenantParam('designProject'), clubTechPack);
 router.post('/projects/:id/exports', clubFeature('pro_export'), tenantParam('designProject'), clubProExport);
 router.get('/plan', clubBilling);
+// P8: the workspace's first steps, from its own records.
+router.get('/getting-started', clubGettingStarted);
 router.post('/plan/request', clubRequestPlan);
 router.post('/plan/cancel', clubCancelPlan);
 router.post('/billing/invoices/:invoiceId/checkout', tenantParam('commercialInvoice', 'invoiceId'), clubCheckout);

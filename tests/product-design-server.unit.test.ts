@@ -93,7 +93,7 @@ describe('what it may call', () => {
     // P5/P6: the plans and every tenant's billing, configured and overseen by the Owner alone.
     await P.api.plans(); await P.api.createPlan({ key: 'free' }); await P.api.savePlan(id, { name: 'Free' }); await P.api.billing();
     await P.api.grantPlan({ tenantKind: 'club', tenantId: 'club-x', planKey: 'pro', months: 3, note: 'pilot' }); await P.api.endSubscription(id, 'over');
-    await P.api.voidInvoice(id); await P.api.expireSubscriptions(true);
+    await P.api.voidInvoice(id); await P.api.expireSubscriptions(true); await P.api.readiness();
     expect(P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }).api.billing).toBeUndefined();
     expect((await P.api.setRollout('../x', { studio: 'on' })).code).toBe('BAD_CLUB');
     expect(P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }).api.rollout).toBeUndefined();
@@ -149,7 +149,7 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
     await C.api.resolveComment(id, cid); await C.api.reopenComment(id, cid); await C.api.decideOnDesign(id, { revision: 1, decision: 'APPROVED', note: null });
     // P5/P6: the club's plan, its invoices, and the professional tools a club plan opens.
     await C.api.plan(); await C.api.requestPlan('club-pro'); await C.api.cancelPlan(); await C.api.checkout(cid);
-    await C.api.techPack(id, 'json'); await C.api.techPack(id, 'csv'); await C.api.proExport(id);
+    await C.api.techPack(id, 'json'); await C.api.techPack(id, 'csv'); await C.api.proExport(id); await C.api.gettingStarted();
     expect(calls.find((c) => c.url.endsWith('format=csv')).init.headers.Accept).toBe('text/csv');
     expect(calls.every((c) => c.url.startsWith('/api/v1/club-design/'))).toBe(true);
     const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(`/assets/${id}`, '/assets/:assetId').replace(`/rosters/${id}`, '/rosters/:rosterId').replace(`/collections/${id}`, '/collections/:collectionId').replace(`/requests/${id}/quotes/${id}`, '/requests/:requestId/quotes/:quoteId').replace(`/requests/${id}`, '/requests/:requestId').replace(`/comments/${cid}`, '/comments/:commentId').replace(`/invoices/${cid}`, '/invoices/:invoiceId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();

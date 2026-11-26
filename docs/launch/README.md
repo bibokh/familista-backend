@@ -5,6 +5,7 @@ without claiming it: a milestone may be released to invited clubs, behind its ro
 
 | File | What it is |
 |---|---|
+| `RELEASE-READINESS.md` | Every feature classified (verified, awaiting external activation, blocked, not implemented), the verification that exists and what does not, and the GO/NO-GO verdict. |
 | `claims.json` | Every statement launch material may make, with its evidence. `tests/launch-claims.unit.test.ts` fails if a claim's evidence disappears, or copy cites an unknown or unverified claim. |
 | `ROLLOUT.md` | How the Owner releases the studio, and each of its parts, to an invited club; what to check first. |
 | `FAQ.md` | Questions clubs ask, answered from verified claims only. |

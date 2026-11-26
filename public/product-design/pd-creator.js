@@ -152,7 +152,38 @@
           return h('li', null, [icon('check', 16), h('span', null, [h('strong', { text: T(it[0]) }), h('span', { text: T(it[1]) })])]);
         })),
         h('p', { class: 'pd-note', text: T('Your designs are yours: no club and no other creator can see them.') }),
-      ]);
+      ].concat(offer()));
+    }
+    /**
+     * P8: the plans Familista offers creators, as the Owner configured them, and which services work today. Each service
+     * says plainly when it is not set up: nothing is promised that the platform cannot do yet.
+     */
+    function offer() {
+      var o = st.terms.offer;
+      if (!o) return [];
+      var out = [];
+      if (o.plans.length) {
+        out.push(h('h3', { class: 'pd-h3 pd-gate-sub', text: T('Plans') }));
+        out.push(h('ul', { class: 'pd-gate-plans', role: 'list' }, o.plans.map(function (p) {
+          return h('li', { class: 'pd-gate-plan', 'data-pd-gate-plan': p.key }, [
+            h('span', { class: 'pd-gate-plan-head' }, [h('strong', { 'data-user-content': '', dir: 'auto', text: p.name }),
+              h('span', { class: 'pd-gate-plan-price', text: p.priceMinor ? (p.interval === 'YEAR' ? tf('%s per year', shell.money(p.priceMinor, p.currency)) : tf('%s per month', shell.money(p.priceMinor, p.currency))) : T('Free') })]),
+            p.description ? h('span', { class: 'pd-note', 'data-user-content': '', dir: 'auto', text: p.description }) : null,
+          ]);
+        })));
+      }
+      var sv = o.services, row = function (key, label, ok, yes, no) {
+        return h('li', { class: 'pd-gate-service', 'data-pd-service': key, 'data-ready': ok ? 'true' : 'false' }, [icon(ok ? 'check' : 'info', 14),
+          h('span', null, [h('strong', { text: T(label) }), h('span', { text: ok ? T(yes) : T(no) })])]);
+      };
+      out.push(h('h3', { class: 'pd-h3 pd-gate-sub', text: T('What works today') }));
+      out.push(h('ul', { class: 'pd-gate-list pd-gate-services', role: 'list' }, [
+        row('email', L('Email'), sv.email, L('Confirmation and password links are sent.'), L('Not set up yet: Familista confirms addresses by hand meanwhile.')),
+        row('payments', L('Online payment'), sv.payments, L('Paid plans can be paid online.'), L('Not set up yet: nothing can be paid or charged here. Familista can activate a plan for you.')),
+        row('quotations', L('Quotations'), sv.quotations, L('Familista asks verified suppliers for your quotations.'), L('No supplier is verified yet: a request is received, and no quotation can be given until one is.')),
+      ]));
+      out.push(h('p', { class: 'pd-note', text: T('Sign-up is by invitation from Familista.') }));
+      return out;
     }
     function sayStatus(text) { st.note = text; var n = el.querySelector('[data-pd-gate-status]'); if (n) n.textContent = text; }
     function fail(text) { st.error = text; var n = el.querySelector('[data-pd-gate-error]'); if (n) n.textContent = text; }
@@ -218,7 +249,7 @@
 
     function start() {
       render();
-      auth.terms().then(function (r) { if (r.ok && r.data) { st.terms = { minimumAge: r.data.minimumAge, email: r.data.email }; render(); } });
+      auth.terms().then(function (r) { if (r.ok && r.data) { st.terms = { minimumAge: r.data.minimumAge, email: r.data.email, offer: r.data.offer || null }; render(); } });
       if (shell.links && shell.links.verify) {
         var token = shell.links.verify; shell.links.verify = null;
         auth.verifyEmail(token).then(function (r) { st.verified = r.ok ? 'ok' : 'used'; render(); });
@@ -226,7 +257,11 @@
     }
     return {
       el: el, start: start, repaint: render,
-      metrics: function () { return { view: st.view, busy: st.busy, error: st.error, note: st.note, verified: st.verified, minimumAge: st.terms.minimumAge, email: st.terms.email }; },
+      metrics: function () {
+        var o = st.terms.offer;
+        return { view: st.view, busy: st.busy, error: st.error, note: st.note, verified: st.verified, minimumAge: st.terms.minimumAge, email: st.terms.email,
+          plans: o ? o.plans.map(function (p) { return p.key; }) : null, services: o ? o.services : null };
+      },
     };
   }
 

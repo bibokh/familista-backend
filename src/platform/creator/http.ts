@@ -8,6 +8,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { z } from 'zod';
 import { config } from '../../config';
 import { emailConfiguration } from '../email/service';
+import { publicOffer } from '../commercial/readiness.service';
 import {
   changePassword, createInvite, CreatorEmailTakenError, CreatorInputError, CreatorInviteError, CreatorLinkError, listCreators, listInvites, login, logout,
   me, minimumAge, ownerSetStatus, ownerVerifyEmail, refresh, register, requestPasswordReset, requestVerification, resetPassword, revokeInvite, updateProfile, verifyEmail,
@@ -65,7 +66,10 @@ const NoteBody = z.object({ note: Str(400) }).strict();
  * platform can send email at all (so the page says so rather than promising a link that cannot come).
  */
 export const creatorSignupTerms = handler(async (_req, res) => {
-  res.json({ success: true, data: { signup: 'invitation', minimumAge: minimumAge(), email: emailConfiguration().configured } });
+  // P8: the plans on offer to creators and the services configured now: what the sign-in page shows anyone, and nothing
+  // about any account, club, supplier or person.
+  const offer = await publicOffer();
+  res.json({ success: true, data: { signup: 'invitation', minimumAge: minimumAge(), email: emailConfiguration().configured, offer } });
 });
 export const creatorRegister = handler(async (req, res) => {
   const out = await register(RegisterBody.parse(req.body), ctxOf(req));

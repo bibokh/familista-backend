@@ -979,6 +979,27 @@
       openPlan: S.plan ? function (t) { closeDock(); openPlanPanel(t); } : null,
     };
   }
+  /** P8: what Getting started is handed: the workspace's client and kind, its parts, and where each step is done. */
+  function startContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, host: S.host, kind: function () { return WS.kind; }, part: part,
+      onToggle: function () { syncPanelTriggers('start', S.start); },
+      go: function (step, t) {
+        if (step === 'address' && S.acct) { closeFloating(S.acct); S.acct.open('profile', t); return; }
+        if (step === 'design') { var b = S.host.querySelector('.pd-actions [data-pd-act="save"]'); if (b) b.focus({ preventScroll: true }); serverSave(); return; }
+        if (step === 'brand' && part('brandKit')) {
+          S.libTab = 'brand'; var lib = buildLib(); S.el.lib.parentNode.replaceChild(lib, S.el.lib); S.el.lib = lib; renderThumbs();
+          setPanel(window.matchMedia && window.matchMedia('(max-width: 1279px)').matches ? 'library' : S.panel);
+          var tb = lib.querySelector('[data-pd-libtab="brand"]'); if (tb) tb.focus({ preventScroll: true });
+          return;
+        }
+        if (!S.team) return;
+        closeFloating(S.team);
+        if (step === 'roster') S.team.open(t);
+        else S.team.openTab(step === 'collection' ? 'collections' : 'requests', t);
+      },
+    };
+  }
   /** P5/P6: what the Owner's Plans & billing console is handed: the platform's client. */
   function billingContext() {
     return { api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, date: when, host: S.host, money: money, digits: currencyDigits, onToggle: function () { syncPanelTriggers('bl', S.billing); } };
@@ -990,12 +1011,13 @@
   /** One floating panel at a time beside the dock: opening one closes the others. */
   function closeFloating(except) {
     if (S.srv.open) closeDock();
-    [S.team, S.mfg, S.acct, S.shared, S.plan, S.billing].forEach(function (x) { if (x && x !== except && x.isOpen()) x.close(); });
+    [S.team, S.mfg, S.acct, S.shared, S.plan, S.billing, S.start].forEach(function (x) { if (x && x !== except && x.isOpen()) x.close(); });
   }
   function openPlanPanel(t) { closeFloating(S.plan); S.plan.open(t); }
   function onPlanAction(act, t) {
     if (S.plan && act.indexOf('plan') === 0) { if (act === 'plan' && !S.plan.isOpen()) { openPlanPanel(t); return true; } return S.plan.onAction(act, t); }
     if (S.billing && act.indexOf('bl') === 0 && /^bl(-|$)/.test(act)) { if (act === 'bl' && !S.billing.isOpen()) closeFloating(S.billing); return S.billing.onAction(act, t); }
+    if (S.start && /^start(-|$)/.test(act)) { if (act === 'start' && !S.start.isOpen()) closeFloating(S.start); return S.start.onAction(act, t); }
     return false;
   }
   function download(blob, name) {
@@ -1894,6 +1916,7 @@
     if (k === 'Escape' && S.shared && S.shared.isOpen()) { ev.preventDefault(); S.shared.close(); return; }
     if (k === 'Escape' && S.plan && S.plan.isOpen()) { ev.preventDefault(); S.plan.close(); return; }
     if (k === 'Escape' && S.billing && S.billing.isOpen()) { ev.preventDefault(); S.billing.close(); return; }
+    if (k === 'Escape' && S.start && S.start.isOpen()) { ev.preventDefault(); S.start.close(); return; }
     if (k === 'Escape' && S.srv.open) { ev.preventDefault(); closeDock(); return; }
     if (k === 'Escape' && S.panel) { setPanel(null); return; }
     if (ev.target !== S.el.canvas) return;
@@ -2439,6 +2462,8 @@
   var SIDE_CLUB = [
     { page: 'club-home', icon: 'home', label: L('Club home') },
     { page: 'club-design', icon: 'shirt', label: L('Design Studio'), current: true },
+    // P8: the workspace's first steps, each from its own records.
+    { act: 'start', icon: 'check', label: L('Getting started') },
     // M4: the club's requests for quotation, in the Team panel.
     { act: 'team-requests', icon: 'box', label: L('Orders') },
     { reason: 'store', icon: 'store', label: L('Global Store') },
@@ -2449,6 +2474,7 @@
   /** P3: in a creator's workspace: the studio, the creator's requests and account; commerce stays planned. */
   var SIDE_PERSONAL = [
     { page: 'creator', icon: 'shirt', label: L('Design Studio'), current: true },
+    { act: 'start', icon: 'check', label: L('Getting started') },
     { act: 'team-requests', icon: 'box', label: L('Orders') },
     // P4: the designs other creators shared with this one.
     { act: 'shared', icon: 'link', label: L('Shared with me') },
@@ -2465,8 +2491,8 @@
       var b = it.current ? btn({ class: 'pd-side-btn is-current', 'aria-current': 'page' })
         : it.act === 'team-requests' && !(part('teamKit') && part('manufacturing')) ? planned(btn({ class: 'pd-side-btn is-planned' }), 'not-in-plan')
         : it.act === 'shared' && !part('collaboration') ? planned(btn({ class: 'pd-side-btn is-planned' }), 'not-in-plan')
-        : (it.act === 'plan' && !S.plan) || (it.act === 'bl' && !S.billing) ? null
-        : it.act ? btn({ class: 'pd-side-btn', 'data-pd-act': it.act, 'data-pd-tab': it.tab || null, 'aria-controls': it.act === 'mfg' ? 'pd-mfg' : it.act === 'acct' ? 'pd-acct' : it.act === 'shared' ? 'pd-shared' : it.act === 'plan' ? 'pd-plan' : it.act === 'bl' ? 'pd-billing' : 'pd-team', 'aria-expanded': 'false' })
+        : (it.act === 'plan' && !S.plan) || (it.act === 'bl' && !S.billing) || (it.act === 'start' && !S.start) ? null
+        : it.act ? btn({ class: 'pd-side-btn', 'data-pd-act': it.act, 'data-pd-tab': it.tab || null, 'aria-controls': it.act === 'mfg' ? 'pd-mfg' : it.act === 'acct' ? 'pd-acct' : it.act === 'shared' ? 'pd-shared' : it.act === 'plan' ? 'pd-plan' : it.act === 'bl' ? 'pd-billing' : it.act === 'start' ? 'pd-start' : 'pd-team', 'aria-expanded': 'false' })
         : it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)
         : btn({ class: 'pd-side-btn', 'data-action': 'navTo', 'data-page': it.page });
       if (!b) return;
@@ -3399,6 +3425,7 @@
     if (!S.plan && tenantWorkspace() && P.api.plan && PLAN) S.plan = PLAN.panel(planContext());
     if (!S.pp && tenantWorkspace() && P.api.techPack && PLAN) S.pp = PLAN.production(productionContext());
     if (!S.billing && !tenantWorkspace() && P.api.plans && PLAN) S.billing = PLAN.console(billingContext());
+    if (!S.start && tenantWorkspace() && P.api.gettingStarted && PLAN) S.start = PLAN.onboarding(startContext());
     // M4: the manufacturing console, in the platform's room only; its scripts are loaded by the owner's room alone.
     if (!S.mfg && !tenantWorkspace() && SERVER.manufacturing && window.FamilistaProductDesignManufacturing && window.FamilistaProductDesignRoster) {
       S.mfg = window.FamilistaProductDesignManufacturing.create(mfgContext());
@@ -3419,6 +3446,7 @@
       S.shared ? S.shared.el : null,
       S.plan ? S.plan.el : null,
       S.billing ? S.billing.el : null,
+      S.start ? S.start.el : null,
       S.present ? S.present.el : null,
       E.live,
     ]);
@@ -3919,7 +3947,7 @@
     host.setAttribute('lang', LANG);
     host.setAttribute('dir', DIR);
     GATE = mod.gate({
-      h: h, btn: btn, icon: icon, T: T, tf: tf, dirArrow: dirArrow, auth: SERVER.creator(), links: links, deleted: deleted, brand: brandMark,
+      h: h, btn: btn, icon: icon, T: T, tf: tf, dirArrow: dirArrow, auth: SERVER.creator(), links: links, deleted: deleted, brand: brandMark, money: money,
       langs: gateLangs,
       onLang: function (code) { chooseSetLocale(code).then(function () { if (!GATE) return; host.setAttribute('lang', LANG); host.setAttribute('dir', DIR); GATE.repaint(); }); },
       locale: function () { return localeOf(LANG)[3] || 'en-GB'; },
@@ -3974,7 +4002,7 @@
       renderMsMedian: ms.length ? ms[Math.floor(ms.length / 2)] : null, renderMsMax: ms.length ? ms[ms.length - 1] : null,
       edits: S.metrics.editMs.length, editMsMedian: ed.length ? ed[Math.floor(ed.length / 2)] : null, editMsP95: ed.length ? ed[Math.floor(ed.length * 0.95)] : null,
       template: TEMPLATE ? TEMPLATE.key : null, products: INDEX ? INDEX.map(function (e) { return e.product; }) : [],
-      workspace: WS.kind, acct: S.acct ? S.acct.metrics() : null, shared: S.shared ? S.shared.metrics() : null, team: S.team ? S.team.metrics() : null, mfg: S.mfg ? S.mfg.metrics() : null, review: S.review ? S.review.metrics() : null, present: S.present ? S.present.metrics() : null, plan: S.plan ? S.plan.metrics() : null, billing: S.billing ? S.billing.metrics() : null, production: S.pp ? S.pp.metrics() : null, parts: WS.parts || null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
+      workspace: WS.kind, acct: S.acct ? S.acct.metrics() : null, shared: S.shared ? S.shared.metrics() : null, team: S.team ? S.team.metrics() : null, mfg: S.mfg ? S.mfg.metrics() : null, review: S.review ? S.review.metrics() : null, present: S.present ? S.present.metrics() : null, plan: S.plan ? S.plan.metrics() : null, billing: S.billing ? S.billing.metrics() : null, start: S.start ? S.start.metrics() : null, production: S.pp ? S.pp.metrics() : null, parts: WS.parts || null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
       layers: S.doc.surfaces.map(function (x) { return x.layers.length; }), findings: S.findings.length,
       saveState: S.saveState, lastSaveBytes: S.metrics.lastSaveBytes, announced: S.announced, lang: LANG, dir: DIR,
       server: { state: S.srv.state, busy: S.srv.busy, linked: !!S.srv.link, projectId: S.srv.link ? S.srv.link.projectId : null, revision: S.srv.link ? S.srv.link.revision : null,

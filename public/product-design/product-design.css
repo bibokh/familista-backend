@@ -966,3 +966,19 @@ html:has(#pg-creator-design), html:has(#pg-creator-design) body { margin: 0; pad
 .pd-plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--fam-space-2); }
 .pd-pp-tool .pd-h3 { display: flex; align-items: center; gap: 6px; }
 .pd-pp-tool[data-included="false"] .pd-note { color: var(--fam-text-secondary); }
+.pd-start { z-index: 45; }
+.pd-start-steps { display: flex; flex-direction: column; gap: var(--fam-space-2); margin: 0; padding: 0; list-style: none; }
+.pd-start-step { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--fam-space-2); align-items: start; padding: var(--fam-space-2) var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: 1px solid var(--fam-border-subtle); }
+.pd-start-step[data-pd-step-done="true"] { border-inline-start: 2px solid color-mix(in srgb, var(--fam-module-accent) 70%, var(--fam-text-primary)); }
+.pd-start-step[data-pd-step-done="true"] .pd-start-text strong { color: var(--fam-text-secondary); }
+.pd-start-mark { margin-top: 2px; color: var(--fam-text-secondary); }
+.pd-start-step[data-pd-step-done="true"] .pd-start-mark { color: color-mix(in srgb, var(--fam-module-accent) 70%, var(--fam-text-primary)); }
+.pd-start-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pd-ready-row .pd-note { margin: 0; }
+/* P8: the Creator Studio's sign-in page: the plans on offer and what works today, below what the studio does. */
+.pd-gate-sub { margin: var(--fam-space-2) 0 0; }
+.pd-gate-plans { display: flex; flex-direction: column; gap: var(--fam-space-2); margin: 0; padding: 0; list-style: none; }
+.pd-gate-plan { display: flex; flex-direction: column; gap: 2px; padding: var(--fam-space-2) var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: 1px solid var(--fam-border-subtle); }
+.pd-gate-plan-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px var(--fam-space-2); align-items: baseline; }
+.pd-gate-plan-price { color: var(--fam-text-secondary); font-variant-numeric: tabular-nums; }
+.pd-gate-services li[data-ready="false"] > .pd-ic { color: var(--fam-text-secondary); }

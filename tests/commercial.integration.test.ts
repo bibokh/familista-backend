@@ -242,4 +242,26 @@ suite('Premium plans and billing (P5, P6), on real PostgreSQL', () => {
     expect((await user('owner').post(`${OWNER}/billing/expire`, { dryRun: false })).body.data).toEqual({ dryRun: false, due: 1 });
     expect((await A.api.get(`${CR}/plan`)).body.data.subscription.status).toBe('EXPIRED');
   });
+
+  it('P8: the sign-in page shows anyone the creator plans on offer and which services are configured, and nothing about anyone', async () => {
+    const t = await request(app).get(`${CR}/auth/terms`);
+    expect(t.status).toBe(200);
+    const offer = t.body.data.offer;
+    expect([offer.plans.map((p: Row) => p.key), offer.services]).toEqual([['creator-free', 'creator-premium'], { email: false, payments: false, quotations: false }]);
+    expect(offer.plans[1]).toMatchObject({ name: 'Premium', priceMinor: 900, currency: 'EUR', interval: 'MONTH', limits: { projects: null, collections: null, shares: null } });
+    expect(JSON.stringify(t.body)).not.toMatch(/example\.com|club-cm|Home FC|createdById|"id"/);
+  });
+
+  it('P8: a workspace’s first steps come from its own records only; the Owner’s readiness view is the Owner’s alone', async () => {
+    const a = (await A.api.get(`${CR}/getting-started`)).body.data;
+    expect([a.steps, a.counts.designs]).toEqual([{ address: false, design: true, brand: false, roster: false, collection: false, request: false }, 2]);
+    const b = (await B.api.get(`${CR}/getting-started`)).body.data;
+    expect([b.steps.design, b.counts]).toEqual([false, { designs: 0, colours: 0, rosters: 0, collections: 0, requests: 0 }]);
+    const c = (await user('manager').get(`${CLUB}/getting-started`)).body.data;
+    expect([c.steps.address, c.steps.design, c.counts.designs]).toEqual([null, true, 1]);
+    expect((await user('admin').get(`${OWNER}/readiness`)).status).toBe(403);
+    const r = (await user('owner').get(`${OWNER}/readiness`)).body.data;
+    expect([r.email.configured, r.payments.configured, r.suppliers, r.plans, r.creators, r.clubsReleased]).toEqual([
+      false, false, { verified: 0, prospects: 0, suspended: 0 }, { creator: 2, club: 1, paid: 2, creatorDefault: true, clubDefault: false }, { active: 2, suspended: 0 }, 1]);
+  });
 });

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-26T11:39:31.096Z",
+  "generatedAt": "2026-11-26T11:56:17.352Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "676 TypeScript modules under src/."
+      "note": "677 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1629,7 +1629,7 @@
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 676,
+    "totalTypeScript": 677,
     "testSuites": 253,
     "migrations": 61,
     "prismaModels": 367,
@@ -1944,7 +1944,7 @@
       "router": "productDesignRoutes",
       "file": "src/routes/product-design.routes.ts",
       "writes": 19,
-      "reads": 10
+      "reads": 11
     },
     {
       "path": "/system/manufacturing",
@@ -1958,7 +1958,7 @@
       "router": "clubDesignRoutes",
       "file": "src/routes/club-design.routes.ts",
       "writes": 33,
-      "reads": 17
+      "reads": 18
     },
     {
       "path": "/creator/auth",
@@ -1972,7 +1972,7 @@
       "router": "creatorRoutes",
       "file": "src/routes/creator.routes.ts",
       "writes": 39,
-      "reads": 22
+      "reads": 23
     },
     {
       "path": "/telemetry",

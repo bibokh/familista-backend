@@ -1057,6 +1057,7 @@
       "GET /creator/collections",
       "GET /creator/collections/:collectionId",
       "GET /creator/collections/:collectionId/order-sheet",
+      "GET /creator/getting-started",
       "GET /creator/me",
       "GET /creator/me/export",
       "GET /creator/plan",
@@ -1533,6 +1534,7 @@
     "creator-signin": "Signing in a creator finds the account by its address before any session exists; it reads CreatorAccount and writes a CreatorSession only, no Design Studio or club row.",
     "creator-session": "Refreshing, ending and checking a creator session reads CreatorAccount and CreatorSession by the presented token or the token\u2019s subject, never a club\u2019s row or another creator\u2019s Design Studio row.",
     "creator-account": "A creator\u2019s own account changes (profile, password, email links) on CreatorAccount, CreatorSession and CreatorEmailToken, by the signed-in creator\u2019s id or a one-time link\u2019s hash.",
-    "payment-events": "A payment provider\u2019s verified report settles one invoice (P6): it reads that invoice and writes its PaymentEvent, the invoice\u2019s status and its subscription\u2019s period, and nothing else. No provider is configured, so nothing calls it in production."
+    "payment-events": "A payment provider\u2019s verified report settles one invoice (P6): it reads that invoice and writes its PaymentEvent, the invoice\u2019s status and its subscription\u2019s period, and nothing else. No provider is configured, so nothing calls it in production.",
+    "public-offer": "The Creator Studio\u2019s sign-in page (P8): reads the plans offered to creators (names, features, limits, prices the Owner configured) and counts verified suppliers, to say whether quotations are available. It reads no account, club, request or person, and writes nothing."
   }
 }

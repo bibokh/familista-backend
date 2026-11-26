@@ -56,7 +56,7 @@ const REFERENCE = path.join(ROOT, 'docs/design-studio', REGIONS.reference);
 // Studio (M2), PROOF_ONLY=P19 only the Team panel (M3), PROOF_ONLY=P20 only manufacturing (M4), PROOF_ONLY=P21 only a design's
 // review (M7b), PROOF_ONLY=P22 only a collection's presentation sheet (M7b-2),
 // PROOF_ONLY=P23 only colourways (M7c), PROOF_ONLY=P24 only the Owner's club releases (M8a), PROOF_ONLY=P25 only the
-// privacy foundation (P1), PROOF_ONLY=P26 only the Creator Studio (P3), PROOF_ONLY=P27 only sharing (P4), PROOF_ONLY=P28 only plans, billing and the professional tools (P5, P6); unset, everything runs.
+// privacy foundation (P1), PROOF_ONLY=P26 only the Creator Studio (P3), PROOF_ONLY=P27 only sharing (P4), PROOF_ONLY=P28 only plans, billing and the professional tools (P5, P6), PROOF_ONLY=P29 only the commercial experience (P8); unset, everything runs.
 const want = (n) => !process.env.PROOF_ONLY || process.env.PROOF_ONLY.split(',').includes(n);
 const roomWord = (code, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/i18n', code + '.json'), 'utf8'))[en];
 
@@ -192,6 +192,7 @@ const budget = (name, values, ok, detail) => {
   async function proofPrivacy() { await require('./product-design-privacy-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   async function proofSharing() { await require('./product-design-sharing-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   async function proofPlans() { await require('./product-design-plans-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofCommercial() { await require('./product-design-commercial-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   async function proofCreator() { await require('./product-design-creator-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   const boxOf = (pg, sel) => pg.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }, sel);
 
@@ -207,7 +208,7 @@ const budget = (name, values, ok, detail) => {
     const { ctx, page, log } = await open({ width: 1672, height: 941 }, 'en-GB');
     const readyMs = Date.now() - t0;
     const roomRequests = log.requests.filter((r) => /product-design/.test(r.path));
-    check('P1 the Platform Owner opens the Design Studio; it loads exactly its own ten static files (M1a: the garment registry and the open garment’s template; M4: the roster core and the manufacturing console; not the 3D engine), by GET, and calls no API', JSON.stringify(roomRequests.map((r) => r.method + ' ' + r.path).sort()) === JSON.stringify(['GET /product-design/pd-3d.js', 'GET /product-design/pd-core.js', 'GET /product-design/pd-garment.js', 'GET /product-design/pd-manufacturing.js', 'GET /product-design/pd-roster.js', 'GET /product-design/pd-server.js', 'GET /product-design/product-design.css', 'GET /product-design/product-design.js', 'GET /product-design/templates/football-jersey.json', 'GET /product-design/templates/index.json']), roomRequests.map((r) => r.path));
+    check('P1 the Platform Owner opens the Design Studio; it loads exactly its own eleven static files (M1a: the garment registry and the open garment’s template; M4: the roster core and the manufacturing console; P5: the plans console; not the 3D engine), by GET, and calls no API', JSON.stringify(roomRequests.map((r) => r.method + ' ' + r.path).sort()) === JSON.stringify(['GET /product-design/pd-3d.js', 'GET /product-design/pd-core.js', 'GET /product-design/pd-garment.js', 'GET /product-design/pd-manufacturing.js', 'GET /product-design/pd-plan.js', 'GET /product-design/pd-roster.js', 'GET /product-design/pd-server.js', 'GET /product-design/product-design.css', 'GET /product-design/product-design.js', 'GET /product-design/templates/football-jersey.json', 'GET /product-design/templates/index.json']), roomRequests.map((r) => r.path));
     await page.waitForTimeout(3500);
     const csp = await page.evaluate(() => window.__csp);
     const inRoom = csp.filter((c) => c.inRoom || /product-design/.test(c.src + c.uri));
@@ -733,6 +734,7 @@ const budget = (name, values, ok, detail) => {
     if (want('P26')) await proofCreator();
     if (want('P27')) await proofSharing();
     if (want('P28')) await proofPlans();
+    if (want('P29')) await proofCommercial();
   } catch (e) {
     fail('proof crashed', String(e && e.stack || e).slice(0, 1200));
   } finally {

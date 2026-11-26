@@ -41,7 +41,7 @@ import {
   ownerCreateCreatorInvite, ownerListCreatorInvites, ownerListCreators, ownerReinstateCreator, ownerRevokeCreatorInvite, ownerSuspendCreator, ownerVerifyCreatorEmail,
 } from '../platform/creator/http';
 import {
-  ownerBilling, ownerCreatePlan, ownerEndSubscription, ownerExpire, ownerGrantPlan, ownerListPlans, ownerUpdatePlan, ownerVoidInvoice,
+  ownerBilling, ownerReadinessView, ownerCreatePlan, ownerEndSubscription, ownerExpire, ownerGrantPlan, ownerListPlans, ownerUpdatePlan, ownerVoidInvoice,
 } from '../platform/commercial/http';
 
 const router = Router();
@@ -78,6 +78,8 @@ router.get('/plans', ownerListPlans);
 router.post('/plans', ownerCreatePlan);
 router.put('/plans/:planId', ownerUpdatePlan);
 router.get('/billing', ownerBilling);
+// P8: what commercial access still depends on: email, payments, suppliers, plans, creators, released clubs.
+router.get('/readiness', ownerReadinessView);
 router.post('/billing/grant', ownerGrantPlan);
 router.post('/billing/subscriptions/:subscriptionId/end', ownerEndSubscription);
 router.post('/billing/invoices/:invoiceId/void', ownerVoidInvoice);

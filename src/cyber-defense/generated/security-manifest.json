@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-26T11:40:29.708Z",
+  "generatedAt": "2026-11-26T11:46:49.108Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 63,
-    "handlers": 936,
+    "handlers": 939,
     "publicHandlers": 29,
     "publicRoutes": [
       {
@@ -386,7 +386,7 @@
       {
         "path": "/system/product-design",
         "module": "product-design.routes",
-        "handlers": 29,
+        "handlers": 30,
         "public": 0,
         "routerWideAuth": true
       },
@@ -400,7 +400,7 @@
       {
         "path": "/club-design",
         "module": "club-design.routes",
-        "handlers": 50,
+        "handlers": 51,
         "public": 0,
         "routerWideAuth": true
       },
@@ -414,7 +414,7 @@
       {
         "path": "/creator",
         "module": "creator.routes",
-        "handlers": 61,
+        "handlers": 62,
         "public": 0,
         "routerWideAuth": true
       },
@@ -940,14 +940,14 @@
       }
     },
     "authorization": {
-      "handlers": 936,
+      "handlers": 939,
       "byKind": {
         "public": 29,
         "member": 350,
         "scoped": 60,
-        "roles": 286,
-        "platform-owner": 150,
-        "creator": 61
+        "roles": 287,
+        "platform-owner": 151,
+        "creator": 62
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -995,7 +995,7 @@
           "member": 3
         },
         "club-design.routes": {
-          "roles": 50
+          "roles": 51
         },
         "club.routes": {
           "platform-owner": 1,
@@ -1014,7 +1014,7 @@
           "public": 8
         },
         "creator.routes": {
-          "creator": 61
+          "creator": 62
         },
         "cybersecurity.routes": {
           "platform-owner": 2
@@ -1134,7 +1134,7 @@
           "roles": 1
         },
         "product-design.routes": {
-          "platform-owner": 29
+          "platform-owner": 30
         },
         "provisioning.routes": {
           "roles": 7,
@@ -1273,6 +1273,7 @@
         "GET /club-design/collections": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/collections/:collectionId": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/collections/:collectionId/order-sheet": "roles:CLUB_ADMIN,MANAGER",
+        "GET /club-design/getting-started": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/plan": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/projects": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/projects/:id": "roles:CLUB_ADMIN,MANAGER",
@@ -1297,6 +1298,7 @@
         "GET /creator/collections": "creator",
         "GET /creator/collections/:collectionId": "creator",
         "GET /creator/collections/:collectionId/order-sheet": "creator",
+        "GET /creator/getting-started": "creator",
         "GET /creator/me": "creator",
         "GET /creator/me/export": "creator",
         "GET /creator/plan": "creator",
@@ -1619,6 +1621,7 @@
         "GET /system/product-design/projects/:id": "platform-owner",
         "GET /system/product-design/projects/:id/revisions": "platform-owner",
         "GET /system/product-design/projects/:id/revisions/:number": "platform-owner",
+        "GET /system/product-design/readiness": "platform-owner",
         "GET /system/product-design/rollout": "platform-owner",
         "GET /system/security": "platform-owner",
         "GET /system/signals": "platform-owner",
@@ -2547,7 +2550,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "936 handler(s) classified: 29 public, 350 member, 60 scoped, 286 roles, 150 platform-owner, 61 creator; every member- and creator-level handler reviewed by name."
+      "note": "939 handler(s) classified: 29 public, 350 member, 60 scoped, 287 roles, 151 platform-owner, 62 creator; every member- and creator-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2613,7 +2616,7 @@
       "id": "db-rls-system-paths-reviewed",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "9 named path(s) act across clubs (creator-account, creator-session, creator-signin, creator-signup, payment-events, platform-owner, staff-market-move, transfer-settlement, video-transcode); each is reviewed by name."
+      "note": "10 named path(s) act across clubs (creator-account, creator-session, creator-signin, creator-signup, payment-events, platform-owner, public-offer, staff-market-move, transfer-settlement, video-transcode); each is reviewed by name."
     },
     {
       "id": "storage-key-club-prefixed",

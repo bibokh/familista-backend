@@ -152,7 +152,9 @@ suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
   });
 
   it('opens an account only with the Owner’s invitation; keeps only hashes; confirms the age; refuses a weak password', async () => {
-    expect((await request(app).get(`${CR}/auth/terms`)).body.data).toEqual({ signup: 'invitation', minimumAge: 18, email: true });
+    // P8: and the creator plans on offer (none configured here) and the services configured now; nothing about anyone
+    expect((await request(app).get(`${CR}/auth/terms`)).body.data).toEqual({ signup: 'invitation', minimumAge: 18, email: true,
+      offer: { plans: [], services: { email: true, payments: false, quotations: false } } });
     expect((await signUp('FAM-NONE-NONE-NONE-NONE', 'a@example.com')).body).toMatchObject({ code: 'CREATOR_INVITE_REFUSED', reason: 'invalid' });
     const bound = await invite({ email: 'Alex@Example.com', note: 'first creator' });
     expect(bound.code).toMatch(/^FAM-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);

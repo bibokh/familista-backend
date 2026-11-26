@@ -12,6 +12,7 @@ import type { Feature } from './features';
 import { PaymentsNotConfiguredError } from './payment-provider';
 import { createPlan, listPlans, PlanFeatureRequiredError, PlanInvalidError, PlanLimitReachedError, requireFeature, requireUnderLimit, updatePlan } from './plans.service';
 import { cancelPlan, checkout, myBilling, ownerEnd, ownerExpireDue, ownerGrant, ownerOverview, ownerVoid, requestPlan, SubscriptionRefusedError } from './subscription.service';
+import { gettingStarted, ownerReadiness } from './readiness.service';
 import { proExport, techPack } from './tech-pack';
 
 function refusal(err: unknown, res: Response, next: NextFunction): void {
@@ -90,3 +91,8 @@ export const ownerGrantPlan = handler(async (req, res) => { res.status(201).json
 export const ownerEndSubscription = handler(async (req, res) => { res.json({ success: true, data: await ownerEnd(owner(req), Id.parse(req.params.subscriptionId), NoteBody.parse(req.body).note) }); });
 export const ownerVoidInvoice = handler(async (req, res) => { res.json({ success: true, data: await ownerVoid(owner(req), Id.parse(req.params.invoiceId)) }); });
 export const ownerExpire = handler(async (req, res) => { res.json({ success: true, data: await ownerExpireDue(owner(req), DryRunBody.parse(req.body).dryRun) }); });
+
+// ── P8: a workspace's first steps; the Owner's readiness view ─────────────────────────────────────────────────────
+export const creatorGettingStarted = handler(async (req, res) => { res.json({ success: true, data: await gettingStarted(creatorOf(req)) }); });
+export const clubGettingStarted = handler(async (req, res) => { res.json({ success: true, data: await gettingStarted(clubOf(req)) }); });
+export const ownerReadinessView = handler(async (_req, res) => { res.json({ success: true, data: await ownerReadiness() }); });

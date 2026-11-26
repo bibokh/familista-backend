@@ -367,6 +367,79 @@
     return { body: body, onAction: onAction, metrics: function () { return { busy: st.busy, proExport: has('pro_export'), mfgPrep: has('manufacturing_prep') }; } };
   }
 
+  // ── Getting started (P8): a workspace's first steps, from its own records ──
+
+  /** Each step: what it is, why, and where the room takes the reader to do it. Shown only where the plan includes it. */
+  var STEPS = [
+    { key: 'address', who: 'CREATOR', title: L('Confirm your email address'), text: L('Needed to ask Familista for quotations. The link is in the email sent when you opened the account.'), go: L('Open Account') },
+    { key: 'design', title: L('Save a first design'), text: L('Saved on the Familista server, it keeps every version and can be shared, reviewed and quoted.'), go: L('Save design') },
+    { key: 'brand', part: 'brandKit', title: L('Keep your colours in the brand kit'), text: L('Saved once, they are offered in every design and colourway.'), go: L('Open the brand kit') },
+    { key: 'roster', part: 'teamKit', title: L('Add a team roster'), text: L('Names, numbers and sizes, typed or imported from a spreadsheet.'), go: L('Open Team') },
+    { key: 'collection', part: 'teamKit', title: L('Group designs into a collection'), text: L('A kit of shirt, shorts and socks, counted size by size for a roster.'), go: L('Open collections') },
+    { key: 'request', part: 'manufacturing', title: L('Ask Familista for a quotation'), text: L('From a collection’s order sheet. Quotations are non-binding and nothing is charged here.'), go: L('Open Orders') },
+  ];
+  /**
+   * ctx: { h, btn, icon, T, tf, api, host, kind() ('CLUB' | 'PERSONAL'), part(name), onToggle(open), go(step, trigger) }
+   */
+  function onboarding(ctx) {
+    var h = ctx.h, btn = ctx.btn, icon = ctx.icon, T = ctx.T, tf = ctx.tf;
+    var st = { open: false, trigger: null, state: 'idle', data: null, note: '', seq: 0 };
+    var el = h('section', { class: 'pd-team pd-start', id: 'pd-start', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'pd-start-title', 'data-open': 'false' });
+    var K = 'data-pd-start-key';
+    function steps() {
+      return STEPS.filter(function (x) { return (!x.who || (x.who === 'CREATOR') === (ctx.kind() === 'PERSONAL')) && (!x.part || ctx.part(x.part)) && (x.key !== 'request' || ctx.part('teamKit')); });
+    }
+    function render() {
+      frame(el, h, btn, icon, T, { prefix: 'start', keyAttr: K, statusAttr: 'data-pd-start-status', titleId: 'pd-start-title', title: L('Getting started'), note: st.note, kids: body() });
+      var ic = el.querySelector('#pd-start-title .pd-ic'); if (ic && ic.parentNode) ic.parentNode.replaceChild(icon('check', 16), ic);
+    }
+    function load() {
+      var seq = ++st.seq;
+      st.state = 'loading'; render();
+      ctx.api.gettingStarted().then(function (r) {
+        if (seq !== st.seq) return;
+        if (r.ok && r.data) { st.data = r.data; st.state = 'ready'; } else { st.state = 'error'; st.note = problem(T, r, L('Your first steps could not be read.')); }
+        render();
+      });
+    }
+    function body() {
+      if (st.state === 'loading' || st.state === 'idle') return [skeleton(h, 4)];
+      if (st.state === 'error') return [h('div', { class: 'pd-dock-empty' }, [h('p', { text: T('Your first steps could not be read.') }), btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'start-retry' }, [h('span', { text: T('Try again') })])])];
+      var list = steps(), done = list.filter(function (x) { return st.data.steps[x.key] === true; }).length;
+      return [
+        h('p', { class: 'pd-note', 'data-pd-start-done': String(done), text: done === list.length ? T('Every first step is done. The studio is yours.') : tf('%d of %d first steps done.', done, list.length) }),
+        h('ol', { class: 'pd-start-steps', role: 'list' }, list.map(function (x) {
+          var ok = st.data.steps[x.key] === true;
+          var a = { class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'start-go', 'data-pd-step': x.key }; a[K] = 'go-' + x.key;
+          return h('li', { class: 'pd-start-step', 'data-pd-step-done': ok ? 'true' : 'false', 'data-pd-start-step': x.key }, [
+            h('span', { class: 'pd-start-mark' }, [icon(ok ? 'check' : 'minus', 14)]),
+            h('span', { class: 'pd-start-text' }, [h('strong', { text: T(x.title) }), h('span', { class: 'pd-note', text: T(x.text) }), h('span', { class: 'pd-sr', text: ok ? T('Done') : T('Not done yet') })]),
+            ok ? null : btn(a, [h('span', { text: T(x.go) })]),
+          ]);
+        })),
+      ];
+    }
+    function open(trigger) { st.open = true; st.trigger = trigger || null; el.setAttribute('data-open', 'true'); load(); ctx.onToggle(true); var f = el.querySelector('[data-pd-act="start-close"]'); if (f) f.focus({ preventScroll: true }); }
+    function close(refocus) {
+      if (!st.open) return;
+      st.open = false; el.setAttribute('data-open', 'false'); ctx.onToggle(false);
+      var back = refocus !== false && st.trigger && ctx.host.contains(st.trigger) ? st.trigger : null; st.trigger = null;
+      if (back) back.focus({ preventScroll: true });
+    }
+    function onAction(act, t) {
+      if (act.indexOf('start') !== 0) return false;
+      if (act === 'start') { if (st.open) close(); else open(t); return true; }
+      if (act === 'start-close') { close(); return true; }
+      if (act === 'start-retry') { st.note = ''; load(); return true; }
+      if (act === 'start-go') { var step = t.getAttribute('data-pd-step'); close(false); ctx.go(step, t); return true; }
+      return true;
+    }
+    return {
+      el: el, open: open, close: close, repaint: render, isOpen: function () { return st.open; }, onAction: onAction,
+      metrics: function () { return { open: st.open, state: st.state, steps: st.data ? steps().map(function (x) { return x.key + ':' + (st.data.steps[x.key] ? 'done' : 'todo'); }) : null }; },
+    };
+  }
+
   // ── the Platform Owner's Plans & billing console ───────────────────────────
 
   function emptyPlan() {
@@ -403,17 +476,17 @@
     function say(text) { st.note = text; var n = el.querySelector('[data-pd-bl-status]'); if (n) n.textContent = text; }
     function render() { frame(el, h, btn, icon, T, { prefix: 'bl', keyAttr: K, statusAttr: 'data-pd-bl-status', titleId: 'pd-billing-title', title: L('Plans & billing'), note: st.note, kids: [tabs()].concat(body()) }); }
     function tabs() {
-      return h('div', { class: 'pd-tabs pd-team-tabs', role: 'tablist', 'aria-label': T('Plans & billing') }, [['plans', L('Plans')], ['billing', L('Subscriptions & invoices')]].map(function (t) {
+      return h('div', { class: 'pd-tabs pd-team-tabs', role: 'tablist', 'aria-label': T('Plans & billing') }, [['plans', L('Plans')], ['billing', L('Subscriptions & invoices')], ['readiness', L('Readiness')]].map(function (t) {
         return btn(key('tab-' + t[0], { class: 'pd-tab', role: 'tab', 'data-pd-act': 'bl-tab-' + t[0], 'aria-selected': st.tab === t[0] ? 'true' : 'false', tabindex: st.tab === t[0] ? '0' : '-1', text: T(t[1]) }));
       }));
     }
     function load() {
       var seq = ++st.seq;
       st.state = 'loading'; render();
-      Promise.all([api.plans(), api.billing()]).then(function (rs) {
+      Promise.all([api.plans(), api.billing(), api.readiness()]).then(function (rs) {
         if (seq !== st.seq) return;
-        if (rs[0].ok && rs[1].ok && rs[0].data && rs[1].data) { st.plans = rs[0].data.plans; st.billing = rs[1].data; st.state = 'ready'; }
-        else { st.state = 'error'; st.note = problem(T, rs[0].ok ? rs[1] : rs[0], L('Plans and billing could not be read.')); }
+        if (rs.every(function (x) { return x.ok && x.data; })) { st.plans = rs[0].data.plans; st.billing = rs[1].data; st.ready = rs[2].data; st.state = 'ready'; }
+        else { st.state = 'error'; st.note = problem(T, rs.filter(function (x) { return !x.ok; })[0] || rs[0], L('Plans and billing could not be read.')); }
         render();
       });
     }
@@ -433,7 +506,7 @@
     function body() {
       if (st.state === 'loading' || st.state === 'idle') return [skeleton(h, 5)];
       if (st.state === 'error') return [h('div', { class: 'pd-dock-empty' }, [h('p', { text: T('Plans and billing could not be read.') }), btn(key('retry', { class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'bl-retry' }), [h('span', { text: T('Try again') })])])];
-      return st.tab === 'billing' ? billing() : plans();
+      return st.tab === 'billing' ? billing() : st.tab === 'readiness' ? readiness() : plans();
     }
     function plans() {
       if (st.form) return [planForm()];
@@ -535,6 +608,32 @@
           h('p', { class: 'pd-note', text: st.expire === null ? T('A subscription past its end date no longer counts. Marking it expired keeps the record tidy.') : tf('Past their end date: %d.', st.expire) }),
           st.expire ? btn(key('expire', { class: 'pd-btn pd-btn--outline', 'data-pd-act': 'bl-expire', 'aria-disabled': st.busy ? 'true' : null }), [h('span', { text: T('Mark them expired') })])
             : btn(key('expire-check', { class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'bl-expire-check', 'aria-disabled': st.busy ? 'true' : null }), [h('span', { text: T('Find lapsed subscriptions') })]),
+        ]),
+      ];
+    }
+    /** P8: what commercial access still depends on, each measured: a configuration the server reads or a count it holds. */
+    function readiness() {
+      var r = st.ready;
+      var row = function (key, label, ok, value, why) {
+        return h('li', { class: 'pd-dock-row pd-ready-row', 'data-pd-ready': key, 'data-ready': ok ? 'true' : 'false' }, [
+          h('div', { class: 'pd-dock-text' }, [h('span', { class: 'pd-dock-name', text: T(label) }), h('span', { class: 'pd-note', text: why })]),
+          h('div', { class: 'pd-dock-btns' }, [h('span', { class: 'pd-chip' + (ok ? '' : ' pd-chip--muted'), text: value })]),
+        ]);
+      };
+      var open = [r.email.configured, r.payments.configured, r.suppliers.verified > 0, r.plans.creator + r.plans.club > 0].filter(function (x) { return !x; }).length;
+      return [
+        h('p', { class: 'pd-note', 'data-pd-ready-open': String(open), text: open ? tf('Not ready yet: %d of the services commercial access depends on. Each says what it needs.', open) : T('Every service commercial access depends on is configured. Opening it remains your decision.') }),
+        h('ul', { class: 'pd-dock-list', role: 'list' }, [
+          row('email', L('Email delivery'), r.email.configured, r.email.configured ? T('Configured') : T('Not configured'),
+            r.email.configured ? T('Confirmation, reset and invitation emails are sent.') : T('Creators’ confirmation and reset links cannot be sent; confirm addresses by hand in Creators.')),
+          row('payments', L('Online payment'), r.payments.configured, r.payments.configured ? T('Configured') : T('Not configured'),
+            r.payments.configured ? T('Open invoices can be paid online.') : T('Paid plans wait with an open invoice; grant a plan with a note meanwhile. A provider needs your account, keys and the tax decisions.')),
+          row('suppliers', L('Verified suppliers'), r.suppliers.verified > 0, tf('%d verified', r.suppliers.verified),
+            r.suppliers.verified > 0 ? tf('Prospects: %d. Suspended: %d.', r.suppliers.prospects, r.suppliers.suspended) : T('No quotation can be recorded until a supplier is verified with a complete record.')),
+          row('plans', L('Plans'), r.plans.creator + r.plans.club > 0, tf('%d offered', r.plans.creator + r.plans.club),
+            tf('Creators: %d, clubs: %d, paid: %d.', r.plans.creator, r.plans.club, r.plans.paid) + ' ' + (r.plans.creatorDefault ? T('Creators start on a default plan.') : T('No default creator plan: creators have what the studio ships with.'))),
+          row('creators', L('Creator accounts'), true, tf('%d active', r.creators.active), tf('Suspended: %d. Accounts open only with your invitation.', r.creators.suspended)),
+          row('clubs', L('Clubs with the studio released'), true, String(r.clubsReleased), T('Released from Club releases, club by club.')),
         ]),
       ];
     }
@@ -658,10 +757,11 @@
       metrics: function () {
         return { open: st.open, tab: st.tab, state: st.state, busy: st.busy, note: st.note, form: st.form ? (st.form.id ? 'edit' : 'new') : null, grant: !!st.grant,
           plans: st.plans ? st.plans.map(function (p) { return p.key; }) : null, subscriptions: st.billing ? st.billing.subscriptions.length : null,
-          invoices: st.billing ? st.billing.invoices.map(function (i) { return i.status; }) : null, payments: st.billing ? st.billing.payments.configured : null };
+          invoices: st.billing ? st.billing.invoices.map(function (i) { return i.status; }) : null, payments: st.billing ? st.billing.payments.configured : null,
+          readiness: st.ready ? { email: st.ready.email.configured, payments: st.ready.payments.configured, suppliers: st.ready.suppliers.verified, plans: st.ready.plans.creator + st.ready.plans.club } : null };
       },
     };
   }
 
-  return { FEATURES: FEATURES, CLUB_FEATURES: CLUB_FEATURES, panel: panel, production: production, console: console_, bodyOf: bodyOf };
+  return { FEATURES: FEATURES, CLUB_FEATURES: CLUB_FEATURES, panel: panel, production: production, onboarding: onboarding, console: console_, bodyOf: bodyOf };
 });

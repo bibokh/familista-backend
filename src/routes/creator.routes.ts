@@ -15,7 +15,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { authenticateCreator } from '../platform/creator/authenticate';
 import { creatorOwns, creatorSharedWith, requireVerifiedEmail } from '../platform/creator/guard';
 import {
-  creatorBilling, creatorCancelPlan, creatorCheckout, creatorFeature, creatorLimit, creatorProExport, creatorRequestPlan, creatorTechPack,
+  creatorBilling, creatorGettingStarted, creatorCancelPlan, creatorCheckout, creatorFeature, creatorLimit, creatorProExport, creatorRequestPlan, creatorTechPack,
 } from '../platform/commercial/http';
 import {
   commentOnSharedDesign, createProjectShare, listProjectShares, listSharedWithMe, openSharedDesign, readSharedReview, revokeProjectShare,
@@ -133,6 +133,8 @@ router.post('/requests/:requestId/quotes/:quoteId/accept', creatorFeature('manuf
 router.get('/projects/:id/tech-pack', creatorFeature('manufacturing_prep'), creatorTechPack);
 router.post('/projects/:id/exports', creatorFeature('pro_export'), creatorProExport);
 router.get('/plan', creatorBilling);
+// P8: the workspace's first steps, from its own records.
+router.get('/getting-started', creatorGettingStarted);
 router.post('/plan/request', creatorRequestPlan);
 router.post('/plan/cancel', creatorCancelPlan);
 router.post('/billing/invoices/:invoiceId/checkout', creatorCheckout);

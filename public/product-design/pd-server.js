@@ -144,6 +144,8 @@
       api.endSubscription = function (subscriptionId, note) { return call('POST', '/billing/subscriptions/' + id(subscriptionId) + '/end', { note: String(note || '') }); };
       api.voidInvoice = function (invoiceId) { return call('POST', '/billing/invoices/' + id(invoiceId) + '/void', {}); };
       api.expireSubscriptions = function (dryRun) { return call('POST', '/billing/expire', { dryRun: dryRun !== false }); };
+      // P8: what commercial access still depends on, measured.
+      api.readiness = function () { return call('GET', '/readiness'); };
       api.setRollout = function (clubId, changes) {
         if (!CLUB_ID.test(String(clubId))) return Promise.resolve({ ok: false, status: 0, code: 'BAD_CLUB', data: null, message: '', errors: [] });
         return call('PUT', '/rollout/' + encodeURIComponent(clubId), changes);
@@ -214,6 +216,8 @@
         return format === 'csv' ? call('GET', '/projects/' + id(projectId) + '/tech-pack?format=csv', undefined, { blob: true, accept: 'text/csv' }) : call('GET', '/projects/' + id(projectId) + '/tech-pack');
       };
       api.proExport = function (projectId) { return call('POST', '/projects/' + id(projectId) + '/exports', {}); };
+      // P8: the workspace's first steps, from its own records.
+      api.gettingStarted = function () { return call('GET', '/getting-started'); };
     }
 
     // P3: a creator's account, in the creator's own workspace: the profile, the password, the address, the data.
