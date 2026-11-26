@@ -19,8 +19,8 @@ safe to put in front of invited clubs and creators under `PILOT-OPERATIONS.md`, 
 | Colourways | Yes | Yes | Yes |
 | Rollout control (club by club) | Yes | Yes (the pilot's main control) | — |
 | Privacy controls (erasure, retention rules, minors' consent) | Yes | Yes | Needs retention periods and the legal review |
-| Creator Studio accounts (invitation only), export, deletion | Yes | Yes | Needs public enrolment decided; export to include billing records |
-| Sharing between creators | Yes | Yes | Yes |
+| Creator Studio accounts (invitation only), export, deletion | Yes | Yes | Needs public enrolment decided |
+| Sharing between creators | Yes | Yes, opened per creator by a plan the Owner grants | Yes, with the same bound |
 | Plans and server-side entitlements | Yes | Yes (plans granted by the Owner) | Needs payment collection |
 | Professional tools (print sheet, tech pack) | Yes | Yes | Yes |
 | Billing (invoices, subscriptions, grants, voids, expiry) | Yes | Yes, **no collection**: invoices stay open | Needs a payment provider, keys and tax treatment |
@@ -47,6 +47,17 @@ limits are listed in `PILOT-OPERATIONS.md`, section 6. An independent review has
 differs from the migrations only where the database is stricter than Prisma can express (composite owner foreign keys,
 the same as before this work); the eleven new migrations rewrite and delete no data; the previous release's
 `prisma migrate deploy` accepts the new schema, so the code can be rolled back without a schema rollback.
+
+## Pilot-readiness pass (after `bb7a80b`)
+
+| Item | Outcome | Evidence |
+|---|---|---|
+| Creator address enumeration through sharing | **Resolved by default, bounded where enabled.** Sharing by address is no longer built in: it comes only with a plan the Owner grants. Where open, at most five addresses with no account a day per creator, each audited without the address; then sharing pauses (429 `lookup-limit`) and nothing is looked up. An outsider without the plan gets the same refusal for any design, real or not. Receiving a share needs no plan. | `tests/creator-tenancy.integration.test.ts` (P4 test), P27 |
+| Concurrent plan requests | **Fixed.** A second simultaneous request is refused 409 `concurrent` (or `already-on-plan`), never 500; the panel says so and reloads the plan as it stands; the database keeps one live subscription per workspace. Owner grants are covered the same way. | `tests/commercial.integration.test.ts` (six racing rounds) |
+| Invoices in the personal-data export | **Done.** A creator's export includes their own subscriptions (plan, status, source, periods) and invoices (amounts, lines, status, payment records), read under their own row-level-security context; another account's records and the Owner's internal grant notes are not included. Club invoices are organisation records, not a person's data, and stay with the club's administrators and the Owner. | `tests/creator-tenancy.integration.test.ts` (export test) |
+| Public registration, payment collection, supplier transactions | **Disabled.** Club self-registration refused (`SELF_REGISTRATION_CLOSED`); creator accounts only with an Owner invitation; no payment provider exists, so no setting can collect money; no quotation without a verified supplier, and none is verified. | `tests/auth.smoke.test.ts`, `tests/security-closure-task1.integration.test.ts`, `tests/creator-tenancy.integration.test.ts`, `tests/commercial.unit.test.ts`, `tests/manufacturing.integration.test.ts` |
+| Access only for authorised pilot users | **Confirmed.** The Club Design Studio is off for every club until the Owner releases it (`club_design_studio`, `defaultEnabled: false`; other clubs get `DESIGN_STUDIO_NOT_ENABLED`); the Creator Studio opens only with an invitation, which the Owner can revoke, and accounts can be suspended. | `tests/product-design-persistence.integration.test.ts`, P18, P24, P26 |
+| Tenant isolation, entitlements, release controls | **Verified** on PostgreSQL with enforcement on, and in the browser. | PostgreSQL suites (245 tests), P18, P24, P26–P29 (86 checks), security posture 79 present |
 
 ## Verdict
 

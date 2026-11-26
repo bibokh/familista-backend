@@ -45,13 +45,23 @@ export async function exportAccount(id: string, ctx: Ctx) {
       projects.push({ ...p, revision: { number: full.revision.number, sha256: full.revision.sha256, document: full.revision.document } });
     }
   }
-  const [rosters, collections, kit, assets, requests] = await Promise.all([
+  const [rosters, collections, kit, assets, requests, subscriptions, invoices] = await Promise.all([
     prisma.designRoster.findMany({ where: { creatorId: id }, orderBy: { createdAt: 'asc' }, select: { id: true, name: true, entries: true, includesMinors: true, version: true, archivedAt: true, createdAt: true, updatedAt: true } }),
     prisma.designCollection.findMany({ where: { creatorId: id }, orderBy: { createdAt: 'asc' },
       select: { id: true, name: true, season: true, rosterId: true, archivedAt: true, createdAt: true, items: { orderBy: { position: 'asc' }, select: { projectId: true, role: true, position: true } } } }),
     prisma.designBrandKit.findUnique({ where: { creatorId: id }, select: { colours: true } }),
     prisma.designBrandAsset.findMany({ where: { creatorId: id }, orderBy: { createdAt: 'asc' }, select: { id: true, kind: true, name: true, width: true, height: true, bytes: true, sha256: true, archivedAt: true, createdAt: true } }),
     listClubRequests(tenant),
+    // P8: the account's commercial record: its plans and invoices, with any payment a provider reported. Read under the
+    // creator's own context, so row-level security returns this account's rows and no other's. The Platform Owner's
+    // internal note on a grant and the identities of staff are not part of it.
+    prisma.commercialSubscription.findMany({ where: { creatorId: id }, orderBy: { createdAt: 'asc' },
+      select: { id: true, status: true, source: true, currentPeriodStart: true, currentPeriodEnd: true, cancelAtPeriodEnd: true, canceledAt: true, createdAt: true,
+        plan: { select: { key: true, name: true, priceMinor: true, currency: true, interval: true } } } }),
+    prisma.commercialInvoice.findMany({ where: { creatorId: id }, orderBy: { issuedAt: 'asc' },
+      select: { id: true, number: true, status: true, currency: true, subtotalMinor: true, taxMinor: true, totalMinor: true, lines: true, periodStart: true, periodEnd: true,
+        issuedAt: true, paidAt: true, voidedAt: true, subscriptionId: true,
+        payments: { orderBy: { occurredAt: 'asc' }, select: { provider: true, status: true, amountMinor: true, currency: true, occurredAt: true } } } }),
   ]);
   const detailed = [];
   for (const r of requests.requests) {
@@ -60,12 +70,14 @@ export async function exportAccount(id: string, ctx: Ctx) {
     detailed.push({ ...request, names });
   }
   await prisma.$transaction((tx) => creatorAudit(tx, id, ctx, { action: 'creator.data.exported', resourceId: id,
-    metadata: { projects: projects.length, rosters: rosters.length, collections: collections.length, assets: assets.length, requests: detailed.length }, message: 'A creator downloaded a copy of their data' }));
+    metadata: { projects: projects.length, rosters: rosters.length, collections: collections.length, assets: assets.length, requests: detailed.length,
+      subscriptions: subscriptions.length, invoices: invoices.length }, message: 'A creator downloaded a copy of their data' }));
   return {
     export: {
       format: 'familista.creator-export', version: 1, exportedAt: new Date().toISOString(),
       account: { ...account, emailVerified: !!account.emailVerifiedAt },
       designs: projects, rosters, collections, brandKit: { colours: kit?.colours ?? [], logos: assets }, requests: detailed,
+      billing: { subscriptions, invoices },
       note: 'Logo images are kept as the PNG the platform re-encoded; each is listed with its size and hash, and opens from the brand kit.',
     },
   };

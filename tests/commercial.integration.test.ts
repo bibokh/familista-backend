@@ -113,7 +113,9 @@ suite('Premium plans and billing (P5, P6), on real PostgreSQL', () => {
   });
 
   it('without any plan a creator has the built-in features; the Owner configures plans, checked as configured', async () => {
-    expect((await A.api.get(`${CR}/plan`)).body.data.entitlements).toMatchObject({ source: 'built-in', plan: null, features: ['team_kit', 'brand_studio', 'reviews', 'collaboration', 'manufacturing'] });
+    // sharing by address (collaboration) is not built in: it is opened by a plan the Owner chooses (pilot readiness)
+    expect((await A.api.get(`${CR}/plan`)).body.data.entitlements).toMatchObject({ source: 'built-in', plan: null, features: ['team_kit', 'brand_studio', 'reviews', 'manufacturing'] });
+    expect((await A.api.post(`${CR}/projects/00000000-0000-4000-8000-000000000000/shares`, { email: 'someone@example.com', role: 'VIEW' })).status).toBeGreaterThanOrEqual(403);
     const bad = async (body: Row) => (await user('owner').post(`${OWNER}/plans`, body)).body.reason;
     expect(await bad({ key: 'X Y', audience: 'CREATOR', name: 'n', features: [] })).toBe('bad-key');
     expect(await bad({ key: 'club-x', audience: 'CLUB', name: 'n', features: ['collaboration'] })).toBe('bad-features');
@@ -241,6 +243,22 @@ suite('Premium plans and billing (P5, P6), on real PostgreSQL', () => {
     expect((await user('owner').post(`${OWNER}/billing/expire`, { dryRun: true })).body.data).toEqual({ dryRun: true, due: 1 });
     expect((await user('owner').post(`${OWNER}/billing/expire`, { dryRun: false })).body.data).toEqual({ dryRun: false, due: 1 });
     expect((await A.api.get(`${CR}/plan`)).body.data.subscription.status).toBe('EXPIRED');
+  });
+
+  it('two plan requests from one workspace at the same moment: one is taken, the other is a refusal the panel explains, never a server error', async () => {
+    const rounds: Array<Array<[number, string | undefined]>> = [];
+    for (let i = 0; i < 6; i++) {
+      const both = await Promise.all([B.api.post(`${CR}/plan/request`, { planKey: 'creator-premium' }), B.api.post(`${CR}/plan/request`, { planKey: 'creator-premium' })]);
+      rounds.push(both.map((r) => [r.status, r.body.reason] as [number, string | undefined]).sort((x, y) => x[0] - y[0]));
+      expect((await B.api.post(`${CR}/plan/cancel`)).status).toBe(200);
+    }
+    for (const r of rounds) {
+      expect(r[0][0]).toBe(200);
+      expect(r[1][0]).toBe(409);
+      expect(['concurrent', 'already-on-plan']).toContain(r[1][1]);
+    }
+    // the database kept one live subscription each time
+    expect(await sys(`SELECT count(*)::int AS n FROM "CommercialSubscription" WHERE "creatorId" = $1 AND "status" IN ('PENDING', 'ACTIVE')`, B.id)).toEqual([{ n: 0 }]);
   });
 
   it('P8: the sign-in page shows anyone the creator plans on offer and which services are configured, and nothing about anyone', async () => {

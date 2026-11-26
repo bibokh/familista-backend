@@ -126,6 +126,8 @@ module.exports = async function p28(H) {
     const pg = o.page, ROOM = '#pd-root';
     await pg.click(ROOM + ' .pd-side [data-pd-act="bl"]');
     await pg.waitForFunction(() => { const b = window.__familistaProductDesignMetrics().billing; return !!b && b.open && b.state === 'ready'; }, null, { timeout: 15000 });
+    // Every plan the Owner configured, offered or not (a section before this one may have withdrawn its own).
+    const known = await db.commercialPlan.count();
     const listed = (await metrics(pg)).billing.plans;
     await pg.click(ROOM + ' [data-pd-act="bl-new"]');
     await pg.fill(ROOM + ' [data-pd-bl-in="key"]', `p28-team-${tag}`);
@@ -134,16 +136,19 @@ module.exports = async function p28(H) {
     await pg.fill(ROOM + ' [data-pd-bl-in="price"]', '4.50');
     await pg.fill(ROOM + ' [data-pd-bl-in="maxProjects"]', '12');
     await pg.click(ROOM + ' [data-pd-act="bl-save"]');
-    await pg.waitForFunction(() => { const b = window.__familistaProductDesignMetrics().billing; return b.form === null && b.state === 'ready' && b.plans && b.plans.length === 4; }, null, { timeout: 15000 });
+    await pg.waitForFunction((n) => { const b = window.__familistaProductDesignMetrics().billing; return b.form === null && b.state === 'ready' && b.plans && b.plans.length === n; }, known + 1, { timeout: 15000 });
     const team = await db.commercialPlan.findUnique({ where: { key: `p28-team-${tag}` }, select: { priceMinor: true, currency: true, interval: true, features: true, maxProjects: true, isDefault: true } });
     check('P28 the Owner’s console lists the plans and creates one through its form: €4.50 a month is kept as 450 cents, with its feature and limit',
-      listed.length === 3 && !!team && team.priceMinor === 450 && team.currency === 'EUR' && team.interval === 'MONTH' && JSON.stringify(team.features) === '["team_kit"]' && team.maxProjects === 12 && team.isDefault === false, { listed, team });
+      listed.length === known && [`p28-free-${tag}`, PREMIUM, `p28-club-${tag}`].every((k) => listed.includes(k)) && !!team && team.priceMinor === 450 && team.currency === 'EUR' && team.interval === 'MONTH' && JSON.stringify(team.features) === '["team_kit"]' && team.maxProjects === 12 && team.isDefault === false, { listed, team });
 
     await pg.click(ROOM + ' [data-pd-act="bl-tab-billing"]');
     await pg.waitForSelector(ROOM + ' #pd-billing [data-pd-payments]', { timeout: 5000 });
     const b = await pg.evaluate((sel) => { const el = document.querySelector(sel + ' #pd-billing'); return { payments: el.querySelector('[data-pd-payments]').getAttribute('data-pd-payments'),
-      invoices: [...el.querySelectorAll('[data-pd-invoice]')].map((r) => r.querySelector('[data-status]').getAttribute('data-status')), subs: el.querySelectorAll('[data-pd-sub]').length }; }, ROOM);
-    check('P28 the Billing tab says no payment provider is configured and shows the creator’s pending subscription and open invoice', b.payments === 'not-configured' && JSON.stringify(b.invoices) === '["OPEN"]' && b.subs === 1, b);
+      invoices: [...el.querySelectorAll('[data-pd-invoice]')].map((r) => r.querySelector('[data-status]').getAttribute('data-status')), subs: el.querySelectorAll('[data-pd-sub]').length,
+      pending: [...el.querySelectorAll('[data-pd-sub] [data-status="PENDING"]')].length }; }, ROOM);
+    // Every workspace's subscriptions are listed (a section before this one may have granted its own); this creator's is the pending one.
+    const allSubs = await db.commercialSubscription.count();
+    check('P28 the Billing tab says no payment provider is configured and shows the creator’s pending subscription and open invoice', b.payments === 'not-configured' && JSON.stringify(b.invoices) === '["OPEN"]' && b.subs === allSubs && b.pending === 1, { ...b, allSubs });
     if (fs.existsSync(axePath)) { const x = await runAxe(pg, ROOM + ' #pd-billing'); check('P28 en: axe finds no WCAG 2.2 A/AA violation in the Owner’s Plans & billing', x.length === 0, x); }
 
     await pg.click(ROOM + ' [data-pd-act="bl-grant"]');
@@ -153,7 +158,7 @@ module.exports = async function p28(H) {
     await pg.fill(ROOM + ' [data-pd-bl-in="months"]', '3');
     await pg.fill(ROOM + ' [data-pd-bl-in="note"]', 'P28 pilot, agreed in person');
     await pg.click(ROOM + ' [data-pd-act="bl-grant-save"]');
-    await pg.waitForFunction(() => { const x = window.__familistaProductDesignMetrics().billing; return !x.grant && x.state === 'ready' && x.subscriptions === 2; }, null, { timeout: 15000 });
+    await pg.waitForFunction((n) => { const x = window.__familistaProductDesignMetrics().billing; return !x.grant && x.state === 'ready' && x.subscriptions === n; }, allSubs + 1, { timeout: 15000 });
     const subs = await db.commercialSubscription.findMany({ where: { creatorId }, orderBy: { createdAt: 'asc' }, select: { status: true, source: true, note: true } });
     const voided = await db.commercialInvoice.findFirst({ where: { creatorId }, select: { status: true } });
     check('P28 the Owner grants Premium for three months with a note: the pending request is cancelled, its invoice void, the grant active',

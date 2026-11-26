@@ -25,6 +25,7 @@ scratch on PostgreSQL 16 with enforcement on, by every PostgreSQL suite.
 |---|---|---|
 | Payment collection | No payment provider adapter; `PAYMENT_PROVIDER` unset. A paid plan waits as PENDING with an OPEN invoice; the database refuses PAID without a recorded provider event | `tests/commercial.integration.test.ts`, P28 |
 | Public enrolment | No public sign-up: creator accounts only with an Owner invitation (revocable); club sign-up refused (`SELF_REGISTRATION_CLOSED`); the sign-in page is `noindex` | `tests/creator-tenancy.integration.test.ts`, P26, P29 |
+| Sharing by address (creators) | Not built in: only a plan the Owner grants that includes `collaboration` opens it. Where open, an address with no creator account is answered at most five times a day per creator (each recorded, without the address); then sharing pauses for that creator for the day | `tests/creator-tenancy.integration.test.ts`, P27 |
 | Real supplier transactions | Verify no supplier until an agreement exists: no quotation can be recorded or published without one (service and database). For pilot clubs, keep `club_design_manufacturing` **Off** in Club releases; for creators, configure the default creator plan **without** `manufacturing` | `tests/manufacturing.integration.test.ts`, P20, P24 |
 
 ## 3. Monitoring (daily during the pilot)
@@ -69,12 +70,11 @@ Stop the pilot (every club's studio Off; creators suspended) and investigate on 
 
 ## 6. Known limits accepted for the pilot
 
-- A concurrent second plan request from the same workspace is refused by the database (one live subscription per
-  workspace) but answers 500 rather than 409; the UI does not send two.
-- Creator data export (`/me/export`) does not yet include subscriptions and invoices; these exist only as Owner grants
-  while payment is off.
-- Sharing tells a creator whether an address has a creator account (needed to share); it is rate-limited and needs a
-  signed-in account.
+- Where the Owner opens sharing, it still says whether an address has a creator account (the owner must know a share
+  did not happen), bounded to five unknown addresses a day per creator. Two simultaneous requests can each be answered
+  before the count includes the other, so the bound can be exceeded by the number of requests sent at the same moment.
+- The Owner's internal note on a plan grant is not in the creator's data export; whether it must be, as personal data,
+  is a question for the legal review.
 - Translations (de, fr, es, ar) are not reviewed by native speakers, and the Spanish catalogue mixes formal and informal
   address.
 - Prisma's model cannot express the composite owner foreign keys the SQL migrations create. Never generate migrations

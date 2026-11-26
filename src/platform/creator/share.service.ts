@@ -22,7 +22,7 @@ export const SHARE_LIMIT = 20;
 
 export class ShareRefusedError extends Error {
   readonly code = 'SHARE_REFUSED';
-  constructor(readonly reason: 'bad-email' | 'bad-role' | 'no-creator' | 'self' | 'exists' | 'limit') { super(`share refused: ${reason}`); this.name = 'ShareRefusedError'; }
+  constructor(readonly reason: 'bad-email' | 'bad-role' | 'no-creator' | 'self' | 'exists' | 'limit' | 'lookup-limit') { super(`share refused: ${reason}`); this.name = 'ShareRefusedError'; }
 }
 
 export interface ShareView { id: string; role: DesignShareRole; createdAt: Date; grantee: { id: string; displayName: string | null; email: string | null } }
@@ -47,6 +47,14 @@ export async function listShares(ownerId: string, projectId: string): Promise<{ 
   return { shares: rows.map((r) => ({ id: r.id, role: r.role, createdAt: r.createdAt, grantee: { id: r.granteeId, displayName: who.get(r.granteeId)?.displayName ?? null, email: who.get(r.granteeId)?.email ?? null } })), limit: SHARE_LIMIT };
 }
 
+/**
+ * How many addresses with no creator account a creator may name in a day before sharing pauses for them. Sharing has to
+ * say when an address has no account (the owner must know the share did not happen), which tells whether an address
+ * holds one; this keeps that answer to a handful a day, each recorded, so it cannot be used to sweep a list of addresses.
+ */
+export const UNKNOWN_ADDRESS_LIMIT = 5;
+const UNKNOWN_ADDRESS = 'design.share.unknown-address';
+
 /** Share the design with the creator whose account uses this address. */
 export async function shareProject(ownerId: string, actor: DesignActor, projectId: string, input: { email: unknown; role: unknown }): Promise<{ share: ShareView }> {
   const email = typeof input.email === 'string' ? normaliseEmail(input.email) : '';
@@ -54,8 +62,16 @@ export async function shareProject(ownerId: string, actor: DesignActor, projectI
   if (input.role !== 'VIEW' && input.role !== 'COMMENT') throw new ShareRefusedError('bad-role');
   const role = input.role as DesignShareRole;
   const project = await ownProject(ownerId, projectId);
+  // Past the day's limit nothing is looked up: no answer, either way, about any address.
+  const misses = await prisma.platformAuditLog.count({ where: { creatorId: ownerId, action: UNKNOWN_ADDRESS, createdAt: { gte: new Date(Date.now() - 86_400_000) } } });
+  if (misses >= UNKNOWN_ADDRESS_LIMIT) throw new ShareRefusedError('lookup-limit');
   const grantee = await prisma.creatorAccount.findUnique({ where: { email }, select: { id: true, displayName: true, email: true, status: true } });
-  if (!grantee || grantee.status !== CreatorStatus.ACTIVE) throw new ShareRefusedError('no-creator');
+  if (!grantee || grantee.status !== CreatorStatus.ACTIVE) {
+    // Recorded without the address: the Owner sees that a creator named unknown addresses, never which.
+    await prisma.$transaction((tx) => tenantAudit(tx, creatorTenant(ownerId), actor, { action: UNKNOWN_ADDRESS, resourceType: 'DesignProject', resourceId: project.id,
+      metadata: { attempt: misses + 1, limit: UNKNOWN_ADDRESS_LIMIT }, message: 'A design was to be shared with an address that has no creator account' }));
+    throw new ShareRefusedError('no-creator');
+  }
   if (grantee.id === ownerId) throw new ShareRefusedError('self');
   return prisma.$transaction(async (tx) => {
     if ((await tx.designShare.count({ where: { projectId, creatorId: ownerId, revokedAt: null } })) >= SHARE_LIMIT) throw new ShareRefusedError('limit');

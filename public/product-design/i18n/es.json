@@ -1432,5 +1432,7 @@
   "%d active": "%d activas",
   "Suspended: %d. Accounts open only with your invitation.": "Suspendidas: %d. Las cuentas solo se abren con tu invitación.",
   "Clubs with the studio released": "Clubes con el estudio habilitado",
-  "Released from Club releases, club by club.": "Se habilita desde Habilitación por club, club por club."
+  "Released from Club releases, club by club.": "Se habilita desde Habilitación por club, club por club.",
+  "Sharing is paused until tomorrow: several addresses had no creator account. Check the address with the person first.": "Compartir queda en pausa hasta mañana: varias direcciones no tenían cuenta de creador. Comprueba antes la dirección con la persona.",
+  "Another change to this plan was made at the same moment. It is shown as it now stands.": "Se hizo otro cambio en este plan en el mismo momento. Se muestra tal como está ahora."
 }

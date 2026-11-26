@@ -299,6 +299,15 @@ suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
     const c = await signUp(third.code, 'outsider@example.com', { displayName: 'Outsider' });
     const C = { id: c.body.data.creator.id, auth: `Bearer ${c.body.data.accessToken}` };
     const S = `${CR}/projects/${aProject}/shares`;
+    // Pilot readiness: sharing by address is opened by a plan the Owner chooses, never by default.
+    expect([(await bearer(A.auth).post(S, { email: 'nobody@example.com', role: 'VIEW' })).body.code]).toEqual(['PLAN_FEATURE_REQUIRED']);
+    const PD = '/api/v1/system/product-design';
+    expect((await owner().post(`${PD}/plans`, { key: 'collab', audience: 'CREATOR', name: 'Collaboration', priceMinor: 500, currency: 'EUR', interval: 'MONTH',
+      features: ['team_kit', 'brand_studio', 'reviews', 'collaboration', 'manufacturing'] })).status).toBe(201);
+    // A asks for it (an open invoice), B too; then the Owner grants it to A (A's request ends, its invoice is void)
+    expect((await bearer(A.auth).post(`${CR}/plan/request`, { planKey: 'collab' })).body.data.subscription.status).toBe('PENDING');
+    expect((await bearer(B.auth).post(`${CR}/plan/request`, { planKey: 'collab' })).body.data.subscription.status).toBe('PENDING');
+    expect((await owner().post(`${PD}/billing/grant`, { tenantKind: 'creator', tenantId: A.id, planKey: 'collab', months: null, note: 'P4 test: internal grant note' })).status).toBe(201);
     // refusals first: no such creator, oneself, a bad role
     expect([(await bearer(A.auth).post(S, { email: 'nobody@example.com', role: 'VIEW' })).body.reason, (await bearer(A.auth).post(S, { email: 'alex@example.com', role: 'VIEW' })).body.reason,
       (await bearer(A.auth).post(S, { email: bAcc.email, role: 'EDIT' })).status]).toEqual(['no-creator', 'self', 400]);
@@ -308,7 +317,11 @@ suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
     expect((await bearer(A.auth).get(S)).body.data.shares.map((x: Row) => [x.grantee.id, x.role])).toEqual([[B.id, 'VIEW']]);
     // only the owner manages shares
     expect((await bearer(B.auth).get(S)).status).toBe(403);
-    expect((await bearer(C.auth).post(S, { email: 'outsider@example.com', role: 'VIEW' })).status).toBe(404);
+    // an outsider without a sharing plan is refused for its own plan, the same answer for any design, real or not
+    const outsider = await bearer(C.auth).post(S, { email: 'outsider@example.com', role: 'VIEW' });
+    const nowhere = await bearer(C.auth).post(`${CR}/projects/00000000-0000-4000-8000-000000000000/shares`, { email: 'outsider@example.com', role: 'VIEW' });
+    expect([outsider.status, outsider.body.code, outsider.body.feature]).toEqual([403, 'PLAN_FEATURE_REQUIRED', 'collaboration']);
+    expect([nowhere.status, nowhere.body]).toEqual([outsider.status, outsider.body]);
 
     // the collaborator sees it, read only
     const mine = (await bearer(B.auth).get(`${CR}/shared`)).body.data.designs;
@@ -358,8 +371,18 @@ suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
     expect((await bearer(B.auth).post(`${CR}/shared/${aProject}/comments`, note)).status).toBe(404);
     expect((await bearer(B.auth).get(`${CR}/shared`)).body.data.designs).toEqual([]);
     expect(await seenAs('creator', B.id, 'SELECT "id" FROM "DesignProject" WHERE "creatorId" IS DISTINCT FROM \'' + B.id + '\'')).toEqual([]);
-    const acts = await sys(`SELECT "action" FROM "PlatformAuditLog" WHERE "action" LIKE 'design.share.%' AND "creatorId" = $1 ORDER BY "createdAt"`, A.id);
+    const acts = await sys(`SELECT "action" FROM "PlatformAuditLog" WHERE "action" LIKE 'design.share.%' AND "action" <> 'design.share.unknown-address' AND "creatorId" = $1 ORDER BY "createdAt"`, A.id);
     expect(acts.map((a) => a.action)).toEqual(['design.share.created', 'design.share.revoked', 'design.share.created', 'design.share.revoked']);
+
+    // Pilot readiness: an address with no account is answered as such at most five times a day, each recorded without
+    // the address; then sharing pauses for that creator, and nothing more is looked up, whatever the address.
+    for (const n of [2, 3, 4, 5]) expect((await bearer(A.auth).post(S, { email: `nobody${n}@example.com`, role: 'VIEW' })).body.reason).toBe('no-creator');
+    const paused = await bearer(A.auth).post(S, { email: 'outsider@example.com', role: 'VIEW' });
+    expect([paused.status, paused.body.reason]).toEqual([429, 'lookup-limit']);
+    const misses = await sys(`SELECT "metadata" FROM "PlatformAuditLog" WHERE "action" = 'design.share.unknown-address' AND "creatorId" = $1`, A.id);
+    expect(misses).toHaveLength(5);
+    expect(JSON.stringify(misses)).not.toMatch(/@example\.com/);
+    expect(await sys(`SELECT count(*)::int AS n FROM "DesignShare" WHERE "creatorId" = $1 AND "revokedAt" IS NULL`, A.id)).toEqual([{ n: 0 }]);
   });
 
   it('a quotation request needs a confirmed address; the link confirms it once; the Owner sees the creator as the requester', async () => {
@@ -452,6 +475,12 @@ suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
     expect(e.requests).toHaveLength(1);
     expect(e.requests[0].names).toEqual([{ position: 0, name: 'KID', state: 'KEPT' }]);
     expect(e.brandKit.colours).toEqual([{ label: 'Sky', srgb: '#3b82f6' }]);
+    // Pilot readiness: the account's own plans and invoices, never another account's, and not the Owner's internal note
+    expect(e.billing.subscriptions.map((x: Row) => [x.status, x.source, x.plan.key])).toEqual([['CANCELED', 'SELF', 'collab'], ['ACTIVE', 'OWNER_GRANT', 'collab']]);
+    expect(e.billing.invoices.map((x: Row) => [x.status, x.totalMinor, x.currency, x.payments])).toEqual([['VOID', 500, 'EUR', []]]);
+    const [bInvoice] = await sys(`SELECT "number" FROM "CommercialInvoice" WHERE "creatorId" = $1`, B.id);
+    expect(JSON.stringify(e)).not.toContain(bInvoice.number);
+    expect(JSON.stringify(e)).not.toContain('internal grant note');
     // nothing of B's or the club's
     expect(JSON.stringify(e)).not.toContain(clubProject);
     const reqId = e.requests[0].id;

@@ -26,7 +26,7 @@ import { entitlementsFor, offeredPlans } from './plans.service';
 
 export class SubscriptionRefusedError extends ConflictError {
   readonly code = 'SUBSCRIPTION_REFUSED';
-  constructor(readonly reason: 'unknown-plan' | 'wrong-audience' | 'already-on-plan' | 'active-paid' | 'owner-grant' | 'nothing-to-cancel' | 'not-open' | 'bad-note' | 'bad-months' | 'unknown-tenant') {
+  constructor(readonly reason: 'unknown-plan' | 'wrong-audience' | 'already-on-plan' | 'active-paid' | 'owner-grant' | 'nothing-to-cancel' | 'not-open' | 'bad-note' | 'bad-months' | 'unknown-tenant' | 'concurrent') {
     super(`subscription refused: ${reason}`);
   }
 }
@@ -57,6 +57,19 @@ async function endLive(tx: Tx, t: Tenant, why: 'CANCELED' | 'EXPIRED' = 'CANCELE
   await tx.commercialSubscription.update({ where: { id: live.id }, data: { status: why, canceledAt: new Date() } });
   return live.id;
 }
+/**
+ * Two changes to one workspace's plan at the same moment: the database keeps one live subscription per workspace (a
+ * partial unique index), so the second is refused there. It is answered as the conflict it is, for the reader to see the
+ * plan as it now stands, never as a server error.
+ */
+async function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
+  try { return await work(); } catch (err) {
+    // In the two transactions this wraps, the only unique rule a concurrent request can meet is that index (invoice
+    // numbers come from a sequence, ids are random), and Prisma often names no target for a partial index.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') throw new SubscriptionRefusedError('concurrent');
+    throw err;
+  }
+}
 async function nextNumber(tx: Tx): Promise<string> {
   const [{ n }] = await tx.$queryRaw<Array<{ n: bigint }>>`SELECT nextval('"CommercialInvoice_number_seq"') AS n`;
   return `FAM-${new Date().getUTCFullYear()}-${String(n).padStart(6, '0')}`;
@@ -77,7 +90,7 @@ export async function requestPlan(t: Tenant, actor: DesignActor, planKey: string
   const plan = await prisma.commercialPlan.findUnique({ where: { key: String(planKey || '') }, select: { id: true, key: true, name: true, audience: true, active: true, priceMinor: true, currency: true, interval: true } });
   if (!plan || !plan.active) throw new SubscriptionRefusedError('unknown-plan');
   if (plan.audience !== audienceOf(t)) throw new SubscriptionRefusedError('wrong-audience');
-  await prisma.$transaction(async (tx) => {
+  await oneAtATime(() => prisma.$transaction(async (tx) => {
     const live = await tx.commercialSubscription.findFirst({ where: { ...tenantWhere(t), status: { in: [SS.PENDING, SS.ACTIVE] } }, select: { id: true, planId: true, status: true, source: true, plan: { select: { priceMinor: true } } } });
     if (live && live.planId === plan.id) throw new SubscriptionRefusedError('already-on-plan');
     if (live && live.status === SS.ACTIVE && live.source === SRC.OWNER_GRANT) throw new SubscriptionRefusedError('owner-grant');
@@ -97,7 +110,7 @@ export async function requestPlan(t: Tenant, actor: DesignActor, planKey: string
       lines: [{ description: plan.name, plan: plan.key, interval: plan.interval, amountMinor: plan.priceMinor }] as unknown as Prisma.InputJsonValue,
     }, select: { id: true, number: true } });
     await audit(tx, t, actor, 'commercial.subscription.requested', sub.id, { plan: plan.key, invoice: inv.number, totalMinor: plan.priceMinor, currency: plan.currency }, 'A paid plan was requested; its invoice is open');
-  });
+  }));
   return myBilling(t);
 }
 
@@ -200,7 +213,7 @@ export async function ownerGrant(actor: DesignActor, input: { tenantKind: unknow
   if (plan.audience !== audienceOf(t)) throw new SubscriptionRefusedError('wrong-audience');
   const exists = t.kind === 'club' ? await prisma.club.findUnique({ where: { id: t.clubId }, select: { id: true } }) : await prisma.creatorAccount.findFirst({ where: { id: t.creatorId, status: 'ACTIVE' }, select: { id: true } });
   if (!exists) throw new SubscriptionRefusedError('unknown-tenant');
-  return prisma.$transaction(async (tx) => {
+  return oneAtATime(() => prisma.$transaction(async (tx) => {
     await endLive(tx, t);
     const now = new Date();
     const sub = await tx.commercialSubscription.create({ data: { ...ownerColumns(t), planId: plan.id, status: SS.ACTIVE, source: SRC.OWNER_GRANT, currentPeriodStart: now,
@@ -208,7 +221,7 @@ export async function ownerGrant(actor: DesignActor, input: { tenantKind: unknow
     await ownerAudit(tx, actor, { action: 'commercial.subscription.granted', resourceType: 'CommercialSubscription', resourceId: sub.id, clubId: t.kind === 'club' ? t.clubId : null,
       metadata: { plan: plan.key, months, note, creatorId: t.kind === 'creator' ? t.creatorId : null }, message: 'The Platform Owner granted a plan' });
     return { subscription: { id: sub.id } };
-  });
+  }));
 }
 
 /** End any subscription now, with a note. */

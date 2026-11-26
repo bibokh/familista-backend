@@ -41,6 +41,15 @@ module.exports = async function p27(H) {
   }
   const owner = await creator('Olivia Owner');
   const peer = await creator('Pablo Peer');
+  // Pilot readiness: sharing by address comes with a plan the Owner grants, never by default (receiving needs none). The
+  // plan is withdrawn from offer once granted, so the sections after this one see the plans they configure themselves.
+  const PD = BASE + '/api/v1/system/product-design';
+  const asOwner = (method, url, body) => fetch(PD + url, { method, headers: { Authorization: 'Bearer ' + TOKENS.owner, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }).then((r) => r.json());
+  const plan = { name: 'P27 sharing', features: ['team_kit', 'brand_studio', 'reviews', 'collaboration', 'manufacturing'] };
+  const made = await asOwner('POST', '/plans', { key: `p27-share-${tag}`, audience: 'CREATOR', ...plan });
+  const granted = made && made.success ? await asOwner('POST', '/billing/grant', { tenantKind: 'creator', tenantId: owner.id, planKey: `p27-share-${tag}`, months: null, note: 'P27 browser proof' }) : null;
+  const withdrawn = granted && granted.success ? await asOwner('PUT', '/plans/' + made.data.plan.id, { ...plan, active: false }) : null;
+  if (!withdrawn || !withdrawn.success) throw new Error('P27 the sharing plan could not be granted: ' + JSON.stringify({ made, granted, withdrawn }).slice(0, 400));
 
   async function signedIn(locale, who) {
     const s = await open({ width: 1672, height: 941 }, locale, { as: 'owner', hash: '/creator', wait: false });

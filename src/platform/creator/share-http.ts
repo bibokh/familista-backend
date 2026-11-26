@@ -18,7 +18,7 @@ const CommentBody = z.object({ revision: z.number().int().min(1).max(1_000_000),
 function handler(work: (req: Request, res: Response) => Promise<void>): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction) => {
     try { await work(req, res); } catch (err) {
-      if (err instanceof ShareRefusedError) { res.status(err.reason === 'no-creator' ? 404 : err.reason === 'exists' || err.reason === 'limit' ? 409 : 400).json({ success: false, code: err.code, reason: err.reason, message: err.message }); return; }
+      if (err instanceof ShareRefusedError) { res.status(err.reason === 'no-creator' ? 404 : err.reason === 'lookup-limit' ? 429 : err.reason === 'exists' || err.reason === 'limit' ? 409 : 400).json({ success: false, code: err.code, reason: err.reason, message: err.message }); return; }
       if (err instanceof ReviewInvalidError) { res.status(400).json({ success: false, code: 'REVIEW_INVALID', reason: err.code, path: err.path, message: err.message }); return; }
       next(err);
     }

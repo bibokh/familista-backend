@@ -1432,5 +1432,7 @@
   "%d active": "%d نشط",
   "Suspended: %d. Accounts open only with your invitation.": "موقوفة: %d. لا تُفتح الحسابات إلا بدعوتك.",
   "Clubs with the studio released": "الأندية المتاح لها الاستوديو",
-  "Released from Club releases, club by club.": "يُتاح من الإتاحة للأندية، ناديًا تلو الآخر."
+  "Released from Club releases, club by club.": "يُتاح من الإتاحة للأندية، ناديًا تلو الآخر.",
+  "Sharing is paused until tomorrow: several addresses had no creator account. Check the address with the person first.": "المشاركة متوقفة حتى الغد: لم يكن لعدة عناوين حساب مصمّم. تحقّق من العنوان مع الشخص أولًا.",
+  "Another change to this plan was made at the same moment. It is shown as it now stands.": "أُجري تغيير آخر على هذه الباقة في اللحظة نفسها. تُعرض كما هي الآن."
 }

@@ -73,7 +73,7 @@
     }
     // P3: a creator's workspace. Who the creator is comes from the server once signed in (identify), never from the page.
     if (w.kind === 'PERSONAL') return { kind: 'PERSONAL', creatorId: '', displayName: '', email: '', emailVerified: false, locale: 'en-GB', role: 'CREATOR',
-      parts: Object.freeze({ teamKit: true, brandKit: true, manufacturing: true, reviews: true, collaboration: true, proExport: false, mfgPrep: false }) };
+      parts: Object.freeze({ teamKit: true, brandKit: true, manufacturing: true, reviews: true, collaboration: false, proExport: false, mfgPrep: false }) };
     return null;
   }
   /**
@@ -2489,7 +2489,6 @@
       if (it.reason && !plannedShown) { plannedShown = true; list.appendChild(h('li', { class: 'pd-side-group', text: T('Planned') })); }
       var b = it.current ? btn({ class: 'pd-side-btn is-current', 'aria-current': 'page' })
         : it.act === 'team-requests' && !(part('teamKit') && part('manufacturing')) ? planned(btn({ class: 'pd-side-btn is-planned' }), 'not-in-plan')
-        : it.act === 'shared' && !part('collaboration') ? planned(btn({ class: 'pd-side-btn is-planned' }), 'not-in-plan')
         : (it.act === 'plan' && !S.plan) || (it.act === 'bl' && !S.billing) || (it.act === 'start' && !S.start) ? null
         : it.act ? btn({ class: 'pd-side-btn', 'data-pd-act': it.act, 'data-pd-tab': it.tab || null, 'aria-controls': it.act === 'mfg' ? 'pd-mfg' : it.act === 'acct' ? 'pd-acct' : it.act === 'shared' ? 'pd-shared' : it.act === 'plan' ? 'pd-plan' : it.act === 'bl' ? 'pd-billing' : it.act === 'start' ? 'pd-start' : 'pd-team', 'aria-expanded': 'false' })
         : it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)

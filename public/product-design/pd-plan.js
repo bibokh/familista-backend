@@ -51,6 +51,7 @@
     'bad-note': L('Write a note of 5 to 300 characters: it is kept in the audit.'),
     'bad-months': L('Choose between 1 and 36 months, or no end date.'),
     'unknown-tenant': L('Choose an active club or creator account.'),
+    concurrent: L('Another change to this plan was made at the same moment. It is shown as it now stands.'),
   };
   var PLAN_INVALID = {
     'bad-key': L('The key is 2 to 40 lower-case letters, digits or hyphens, starting with a letter or digit.'),
@@ -251,7 +252,11 @@
         st.data = r.data; st.state = 'ready';
         if (r.data.entitlements.features.join() !== before) { st.changed = true; ctx.onPlanChanged(r.data.entitlements); }
         say(okText);
-      } else say(problem(T, r, L('The plan could not be changed.')));
+      } else {
+        say(problem(T, r, L('The plan could not be changed.')));
+        // Changed meanwhile by someone else: read it again, so what is shown is what holds.
+        if (r.reason === 'concurrent') { load(); return; }
+      }
       render();
     }
     function open(trigger) { st.open = true; st.trigger = trigger || null; el.setAttribute('data-open', 'true'); load(); ctx.onToggle(true); var f = el.querySelector('[data-pd-act="plan-close"]'); if (f) f.focus({ preventScroll: true }); }

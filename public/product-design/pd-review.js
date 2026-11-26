@@ -35,6 +35,8 @@
   var ROLE = { VIEW: L('Can see'), COMMENT: L('Can comment') };
   var SHARE_REFUSED = {
     'bad-email': L('Enter a valid email address.'), 'no-creator': L('No creator account uses this address.'), self: L('This is your own address.'),
+    // P8: several addresses with no creator account in a day pause sharing, so it cannot be used to test a list of addresses.
+    'lookup-limit': L('Sharing is paused until tomorrow: several addresses had no creator account. Check the address with the person first.'),
     exists: L('This design is already shared with this creator.'), 'bad-role': L('Choose what they may do.'),
   };
 
