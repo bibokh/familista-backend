@@ -56,12 +56,13 @@ module.exports = async function p26(H) {
   try {
     const first = await pg.evaluate((sel) => ({
       tab: document.querySelector(sel + ' [role="tab"][aria-selected="true"]').textContent, title: document.querySelector(sel + ' .pd-gate-title').textContent,
-      aside: document.querySelectorAll(sel + ' .pd-gate-list li').length, gm: window.__familistaCreatorGateMetrics() }), GATE);
+      aside: document.querySelectorAll(sel + ' .pd-gate-list:not(.pd-gate-services) li').length, services: document.querySelectorAll(sel + ' .pd-gate-services li').length,
+      gm: window.__familistaCreatorGateMetrics() }), GATE);
     await pg.click(GATE + ' [data-pd-act="gate-signup"]');
     const signup = await pg.evaluate((sel) => ({ warn: (document.querySelector(sel + ' .pd-note--warn') || {}).textContent || '', age: (document.querySelector(sel + ' .pd-team-check span') || {}).textContent || '',
       fields: [...document.querySelectorAll(sel + ' [data-pd-gate-in]')].map((i) => i.getAttribute('data-pd-gate-in')) }), GATE);
     check('P26 the gate opens on sign-in, lists what the studio does, and its sign-up says the platform cannot send email (none is configured here) and asks for the age',
-      first.tab === 'Sign in' && first.title === 'Sign in to the Creator Studio' && first.aside === 4 && first.gm.minimumAge === 18 && first.gm.email === false
+      first.tab === 'Sign in' && first.title === 'Sign in to the Creator Studio' && first.aside === 4 && first.services === 3 && first.gm.minimumAge === 18 && first.gm.email === false
         && /cannot send email yet/.test(signup.warn) && signup.age === 'I am at least 18 years old.' && signup.fields.join() === 'inviteCode,displayName,email,password,age', { first, signup });
 
     await pg.fill(GATE + ' [data-pd-gate-in="inviteCode"]', code.toLowerCase());
