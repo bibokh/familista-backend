@@ -3104,11 +3104,11 @@ var _PD_ROOM = { state: 'idle', waiting: [] };
 // boundary: every club design route checks the role, the entitlement and each project's club on the server
 // (src/routes/club-design.routes.ts), and the database holds each club to its own rows.
 function _loadClubDesign(done) {
-  _famLoadRoom(_PD_ROOM, '20261124-product-design-m7b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-collections.js', '/product-design/pd-requests.js', '/product-design/pd-review.js', '/product-design/pd-present.js', '/product-design/pd-team.js', '/product-design/product-design.js'], done,
+  _famLoadRoom(_PD_ROOM, '20261124-product-design-m7b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-collections.js', '/product-design/pd-requests.js', '/product-design/pd-review.js', '/product-design/pd-present.js', '/product-design/pd-team.js', '/product-design/pd-plan.js', '/product-design/product-design.js'], done,
     function () { return _access('canDesignClubKits'); });
 }
 function _loadProductDesign(done) {
-  _famLoadOwnerRoom(_PD_ROOM, '20261124-product-design-m7b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-manufacturing.js', '/product-design/product-design.js'], done);
+  _famLoadOwnerRoom(_PD_ROOM, '20261124-product-design-m7b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-manufacturing.js', '/product-design/pd-plan.js', '/product-design/product-design.js'], done);
 }
 
 // ── NAVIGATION ──

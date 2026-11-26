@@ -17,6 +17,8 @@ const RESOURCES = {
   manufacturingRequest: (id: string): Owned => prisma.manufacturingRequest.findUnique({ where: { id }, select: { clubId: true, creatorId: true } }),
   manufacturingQuote: (id: string): Owned => prisma.manufacturingQuote.findUnique({ where: { id }, select: { clubId: true, creatorId: true } }),
   designReviewComment: (id: string): Owned => prisma.designReviewComment.findUnique({ where: { id }, select: { clubId: true, creatorId: true } }),
+  // P6: an invoice of the creator's own subscription.
+  commercialInvoice: (id: string): Owned => prisma.commercialInvoice.findUnique({ where: { id }, select: { clubId: true, creatorId: true } }),
   // P4: a share, by its owner (a grantee never reaches a share by id).
   designShare: (id: string): Owned => prisma.designShare.findUnique({ where: { id }, select: { creatorId: true } }).then((r) => (r ? { clubId: null, creatorId: r.creatorId } : null)),
 } as const;

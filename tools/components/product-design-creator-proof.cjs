@@ -91,7 +91,7 @@ module.exports = async function p26(H) {
     const acc = await db.creatorAccount.findUnique({ where: { email } });
     check('P26 signed up with the invitation, the person is in the studio’s own room, in a personal workspace: no club, no Owner navigation, their name, Account in the rail; the account is theirs and not yet confirmed',
       !!acc && acc.displayName === 'Proof Creator' && !acc.emailVerifiedAt && !room.ownerNav && /Proof Creator/.test(room.who) && /Creator/.test(room.who)
-        && room.side.join('|') === 'Design Studio|Orders|Account|Global Store|Payments' && room.ctx.join('|') === 'Individuals & public' && /Your designs, saved in your personal workspace/.test(room.card)
+        && room.side.join('|') === 'Design Studio|Orders|Shared with me|Account|Plan & billing|Global Store' && room.ctx.join('|') === 'Individuals & public' && /Your designs, saved in your personal workspace/.test(room.card)
         && /cannot send email yet/.test(room.live), room);
 
     // A save lands as the creator's own project, on the creator's routes alone; the club session is never sent.

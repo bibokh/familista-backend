@@ -11578,3 +11578,137 @@ model DesignShare {
   @@index([granteeId])
   @@index([creatorId])
 }
+
+// ── Premium plans (P5) and the provider-independent billing foundation (P6) ─────────────────────────────────────────
+
+enum PlanAudience {
+  CREATOR
+  CLUB
+}
+
+enum PlanInterval {
+  MONTH
+  YEAR
+}
+
+enum CommercialSubscriptionStatus {
+  PENDING
+  ACTIVE
+  CANCELED
+  EXPIRED
+}
+
+enum CommercialSubscriptionSource {
+  SELF
+  OWNER_GRANT
+}
+
+enum CommercialInvoiceStatus {
+  OPEN
+  PAID
+  VOID
+}
+
+enum PaymentEventStatus {
+  SUCCEEDED
+  FAILED
+}
+
+/// A plan the Platform Owner configures: the Design Studio features it includes, its limits and, when it has one, the price
+/// it is offered at. A price is configuration, never charged here. One active default per audience (SQL partial index).
+model CommercialPlan {
+  id             String                   @id @default(uuid())
+  key            String                   @unique
+  audience       PlanAudience
+  name           String
+  description    String?
+  features       String[]                 @default([])
+  maxProjects    Int?
+  maxCollections Int?
+  maxShares      Int?
+  priceMinor     Int?
+  currency       String?
+  interval       PlanInterval?
+  isDefault      Boolean                  @default(false)
+  active         Boolean                  @default(true)
+  sortOrder      Int                      @default(0)
+  createdById    String
+  createdAt      DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime                 @default(now()) @updatedAt @db.Timestamptz(3)
+  subscriptions  CommercialSubscription[]
+
+  @@index([audience, active, sortOrder])
+}
+
+/// A tenant's subscription to a plan: one club's or one creator's (exactly one, SQL check); one live per tenant.
+model CommercialSubscription {
+  id                 String                       @id @default(uuid())
+  clubId             String?
+  creatorId          String?
+  planId             String
+  plan               CommercialPlan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status             CommercialSubscriptionStatus
+  source             CommercialSubscriptionSource
+  currentPeriodStart DateTime?                    @db.Timestamptz(3)
+  currentPeriodEnd   DateTime?                    @db.Timestamptz(3)
+  cancelAtPeriodEnd  Boolean                      @default(false)
+  canceledAt         DateTime?                    @db.Timestamptz(3)
+  providerRef        String?
+  note               String?
+  createdById        String
+  createdAt          DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                     @default(now()) @updatedAt @db.Timestamptz(3)
+  invoices           CommercialInvoice[]
+
+  @@unique([id, clubId])
+  @@unique([id, creatorId])
+  @@index([status, currentPeriodEnd])
+}
+
+/// An invoice for a subscription. Its amounts never change; it is PAID only after a recorded successful payment of its
+/// total (a trigger), and PAID and VOID are final.
+model CommercialInvoice {
+  id             String                  @id @default(uuid())
+  number         String                  @unique
+  subscriptionId String
+  subscription   CommercialSubscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  clubId         String?
+  creatorId      String?
+  status         CommercialInvoiceStatus @default(OPEN)
+  currency       String
+  subtotalMinor  Int
+  taxMinor       Int?
+  totalMinor     Int
+  lines          Json
+  periodStart    DateTime                @db.Timestamptz(3)
+  periodEnd      DateTime                @db.Timestamptz(3)
+  issuedAt       DateTime                @default(now()) @db.Timestamptz(3)
+  paidAt         DateTime?               @db.Timestamptz(3)
+  voidedAt       DateTime?               @db.Timestamptz(3)
+  createdAt      DateTime                @default(now()) @db.Timestamptz(3)
+  payments       PaymentEvent[]
+
+  @@unique([id, clubId])
+  @@unique([id, creatorId])
+  @@index([subscriptionId])
+  @@index([status, issuedAt])
+}
+
+/// What a payment provider reported about an invoice, once per provider event; never changed or removed.
+model PaymentEvent {
+  id              String             @id @default(uuid())
+  invoiceId       String
+  invoice         CommercialInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  clubId          String?
+  creatorId       String?
+  provider        String
+  providerEventId String
+  status          PaymentEventStatus
+  amountMinor     Int
+  currency        String
+  occurredAt      DateTime           @db.Timestamptz(3)
+  receivedAt      DateTime           @default(now()) @db.Timestamptz(3)
+
+  @@unique([provider, providerEventId], map: "PaymentEvent_provider_event_key")
+  @@index([invoiceId])
+}

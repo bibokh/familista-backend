@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-26T10:44:28.208Z",
+  "generatedAt": "2026-11-26T11:23:10.394Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 63,
-    "handlers": 915,
+    "handlers": 935,
     "publicHandlers": 29,
     "publicRoutes": [
       {
@@ -386,7 +386,7 @@
       {
         "path": "/system/product-design",
         "module": "product-design.routes",
-        "handlers": 21,
+        "handlers": 29,
         "public": 0,
         "routerWideAuth": true
       },
@@ -400,7 +400,7 @@
       {
         "path": "/club-design",
         "module": "club-design.routes",
-        "handlers": 44,
+        "handlers": 50,
         "public": 0,
         "routerWideAuth": true
       },
@@ -414,7 +414,7 @@
       {
         "path": "/creator",
         "module": "creator.routes",
-        "handlers": 55,
+        "handlers": 61,
         "public": 0,
         "routerWideAuth": true
       },
@@ -684,9 +684,9 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 467,
-      "guarded": 213,
-      "exempt": 254,
+      "idParameters": 476,
+      "guarded": 219,
+      "exempt": 257,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
@@ -733,7 +733,7 @@
           "unguarded": 0
         },
         "club-design.routes": {
-          "guarded": 35,
+          "guarded": 38,
           "exempt": 2,
           "unguarded": 0
         },
@@ -748,7 +748,7 @@
           "unguarded": 0
         },
         "creator.routes": {
-          "guarded": 42,
+          "guarded": 45,
           "exempt": 2,
           "unguarded": 0
         },
@@ -874,7 +874,7 @@
         },
         "product-design.routes": {
           "guarded": 0,
-          "exempt": 14,
+          "exempt": 17,
           "unguarded": 0
         },
         "provisioning.routes": {
@@ -940,14 +940,14 @@
       }
     },
     "authorization": {
-      "handlers": 915,
+      "handlers": 935,
       "byKind": {
         "public": 29,
         "member": 350,
         "scoped": 60,
-        "roles": 280,
-        "platform-owner": 141,
-        "creator": 55
+        "roles": 286,
+        "platform-owner": 149,
+        "creator": 61
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -995,7 +995,7 @@
           "member": 3
         },
         "club-design.routes": {
-          "roles": 44
+          "roles": 50
         },
         "club.routes": {
           "platform-owner": 1,
@@ -1014,7 +1014,7 @@
           "public": 8
         },
         "creator.routes": {
-          "creator": 55
+          "creator": 61
         },
         "cybersecurity.routes": {
           "platform-owner": 2
@@ -1134,7 +1134,7 @@
           "roles": 1
         },
         "product-design.routes": {
-          "platform-owner": 21
+          "platform-owner": 29
         },
         "provisioning.routes": {
           "roles": 7,
@@ -1273,11 +1273,13 @@
         "GET /club-design/collections": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/collections/:collectionId": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/collections/:collectionId/order-sheet": "roles:CLUB_ADMIN,MANAGER",
+        "GET /club-design/plan": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/projects": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/projects/:id": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/projects/:id/review": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/projects/:id/revisions": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/projects/:id/revisions/:number": "roles:CLUB_ADMIN,MANAGER",
+        "GET /club-design/projects/:id/tech-pack": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/requests": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/requests/:requestId": "roles:CLUB_ADMIN,MANAGER",
         "GET /club-design/rosters": "roles:CLUB_ADMIN,MANAGER",
@@ -1297,12 +1299,14 @@
         "GET /creator/collections/:collectionId/order-sheet": "creator",
         "GET /creator/me": "creator",
         "GET /creator/me/export": "creator",
+        "GET /creator/plan": "creator",
         "GET /creator/projects": "creator",
         "GET /creator/projects/:id": "creator",
         "GET /creator/projects/:id/review": "creator",
         "GET /creator/projects/:id/revisions": "creator",
         "GET /creator/projects/:id/revisions/:number": "creator",
         "GET /creator/projects/:id/shares": "creator",
+        "GET /creator/projects/:id/tech-pack": "creator",
         "GET /creator/requests": "creator",
         "GET /creator/requests/:requestId": "creator",
         "GET /creator/rosters": "creator",
@@ -1605,8 +1609,10 @@
         "GET /system/neural-twin": "platform-owner",
         "GET /system/overview": "platform-owner",
         "GET /system/people": "platform-owner",
+        "GET /system/product-design/billing": "platform-owner",
         "GET /system/product-design/creators": "platform-owner",
         "GET /system/product-design/creators/invites": "platform-owner",
+        "GET /system/product-design/plans": "platform-owner",
         "GET /system/product-design/privacy/retention": "platform-owner",
         "GET /system/product-design/projects": "platform-owner",
         "GET /system/product-design/projects/:id": "platform-owner",
@@ -1734,6 +1740,7 @@
         "POST /billing/checkout": "member",
         "POST /billing/portal": "member",
         "POST /billing/webhook": "public",
+        "POST /club-design/billing/invoices/:invoiceId/checkout": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/brand-kit/assets": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/brand-kit/assets/:assetId/archive": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/brand-kit/assets/:assetId/unarchive": "roles:CLUB_ADMIN,MANAGER",
@@ -1741,6 +1748,8 @@
         "POST /club-design/collections/:collectionId/archive": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/collections/:collectionId/requests": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/collections/:collectionId/unarchive": "roles:CLUB_ADMIN,MANAGER",
+        "POST /club-design/plan/cancel": "roles:CLUB_ADMIN,MANAGER",
+        "POST /club-design/plan/request": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/privacy/erase-person": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/projects": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/projects/:id/archive": "roles:CLUB_ADMIN,MANAGER",
@@ -1748,6 +1757,7 @@
         "POST /club-design/projects/:id/comments/:commentId/reopen": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/projects/:id/comments/:commentId/resolve": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/projects/:id/decisions": "roles:CLUB_ADMIN,MANAGER",
+        "POST /club-design/projects/:id/exports": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/projects/:id/revisions": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/projects/:id/revisions/:number/restore": "roles:CLUB_ADMIN,MANAGER",
         "POST /club-design/projects/:id/unarchive": "roles:CLUB_ADMIN,MANAGER",
@@ -1770,6 +1780,7 @@
         "POST /creator/auth/register": "public",
         "POST /creator/auth/reset-password": "public",
         "POST /creator/auth/verify-email": "public",
+        "POST /creator/billing/invoices/:invoiceId/checkout": "creator",
         "POST /creator/brand-kit/assets": "creator",
         "POST /creator/brand-kit/assets/:assetId/archive": "creator",
         "POST /creator/brand-kit/assets/:assetId/unarchive": "creator",
@@ -1780,12 +1791,15 @@
         "POST /creator/me/delete": "creator",
         "POST /creator/me/password": "creator",
         "POST /creator/me/verification": "creator",
+        "POST /creator/plan/cancel": "creator",
+        "POST /creator/plan/request": "creator",
         "POST /creator/projects": "creator",
         "POST /creator/projects/:id/archive": "creator",
         "POST /creator/projects/:id/comments": "creator",
         "POST /creator/projects/:id/comments/:commentId/reopen": "creator",
         "POST /creator/projects/:id/comments/:commentId/resolve": "creator",
         "POST /creator/projects/:id/decisions": "creator",
+        "POST /creator/projects/:id/exports": "creator",
         "POST /creator/projects/:id/revisions": "creator",
         "POST /creator/projects/:id/revisions/:number/restore": "creator",
         "POST /creator/projects/:id/shares": "creator",
@@ -2037,11 +2051,16 @@
         "POST /system/manufacturing/requests/:requestId/shipped": "platform-owner",
         "POST /system/manufacturing/suppliers": "platform-owner",
         "POST /system/manufacturing/suppliers/:supplierId/status": "platform-owner",
+        "POST /system/product-design/billing/expire": "platform-owner",
+        "POST /system/product-design/billing/grant": "platform-owner",
+        "POST /system/product-design/billing/invoices/:invoiceId/void": "platform-owner",
+        "POST /system/product-design/billing/subscriptions/:subscriptionId/end": "platform-owner",
         "POST /system/product-design/creators/:creatorId/reinstate": "platform-owner",
         "POST /system/product-design/creators/:creatorId/suspend": "platform-owner",
         "POST /system/product-design/creators/:creatorId/verify-email": "platform-owner",
         "POST /system/product-design/creators/invites": "platform-owner",
         "POST /system/product-design/creators/invites/:inviteId/revoke": "platform-owner",
+        "POST /system/product-design/plans": "platform-owner",
         "POST /system/product-design/privacy/retention/apply": "platform-owner",
         "POST /system/product-design/projects": "platform-owner",
         "POST /system/product-design/projects/:id/archive": "platform-owner",
@@ -2102,6 +2121,7 @@
         "PUT /staff-market/notes/:staffUserId": "scoped:requireMembership(HEAD_COACH)+requireClubWideManage",
         "PUT /staff-market/shortlist/:staffUserId": "scoped:requireActingClubMembership(HEAD_COACH)",
         "PUT /system/manufacturing/suppliers/:supplierId": "platform-owner",
+        "PUT /system/product-design/plans/:planId": "platform-owner",
         "PUT /system/product-design/privacy/retention": "platform-owner",
         "PUT /system/product-design/rollout/:clubId": "platform-owner",
         "PUT /teams/:id": "roles:CLUB_ADMIN,HEAD_COACH",
@@ -2302,7 +2322,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "213 of 467 route id parameter(s) checked against the caller's club before the handler; 254 exempted by name with a reason; 0 unguarded."
+      "note": "219 of 476 route id parameter(s) checked against the caller's club before the handler; 257 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2407,7 +2427,7 @@
       "id": "db-row-level-security",
       "status": "PRESENT",
       "evidence": "prisma/migrations",
-      "note": "Enforced by PostgreSQL on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision, DesignBrandKit, DesignBrandAsset, DesignRoster, DesignCollection, DesignCollectionItem, ManufacturingRequest, ManufacturingRequestEvent, ManufacturingQuote, DesignReviewComment, DesignApproval, ManufacturingRequestPerson, DesignShare (20261006100000_rls_enforce, guarded: every table forced with its policy). The service's DB_RLS_CONTEXT and the database's switch and catalogue are verified live by the Cybersecurity control plane."
+      "note": "Enforced by PostgreSQL on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision, DesignBrandKit, DesignBrandAsset, DesignRoster, DesignCollection, DesignCollectionItem, ManufacturingRequest, ManufacturingRequestEvent, ManufacturingQuote, DesignReviewComment, DesignApproval, ManufacturingRequestPerson, DesignShare, CommercialSubscription, CommercialInvoice, PaymentEvent (20261006100000_rls_enforce, guarded: every table forced with its policy). The service's DB_RLS_CONTEXT and the database's switch and catalogue are verified live by the Cybersecurity control plane."
     },
     {
       "id": "db-audit-append-only",
@@ -2526,7 +2546,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "915 handler(s) classified: 29 public, 350 member, 60 scoped, 280 roles, 141 platform-owner, 55 creator; every member- and creator-level handler reviewed by name."
+      "note": "935 handler(s) classified: 29 public, 350 member, 60 scoped, 286 roles, 149 platform-owner, 61 creator; every member- and creator-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",
@@ -2586,13 +2606,13 @@
       "id": "db-rls-pilot",
       "status": "PRESENT",
       "evidence": "prisma/migrations/20261004100000_rls_pilot/migration.sql",
-      "note": "Row-level security policies on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision, DesignBrandKit, DesignBrandAsset, DesignRoster, DesignCollection, DesignCollectionItem, ManufacturingRequest, ManufacturingRequestEvent, ManufacturingQuote, DesignReviewComment, DesignApproval, ManufacturingRequestPerson, DesignShare (forced, fail closed without a context), the request's club carried to PostgreSQL per transaction, backups read under the named system context, all proven on real PostgreSQL in CI. Table list is a ratchet in posture-policy.json."
+      "note": "Row-level security policies on Player, Membership, PlayerInjury, VideoAsset, BiochemicalSignal, HydrationEstimate, StressIndex, NeuromuscularLoad, TendonRiskEstimate, PlayerGuardianLink, PlayerContractRecord, PlayerEvaluationRecord, PlayerOnboardingStep, TrainingAttendanceRecord, MatchAttendanceRecord, OperationsPayment, ClubCalendarEntry, StaffClubNote, DesignProject, DesignRevision, DesignBrandKit, DesignBrandAsset, DesignRoster, DesignCollection, DesignCollectionItem, ManufacturingRequest, ManufacturingRequestEvent, ManufacturingQuote, DesignReviewComment, DesignApproval, ManufacturingRequestPerson, DesignShare, CommercialSubscription, CommercialInvoice, PaymentEvent (forced, fail closed without a context), the request's club carried to PostgreSQL per transaction, backups read under the named system context, all proven on real PostgreSQL in CI. Table list is a ratchet in posture-policy.json."
     },
     {
       "id": "db-rls-system-paths-reviewed",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "8 named path(s) act across clubs (creator-account, creator-session, creator-signin, creator-signup, platform-owner, staff-market-move, transfer-settlement, video-transcode); each is reviewed by name."
+      "note": "9 named path(s) act across clubs (creator-account, creator-session, creator-signin, creator-signup, payment-events, platform-owner, staff-market-move, transfer-settlement, video-transcode); each is reviewed by name."
     },
     {
       "id": "storage-key-club-prefixed",
@@ -3027,6 +3047,7 @@
         "src/notifications/notifications.service.ts",
         "src/platform/agents/registry.ts",
         "src/platform/agents/trace-chain.ts",
+        "src/platform/commercial/tech-pack.ts",
         "src/platform/creator/account.service.ts",
         "src/platform/email/service.ts",
         "src/platform/innovation/flags.ts",

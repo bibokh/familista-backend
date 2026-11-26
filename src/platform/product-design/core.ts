@@ -28,7 +28,7 @@ export interface DesignDocument {
   surfaces: unknown[];
 }
 
-interface ProductTemplate { key: string; templateVersion: number; form?: string; surfaces?: Array<{ id: string }> }
+interface ProductTemplate { key: string; templateVersion: number; name?: string; form?: string; surfaces?: Array<{ id: string; label?: string; width?: number; height?: number }>; parts?: Array<{ id: string; label?: string }> }
 
 interface PdCore {
   FORMAT: string;
@@ -84,6 +84,16 @@ export function templateForm(key: string, version: number): 'top' | 'shorts' | '
 export function templateSurfaces(key: string, version: number): string[] | null {
   const t = load().templates.get(`${key}@${version}`);
   return t && Array.isArray(t.surfaces) ? t.surfaces.map((s) => s.id) : null;
+}
+
+/** P5: a released template's name, form and surfaces (with their labels and sizes in mm), for the tech pack; or null. */
+export function templateInfo(key: string, version: number): { name: string; form: 'top' | 'shorts' | 'socks'; surfaces: Array<{ id: string; label: string; widthMm: number | null; heightMm: number | null }> } | null {
+  const t = load().templates.get(`${key}@${version}`);
+  if (!t) return null;
+  return {
+    name: String(t.name ?? key), form: t.form === 'shorts' || t.form === 'socks' ? t.form : 'top',
+    surfaces: (t.surfaces ?? []).map((x) => ({ id: x.id, label: String(x.label ?? x.id), widthMm: typeof x.width === 'number' ? x.width : null, heightMm: typeof x.height === 'number' ? x.height : null })),
+  };
 }
 
 /** The core's limits (bytes, name length), for the routes' own envelope checks. */

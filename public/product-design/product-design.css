@@ -939,3 +939,30 @@ html:has(#pg-creator-design), html:has(#pg-creator-design) body { margin: 0; pad
 .pd-rv-share { display: flex; flex-direction: column; gap: var(--fam-space-2); padding-block: var(--fam-space-2); border-block-end: 1px solid var(--fam-border-subtle); }
 .pd-rv-share-add { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; align-items: center; }
 .pd-rv-share-add .pd-input { min-width: 0; }
+
+/* P5/P6: the workspace's plan and invoices, the Owner's plans and billing. The panels are the Team panel's; a current
+   plan is marked by an edge, never a filled block; the price is plain text with tabular figures. */
+.pd-plan, .pd-billing { z-index: 45; }
+.pd-plan .pd-acct-block > .pd-btn, .pd-billing .pd-acct-block > .pd-btn, .pd-billing .pd-team-body > .pd-btn { align-self: flex-start; }
+.pd-plan .pd-team-field .pd-input, .pd-billing .pd-team-field .pd-input, .pd-billing select.pd-input { width: 100%; }
+.pd-plan-features { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--fam-font-size-sm); }
+.pd-plan-feature { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: start; color: var(--fam-text-primary); }
+.pd-plan-feature[data-included="false"] { color: var(--fam-text-secondary); }
+.pd-plan-feature .pd-ic { margin-top: 2px; }
+.pd-plan-limits { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--fam-space-2); margin: 0; }
+.pd-plan-limit { padding: var(--fam-space-2); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: 1px solid var(--fam-border-subtle); }
+.pd-plan-limit dt { color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); }
+.pd-plan-limit dd { margin: 2px 0 0; font-weight: var(--fam-font-weight-semibold); font-variant-numeric: tabular-nums; }
+.pd-plan-offers { display: flex; flex-direction: column; gap: var(--fam-space-2); margin: 0; padding: 0; list-style: none; }
+.pd-plan-offer { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: 1px solid var(--fam-border-subtle); }
+.pd-plan-offer.is-current { border-inline-start: 2px solid color-mix(in srgb, var(--fam-module-accent) 70%, var(--fam-text-primary)); }
+.pd-plan-offer-head { display: flex; flex-wrap: wrap; gap: 4px var(--fam-space-2); align-items: baseline; justify-content: space-between; width: 100%; }
+.pd-plan-price { font-variant-numeric: tabular-nums; color: var(--fam-text-secondary); }
+.pd-plan-confirm { display: flex; flex-direction: column; gap: var(--fam-space-2); width: 100%; }
+.pd-billing .pd-dock-row { flex-wrap: wrap; }
+.pd-billing .pd-dock-row > .pd-plan-confirm { flex-basis: 100%; }
+.pd-plan-form .pd-note { margin: 0; }
+.pd-plan-fieldset { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: var(--fam-space-2); border: 1px solid var(--fam-border-subtle); border-radius: var(--fam-radius-md); }
+.pd-plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--fam-space-2); }
+.pd-pp-tool .pd-h3 { display: flex; align-items: center; gap: 6px; }
+.pd-pp-tool[data-included="false"] .pd-note { color: var(--fam-text-secondary); }

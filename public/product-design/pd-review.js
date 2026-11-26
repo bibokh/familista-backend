@@ -47,7 +47,7 @@
       // P4: in a creator's workspace, who the saved design is shared with.
       sh: { state: 'idle', items: [], limit: 0, email: '', role: 'COMMENT', busy: false, note: '' },
     };
-    function sharing() { return !!api.listShares; }
+    function sharing() { return !!api.listShares && (!shell.canShare || shell.canShare()); }
 
     /** Who decides on a version: a club's administrator, or the creator on their own designs (P3). */
     function admin() { return shell.role() === 'CLUB_ADMIN' || shell.role() === 'CREATOR'; }

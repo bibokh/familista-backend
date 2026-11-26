@@ -62,7 +62,7 @@
      */
     function call(method, path, body, opts) {
       opts = opts || {};
-      var headers = { Accept: opts.blob ? 'image/png' : 'application/json' };
+      var headers = { Accept: opts.blob ? (opts.accept === 'text/csv' ? 'text/csv' : 'image/png') : 'application/json' };
       var t = creator ? '' : token();
       if (t) headers.Authorization = 'Bearer ' + t;
       var init = { method: method, headers: headers, credentials: 'include', cache: 'no-store' };
@@ -131,6 +131,19 @@
       api.verifyCreatorEmail = function (creatorId, note) { return call('POST', '/creators/' + id(creatorId) + '/verify-email', { note: String(note || '') }); };
       api.suspendCreator = function (creatorId, note) { return call('POST', '/creators/' + id(creatorId) + '/suspend', { note: String(note || '') }); };
       api.reinstateCreator = function (creatorId, note) { return call('POST', '/creators/' + id(creatorId) + '/reinstate', { note: String(note || '') }); };
+      // P5/P6: the plans the Owner configures, and every tenant's subscriptions and invoices. Nothing here charges anyone:
+      // a plan granted by the Owner carries a note, and an invoice is settled only by a payment provider's event.
+      api.plans = function () { return call('GET', '/plans'); };
+      api.createPlan = function (p) { return call('POST', '/plans', p); };
+      api.savePlan = function (planId, p) { return call('PUT', '/plans/' + id(planId), p); };
+      api.billing = function () { return call('GET', '/billing'); };
+      api.grantPlan = function (g) {
+        return call('POST', '/billing/grant', { tenantKind: g.tenantKind === 'club' ? 'club' : 'creator', tenantId: String(g.tenantId || ''), planKey: String(g.planKey || ''),
+          months: g.months === null || g.months === undefined || g.months === '' ? null : Number(g.months), note: String(g.note || '') });
+      };
+      api.endSubscription = function (subscriptionId, note) { return call('POST', '/billing/subscriptions/' + id(subscriptionId) + '/end', { note: String(note || '') }); };
+      api.voidInvoice = function (invoiceId) { return call('POST', '/billing/invoices/' + id(invoiceId) + '/void', {}); };
+      api.expireSubscriptions = function (dryRun) { return call('POST', '/billing/expire', { dryRun: dryRun !== false }); };
       api.setRollout = function (clubId, changes) {
         if (!CLUB_ID.test(String(clubId))) return Promise.resolve({ ok: false, status: 0, code: 'BAD_CLUB', data: null, message: '', errors: [] });
         return call('PUT', '/rollout/' + encodeURIComponent(clubId), changes);
@@ -191,6 +204,16 @@
       api.resolveComment = function (projectId, commentId) { return call('POST', '/projects/' + id(projectId) + '/comments/' + id(commentId) + '/resolve', {}); };
       api.reopenComment = function (projectId, commentId) { return call('POST', '/projects/' + id(projectId) + '/comments/' + id(commentId) + '/reopen', {}); };
       api.decideOnDesign = function (projectId, d) { return call('POST', '/projects/' + id(projectId) + '/decisions', { revision: d.revision, decision: d.decision, note: d.note || null }); };
+      // P5: the tenant's own plan, what it includes, and its invoices; the professional tools a plan opens. P6: an open
+      // invoice is paid through the payment provider only — with none configured, checkout answers so and charges nothing.
+      api.plan = function () { return call('GET', '/plan'); };
+      api.requestPlan = function (planKey) { return call('POST', '/plan/request', { planKey: String(planKey || '') }); };
+      api.cancelPlan = function () { return call('POST', '/plan/cancel', {}); };
+      api.checkout = function (invoiceId) { return call('POST', '/billing/invoices/' + id(invoiceId) + '/checkout', {}); };
+      api.techPack = function (projectId, format) {
+        return format === 'csv' ? call('GET', '/projects/' + id(projectId) + '/tech-pack?format=csv', undefined, { blob: true, accept: 'text/csv' }) : call('GET', '/projects/' + id(projectId) + '/tech-pack');
+      };
+      api.proExport = function (projectId) { return call('POST', '/projects/' + id(projectId) + '/exports', {}); };
     }
 
     // P3: a creator's account, in the creator's own workspace: the profile, the password, the address, the data.

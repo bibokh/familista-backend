@@ -128,9 +128,11 @@ suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
     await admin?.$disconnect();
   });
 
-  it('every Design Studio and manufacturing table has exactly one owner and is isolated by either', async () => {
+  it('every Design Studio, manufacturing and billing table has exactly one owner and is isolated by either', async () => {
     const tables = ['DesignBrandKit', 'DesignBrandAsset', 'DesignRoster', 'DesignCollection', 'DesignCollectionItem', 'ManufacturingRequest',
-      'ManufacturingRequestPerson', 'ManufacturingRequestEvent', 'ManufacturingQuote', 'DesignReviewComment', 'DesignApproval'];
+      'ManufacturingRequestPerson', 'ManufacturingRequestEvent', 'ManufacturingQuote', 'DesignReviewComment', 'DesignApproval',
+      // P6: a subscription, its invoices and their payment events belong to one club or one creator, like the designs.
+      'CommercialSubscription', 'CommercialInvoice', 'PaymentEvent'];
     const checks = await sys(`SELECT conrelid::regclass::text AS t FROM pg_constraint WHERE contype = 'c' AND conname LIKE '%\\_one\\_owner' ORDER BY 1`);
     expect(checks.map((c) => c.t.replace(/"/g, '')).sort()).toEqual([...tables].sort());
     const pol = await sys(`SELECT tablename, policyname, qual, with_check FROM pg_policies WHERE tablename = ANY($1::text[]) AND policyname LIKE '%\\_tenant\\_isolation' ORDER BY tablename`, [...tables, 'DesignProject']);

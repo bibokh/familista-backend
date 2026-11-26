@@ -73,8 +73,28 @@
     }
     // P3: a creator's workspace. Who the creator is comes from the server once signed in (identify), never from the page.
     if (w.kind === 'PERSONAL') return { kind: 'PERSONAL', creatorId: '', displayName: '', email: '', emailVerified: false, locale: 'en-GB', role: 'CREATOR',
-      parts: Object.freeze({ teamKit: true, brandKit: true, manufacturing: true, reviews: true }) };
+      parts: Object.freeze({ teamKit: true, brandKit: true, manufacturing: true, reviews: true, collaboration: true, proExport: false, mfgPrep: false }) };
     return null;
+  }
+  /**
+   * P5: what the workspace's plan includes, as the server answered (GET /plan). A creator's parts are its plan's; a club's
+   * core parts stay the session's (M7a) and its plan adds the professional tools. The server enforces every one; this
+   * only decides what the room offers.
+   */
+  var ENT = null;
+  function applyEntitlements(e) {
+    if (!e || !Array.isArray(e.features) || !tenantWorkspace()) return;
+    ENT = e;
+    var f = function (x) { return e.features.indexOf(x) !== -1; }, p = WS.parts || {};
+    var parts = personal()
+      ? { teamKit: f('team_kit'), brandKit: f('brand_studio'), manufacturing: f('manufacturing'), reviews: f('reviews'), collaboration: f('collaboration') }
+      : { teamKit: p.teamKit, brandKit: p.brandKit, manufacturing: p.manufacturing, reviews: p.reviews, collaboration: false };
+    parts.proExport = f('pro_export'); parts.mfgPrep = f('manufacturing_prep');
+    WS = Object.freeze(Object.assign({}, WS, { parts: Object.freeze(parts) }));
+  }
+  function loadEntitlements() {
+    if (!tenantWorkspace() || !P || !P.api.plan) return Promise.resolve(null);
+    return P.api.plan().then(function (r) { if (r.ok && r.data) applyEntitlements(r.data.entitlements); return null; }, function () { return null; });
   }
   /** P3: the signed-in creator, as the server answered: the workspace takes its id, name and address state. */
   function identify(c) {
@@ -256,6 +276,7 @@
     export: 'M12 3v12M7 10l5 5 5-5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4',
     cart: 'M3 4h2l2.4 11h10.2l2-8H6.2M10 20h.01M17 20h.01',
     check: 'M5 12.5l4.5 4.5L19 7.5',
+    minus: 'M6 12h12',
     info: 'M12 8h.01M11 12h1v5h1M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
     alert: 'M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
     crown: 'M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z',
@@ -320,7 +341,6 @@
     store: L('The Global Store is planned (DS-7).'),
     'suppliers-club': L('Familista works with verified suppliers for your club: ask for a quotation from a collection’s order sheet.'),
     'not-in-plan': L('Not included in your club’s plan. The platform owner decides what each plan includes.'),
-    payments: L('Payments are planned (DS-6), after business and legal approval.'),
   };
 
   // ── state ─────────────────────────────────────────────────────────────────
@@ -682,6 +702,8 @@
     if (!d) return;
     if (S.team && S.team.isOpen()) S.team.close();
     if (S.mfg && S.mfg.isOpen()) S.mfg.close();
+    if (S.plan && S.plan.isOpen()) S.plan.close();
+    if (S.billing && S.billing.isOpen()) S.billing.close();
     if (tab) sv.tab = tab;
     // Focus goes back where it came from: the button pressed, or, when the room opened the panel itself (a conflict), its own button.
     if (trigger) sv.trigger = trigger;
@@ -709,7 +731,7 @@
     var bs = S.host.querySelectorAll('[data-pd-dock]');
     for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', S.srv.open && bs[i].getAttribute('data-pd-dock') === S.srv.tab ? 'true' : 'false');
   }
-  function loadDockTab() { if (S.srv.tab === 'projects') loadProjects(); else if (S.srv.tab === 'review' && S.review) S.review.load(); else loadVersions(); }
+  function loadDockTab() { if (S.srv.tab === 'projects') loadProjects(); else if (S.srv.tab === 'review' && S.review) S.review.load(); else if (S.srv.tab === 'production') renderDock(); else loadVersions(); }
   function loadProjects() {
     var mine = S, sv = S.srv, seq = ++sv.seq;
     sv.listState = 'loading'; sv.listError = '';
@@ -861,12 +883,12 @@
     var scroll = keep ? keep.scrollTop : 0;
     clear(d);
     var tabs = h('div', { class: 'pd-tabs', role: 'tablist', 'aria-label': T('Saved designs') });
-    [['projects', L('Projects')], ['versions', L('Versions')]].concat(S.review ? [['review', L('Review')]] : []).forEach(function (t) {
+    [['projects', L('Projects')], ['versions', L('Versions')]].concat(S.review ? [['review', L('Review')]] : [], S.pp ? [['production', L('Production')]] : []).forEach(function (t) {
       tabs.appendChild(btn({ class: 'pd-tab', role: 'tab', id: 'pd-docktab-' + t[0], 'data-pd-docktab': t[0], 'aria-controls': 'pd-dock-body', 'aria-selected': sv.tab === t[0] ? 'true' : 'false', tabindex: sv.tab === t[0] ? '0' : '-1', text: T(t[1]) }));
     });
     var notice = sv.notice ? h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: sv.notice })]) : null;
     var body = h('div', { class: 'pd-dock-body', id: 'pd-dock-body', role: 'tabpanel', 'aria-labelledby': 'pd-docktab-' + sv.tab, tabindex: '0' },
-      [conflictBlock(), confirmBlock(), notice].concat(sv.tab === 'projects' ? projectsBody() : sv.tab === 'review' && S.review ? S.review.body() : versionsBody()));
+      [conflictBlock(), confirmBlock(), notice].concat(sv.tab === 'projects' ? projectsBody() : sv.tab === 'review' && S.review ? S.review.body() : sv.tab === 'production' && S.pp ? S.pp.body() : versionsBody()));
     append(d, [
       h('div', { class: 'pd-dock-head' }, [
         h('h2', { class: 'pd-h2', id: 'pd-dock-title' }, [icon('folder', 16), h('span', { text: T('Saved designs') })]),
@@ -879,8 +901,8 @@
   function onDockAction(act, t) {
     var sv = S.srv;
     switch (act) {
-      case 'projects': case 'versions': case 'review':
-        if (act === 'review' && !S.review) return false;
+      case 'projects': case 'versions': case 'review': case 'production':
+        if ((act === 'review' && !S.review) || (act === 'production' && !S.pp)) return false;
         if (sv.open && sv.tab === act) closeDock(); else openDock(act, t);
         return true;
       case 'close-dock': closeDock(); return true;
@@ -898,6 +920,7 @@
       case 'conflict-open': if (sv.link) { var pid = sv.link.projectId; sv.state = 'dirty'; sv.conflict = null; openProject(pid); } return true;
       default:
         if (S.present && act.indexOf('present-') === 0) return S.present.onAction(act, t);
+        if (S.pp && act.indexOf('pp-') === 0) return S.pp.onAction(act, t);
         return S.review && act.indexOf('rv-') === 0 ? S.review.onAction(act, t) : false;
     }
   }
@@ -927,8 +950,87 @@
       api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, date: when, approvalChip: approvalChip,
       host: function () { return S.host; }, render: function () { if (S.srv.open && S.srv.tab === 'review') renderDock(); },
       link: function () { return S.srv.link; }, unsaved: isUnsaved, role: function () { return WS.role; },
+      // P5: sharing a design is a plan feature of a creator's workspace.
+      canShare: function () { return part('collaboration'); },
       surfaceLabel: function (id) { var f = (TEMPLATE.surfaces || []).filter(function (x) { return x.id === id; })[0]; return f && f.label ? T(f.label) : id; },
     };
+  }
+  /** P5/P6: what the Plan & billing panel is handed: the room's builders and words, and the workspace's client. */
+  function planContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, date: when, host: S.host, money: money,
+      audience: clubWorkspace() ? 'CLUB' : 'CREATOR', canChange: function () { return personal() || WS.role === 'CLUB_ADMIN'; },
+      onToggle: function () { syncPanelTriggers('plan', S.plan); },
+      onPlanChanged: function (e) { ENT = e; if (S.srv.open && S.srv.tab === 'production') renderDock(); },
+      reopen: function () { var host = S.host; mountRoom(host, null); },
+      go: function (url) { window.location.assign(url); },
+    };
+  }
+  /** P5: what the Production pack is handed: the saved design, the plan's features, and the room's print-sheet renderer. */
+  function productionContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, link: function () { return S.srv.link; }, unsaved: isUnsaved,
+      features: function () { return ENT ? ENT.features : []; }, name: function () { return S.doc.name; },
+      sheet: printSheet, download: download, render: function () { if (S.srv.open && S.srv.tab === 'production') renderDock(); },
+      fileName: function (name, revision, ext) {
+        var slug = String(name || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'design';
+        return slug + '-v' + Number(revision) + (ext === 'svg' ? '-print-sheet.svg' : '-tech-pack.' + ext);
+      },
+      openPlan: S.plan ? function (t) { closeDock(); openPlanPanel(t); } : null,
+    };
+  }
+  /** P5/P6: what the Owner's Plans & billing console is handed: the platform's client. */
+  function billingContext() {
+    return { api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, date: when, host: S.host, money: money, digits: currencyDigits, onToggle: function () { syncPanelTriggers('bl', S.billing); } };
+  }
+  function syncPanelTriggers(act, panel) {
+    var bs = S.host.querySelectorAll('[data-pd-act="' + act + '"]');
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', panel && panel.isOpen() ? 'true' : 'false');
+  }
+  /** One floating panel at a time beside the dock: opening one closes the others. */
+  function closeFloating(except) {
+    if (S.srv.open) closeDock();
+    [S.team, S.mfg, S.acct, S.shared, S.plan, S.billing].forEach(function (x) { if (x && x !== except && x.isOpen()) x.close(); });
+  }
+  function openPlanPanel(t) { closeFloating(S.plan); S.plan.open(t); }
+  function onPlanAction(act, t) {
+    if (S.plan && act.indexOf('plan') === 0) { if (act === 'plan' && !S.plan.isOpen()) { openPlanPanel(t); return true; } return S.plan.onAction(act, t); }
+    if (S.billing && act.indexOf('bl') === 0 && /^bl(-|$)/.test(act)) { if (act === 'bl' && !S.billing.isOpen()) closeFloating(S.billing); return S.billing.onAction(act, t); }
+    return false;
+  }
+  function download(blob, name) {
+    var url = URL.createObjectURL(blob), a = h('a', { href: url, download: name });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+  }
+  /**
+   * P5: the print sheet of an exported version: every view of its template side by side on a white sheet, with the design's
+   * name, its version, the product and the date — one SVG file, drawn by the same renderer as the editor.
+   */
+  function printSheet(x) {
+    var tpl0;
+    try { tpl0 = x.document.template.key; } catch (_) { return Promise.resolve(null); }
+    return templateFor(tpl0).then(function (tpl) {
+      var doc; try { doc = C.validateDocument(x.document, tpl); } catch (_) { return null; }
+      var CELL_W = 560, CELL_H = 640, PAD = 40, HEAD = 120, views = tpl.views || [];
+      var W = PAD * 2 + views.length * CELL_W + (views.length - 1) * 24, H = HEAD + CELL_H + 80;
+      var sheet = s('svg', { xmlns: SVG, width: String(W), height: String(H), viewBox: '0 0 ' + W + ' ' + H, 'font-family': 'Inter, Arial, sans-serif' }, [
+        s('style', null), s('rect', { x: 0, y: 0, width: W, height: H, fill: '#ffffff' }),
+      ]);
+      sheet.firstChild.textContent = '.pd-seam{stroke:#8b909c;stroke-width:1.2;fill:none}';
+      var title = s('text', { x: PAD, y: 56, 'font-size': '28', 'font-weight': '700', fill: '#14161c' }); title.textContent = doc.name;
+      var meta = s('text', { x: PAD, y: 90, 'font-size': '16', fill: '#4a4f5c' });
+      meta.textContent = [tf('Version %d', x.revision), productLabel(tpl.key), when(x.at), 'Familista Design Studio'].join(' · ');
+      append(sheet, [title, meta]);
+      views.forEach(function (v, i) {
+        var art = drawDesign(doc, tpl, v.id, 'pps' + i), cx = PAD + i * (CELL_W + 24);
+        art.removeAttribute('class');
+        art.setAttribute('x', String(cx)); art.setAttribute('y', String(HEAD)); art.setAttribute('width', String(CELL_W)); art.setAttribute('height', String(CELL_H));
+        var label = s('text', { x: cx + CELL_W / 2, y: HEAD + CELL_H + 40, 'font-size': '16', 'text-anchor': 'middle', fill: '#4a4f5c' }); label.textContent = T(v.label);
+        append(sheet, [art, label]);
+      });
+      return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(sheet);
+    }, function () { return null; });
   }
   /** What the presentation sheet is handed (M7b-2): the room's builders and words, its renderer and its templates. */
   function presentContext() {
@@ -948,6 +1050,15 @@
     var d = S.doc, t = TEMPLATE, p = S.preview;
     S.doc = doc; TEMPLATE = tpl; S.preview = null;
     try { return garment(viewId, { prefix: prefix, shaded: true, cls: 'pd-present-svg' }); } finally { S.doc = d; TEMPLATE = t; S.preview = p; }
+  }
+  /** P5: how many digits a currency's minor unit has (EUR 2, JPY 0), and an amount in minor units in the room's language. */
+  function currencyDigits(currency) {
+    try { return new Intl.NumberFormat('en', { style: 'currency', currency: currency }).resolvedOptions().maximumFractionDigits; } catch (_) { return 2; }
+  }
+  function money(minor, currency) {
+    if (typeof minor !== 'number' || !currency) return '—';
+    var d = currencyDigits(currency), v = minor / Math.pow(10, d);
+    try { return new Intl.NumberFormat(LANG, { style: 'currency', currency: currency, minimumFractionDigits: d, maximumFractionDigits: d }).format(v); } catch (_) { return v.toFixed(d) + ' ' + currency; }
   }
   function percent(f) {
     try { return new Intl.NumberFormat(LANG, { style: 'percent', maximumFractionDigits: 0 }).format(f); } catch (_) { return Math.round(f * 100) + '%'; }
@@ -975,7 +1086,7 @@
     if (!S.mfg) return false;
     if (act === 'mfg') {
       if (S.mfg.isOpen() && t.getAttribute('aria-expanded') === 'true') { S.mfg.close(); return true; }
-      if (S.srv.open) closeDock();
+      closeFloating(S.mfg);
       S.mfg.open(t.getAttribute('data-pd-tab') || 'requests', t);
       return true;
     }
@@ -1003,7 +1114,7 @@
   }
   function onAcctAction(act, t) {
     if (!S.acct || act.indexOf('acct') !== 0) return false;
-    if (act === 'acct' && !S.acct.isOpen()) { if (S.srv.open) closeDock(); if (S.team && S.team.isOpen()) S.team.close(); if (S.shared && S.shared.isOpen()) S.shared.close(); }
+    if (act === 'acct' && !S.acct.isOpen()) closeFloating(S.acct);
     return S.acct.onAction(act, t);
   }
   /** P4: what the Shared with me panel is handed: the room's builders, words and renderer, and the creator's client. */
@@ -1017,7 +1128,7 @@
   }
   function onSharedAction(act, t) {
     if (!S.shared || act.indexOf('shared') !== 0) return false;
-    if (act === 'shared' && !S.shared.isOpen()) { if (S.srv.open) closeDock(); if (S.team && S.team.isOpen()) S.team.close(); if (S.acct && S.acct.isOpen()) S.acct.close(); }
+    if (act === 'shared' && !S.shared.isOpen()) closeFloating(S.shared);
     return S.shared.onAction(act, t);
   }
   function syncTeamTriggers() {
@@ -1028,7 +1139,7 @@
     if (!S.team) return false;
     if (act === 'team') {
       if (S.team.isOpen()) S.team.close();
-      else { if (S.srv.open) closeDock(); if (S.mfg && S.mfg.isOpen()) S.mfg.close(); if (S.acct && S.acct.isOpen()) S.acct.close(); S.team.open(t); }
+      else { closeFloating(S.team); S.team.open(t); }
       return true;
     }
     if (act === 'team-stop-preview') { S.team.stopPreview(); return true; }
@@ -1781,6 +1892,8 @@
     if (k === 'Escape' && S.mfg && S.mfg.isOpen()) { ev.preventDefault(); S.mfg.close(); return; }
     if (k === 'Escape' && S.acct && S.acct.isOpen()) { ev.preventDefault(); S.acct.close(); return; }
     if (k === 'Escape' && S.shared && S.shared.isOpen()) { ev.preventDefault(); S.shared.close(); return; }
+    if (k === 'Escape' && S.plan && S.plan.isOpen()) { ev.preventDefault(); S.plan.close(); return; }
+    if (k === 'Escape' && S.billing && S.billing.isOpen()) { ev.preventDefault(); S.billing.close(); return; }
     if (k === 'Escape' && S.srv.open) { ev.preventDefault(); closeDock(); return; }
     if (k === 'Escape' && S.panel) { setPanel(null); return; }
     if (ev.target !== S.el.canvas) return;
@@ -2318,8 +2431,9 @@
     { act: 'mfg', tab: 'suppliers', icon: 'factory', label: L('Factories & suppliers') },
     // M8a: which clubs the Club Design Studio, and each of its parts, is released to.
     { act: 'mfg', tab: 'releases', icon: 'shield', label: L('Club releases') },
+    // P5/P6: the plans the Owner offers, and every workspace's subscription and invoices.
+    { act: 'bl', tab: 'plans', icon: 'card', label: L('Plans & billing') },
     { reason: 'store', icon: 'store', label: L('Global Store') },
-    { reason: 'payments', icon: 'card', label: L('Payments') },
   ];
   /** In a club: back to the club's home, and the studio; commerce stays planned, as on the platform. */
   var SIDE_CLUB = [
@@ -2328,8 +2442,9 @@
     // M4: the club's requests for quotation, in the Team panel.
     { act: 'team-requests', icon: 'box', label: L('Orders') },
     { reason: 'store', icon: 'store', label: L('Global Store') },
+    { act: 'plan', icon: 'card', label: L('Plan & billing') },
+    { reason: 'store', icon: 'store', label: L('Global Store') },
     { reason: 'suppliers-club', icon: 'factory', label: L('Factories & suppliers') },
-    { reason: 'payments', icon: 'card', label: L('Payments') },
   ];
   /** P3: in a creator's workspace: the studio, the creator's requests and account; commerce stays planned. */
   var SIDE_PERSONAL = [
@@ -2338,8 +2453,9 @@
     // P4: the designs other creators shared with this one.
     { act: 'shared', icon: 'link', label: L('Shared with me') },
     { act: 'acct', icon: 'people', label: L('Account') },
+    // P5/P6: the creator's plan, what it includes, and its invoices.
+    { act: 'plan', icon: 'card', label: L('Plan & billing') },
     { reason: 'store', icon: 'store', label: L('Global Store') },
-    { reason: 'payments', icon: 'card', label: L('Payments') },
   ];
   function buildSide() {
     var list = h('ul', { class: 'pd-side-list', role: 'list' });
@@ -2348,9 +2464,12 @@
       if (it.reason && !plannedShown) { plannedShown = true; list.appendChild(h('li', { class: 'pd-side-group', text: T('Planned') })); }
       var b = it.current ? btn({ class: 'pd-side-btn is-current', 'aria-current': 'page' })
         : it.act === 'team-requests' && !(part('teamKit') && part('manufacturing')) ? planned(btn({ class: 'pd-side-btn is-planned' }), 'not-in-plan')
-        : it.act ? btn({ class: 'pd-side-btn', 'data-pd-act': it.act, 'data-pd-tab': it.tab || null, 'aria-controls': it.act === 'mfg' ? 'pd-mfg' : it.act === 'acct' ? 'pd-acct' : it.act === 'shared' ? 'pd-shared' : 'pd-team', 'aria-expanded': 'false' })
+        : it.act === 'shared' && !part('collaboration') ? planned(btn({ class: 'pd-side-btn is-planned' }), 'not-in-plan')
+        : (it.act === 'plan' && !S.plan) || (it.act === 'bl' && !S.billing) ? null
+        : it.act ? btn({ class: 'pd-side-btn', 'data-pd-act': it.act, 'data-pd-tab': it.tab || null, 'aria-controls': it.act === 'mfg' ? 'pd-mfg' : it.act === 'acct' ? 'pd-acct' : it.act === 'shared' ? 'pd-shared' : it.act === 'plan' ? 'pd-plan' : it.act === 'bl' ? 'pd-billing' : 'pd-team', 'aria-expanded': 'false' })
         : it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)
         : btn({ class: 'pd-side-btn', 'data-action': 'navTo', 'data-page': it.page });
+      if (!b) return;
       append(b, [icon(it.icon, 18), h('span', { class: 'pd-side-label', text: T(it.label) })]);
       list.appendChild(h('li', null, [b]));
     });
@@ -3136,7 +3255,9 @@
     var versions = btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'versions', 'data-pd-dock': 'versions', 'aria-controls': 'pd-dock', 'aria-expanded': 'false' }, [icon('versions', 16), h('span', { text: T('Versions') })]);
     var review = S.review ? btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'review', 'data-pd-dock': 'review', 'aria-controls': 'pd-dock', 'aria-expanded': 'false' }, [icon('comment', 16), h('span', { text: T('Review') })]) : null;
     var team = S.team ? btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'team', 'aria-controls': 'pd-team', 'aria-expanded': S.team.isOpen() ? 'true' : 'false' }, [icon('people', 16), h('span', { text: T('Team') })]) : null;
-    var proof = planned(btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'proof' }, [icon('eye', 16), h('span', { text: T('Production preview') })]), 'proof');
+    // P5: in a club's or a creator's workspace, the production pack its plan opens (print sheet, tech pack); elsewhere planned.
+    var proof = S.pp ? btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'production', 'data-pd-dock': 'production', 'aria-controls': 'pd-dock', 'aria-expanded': 'false' }, [icon('eye', 16), h('span', { text: T('Production pack') })])
+      : planned(btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'proof' }, [icon('eye', 16), h('span', { text: T('Production preview') })]), 'proof');
     var order = planned(btn({ class: 'pd-btn pd-btn--order', 'data-pd-act': 'order' }, [icon('cart', 18), h('span', { text: T('Continue to order') })]), 'order');
     var bar = h('footer', { class: 'pd-actions', 'data-ds-region': 'R12' }, [
       h('div', { class: 'pd-actions-start' }, [
@@ -3273,6 +3394,11 @@
     if (!S.acct && personal() && P.api.me && window.FamilistaProductDesignCreator) S.acct = window.FamilistaProductDesignCreator.account(acctContext());
     // P4: the designs shared with this creator, in the creator's own workspace only.
     if (!S.shared && personal() && P.api.sharedWithMe && window.FamilistaProductDesignCreator) S.shared = window.FamilistaProductDesignCreator.shared(sharedContext());
+    // P5/P6: the workspace's plan and invoices, and the professional tools of its dock; the Owner's plans and billing.
+    var PLAN = window.FamilistaProductDesignPlan;
+    if (!S.plan && tenantWorkspace() && P.api.plan && PLAN) S.plan = PLAN.panel(planContext());
+    if (!S.pp && tenantWorkspace() && P.api.techPack && PLAN) S.pp = PLAN.production(productionContext());
+    if (!S.billing && !tenantWorkspace() && P.api.plans && PLAN) S.billing = PLAN.console(billingContext());
     // M4: the manufacturing console, in the platform's room only; its scripts are loaded by the owner's room alone.
     if (!S.mfg && !tenantWorkspace() && SERVER.manufacturing && window.FamilistaProductDesignManufacturing && window.FamilistaProductDesignRoster) {
       S.mfg = window.FamilistaProductDesignManufacturing.create(mfgContext());
@@ -3291,6 +3417,8 @@
       S.mfg ? S.mfg.el : null,
       S.acct ? S.acct.el : null,
       S.shared ? S.shared.el : null,
+      S.plan ? S.plan.el : null,
+      S.billing ? S.billing.el : null,
       S.present ? S.present.el : null,
       E.live,
     ]);
@@ -3378,6 +3506,7 @@
     if (a && onMfgAction(a, t)) return;
     if (a && onAcctAction(a, t)) return;
     if (a && onSharedAction(a, t)) return;
+    if (a && onPlanAction(a, t)) return;
     if ((a = t.getAttribute('data-pd-lang'))) { chooseSetLocale(a).then(function () { if (S) build(); }); return; }
     if ((a = t.getAttribute('data-pd-view'))) { setView(a); return; }
     if ((a = t.getAttribute('data-pd-mode'))) { setMode(a); return; }
@@ -3475,6 +3604,7 @@
     if (S.mfg && S.mfg.onInput(ev)) return;
     if (S.acct && S.acct.onInput(ev)) return;
     if (S.shared && S.shared.onInput(ev)) return;
+    if (S.billing && S.billing.onInput(ev)) return;
     if (S.review && S.review.onInput(ev)) return;
     if (t === S.el.docName) { if (t.value.trim()) commitOp({ op: 'set', target: { kind: 'doc' }, key: 'name', value: t.value.slice(0, LIMITS.name) }, T('Design name'), 'doc-name'); return; }
     var sid = t.getAttribute('data-pd-swatch');
@@ -3499,6 +3629,7 @@
     if (S.mfg && S.mfg.onChange(ev)) return;
     if (S.acct && S.acct.onChange(ev)) return;
     if (S.shared && S.shared.onChange(ev)) return;
+    if (S.billing && S.billing.onChange(ev)) return;
     if (S.review && S.review.onInput(ev)) return;
     if (t.hasAttribute('data-pd-brand-file')) { brandUpload(t.files && t.files[0]); return; }
     if (t.tagName === 'SELECT' && field) { var n = selectedLayer(); if (n) { setLayer(n.id, field, t.value, T(field === 'font' ? 'Font' : field === 'shape' ? 'Shape' : 'Pattern')); renderLayers(); } return; }
@@ -3725,7 +3856,7 @@
     host.setAttribute('aria-busy', 'true');
     clear(host);
     host.appendChild(h('div', { class: 'pd-shell pd-shell--loading' }, [h('div', { class: 'pd-loading', role: 'status', text: 'Familista Design Studio' })]));
-    Promise.all([setLocale(initialLocale()), loadTemplate()]).then(function () {
+    Promise.all([setLocale(initialLocale()), loadTemplate(), loadEntitlements()]).then(function () {
       if (S !== mine) return;
       S.view = homeView();
       var stored = loadStored();
@@ -3843,7 +3974,7 @@
       renderMsMedian: ms.length ? ms[Math.floor(ms.length / 2)] : null, renderMsMax: ms.length ? ms[ms.length - 1] : null,
       edits: S.metrics.editMs.length, editMsMedian: ed.length ? ed[Math.floor(ed.length / 2)] : null, editMsP95: ed.length ? ed[Math.floor(ed.length * 0.95)] : null,
       template: TEMPLATE ? TEMPLATE.key : null, products: INDEX ? INDEX.map(function (e) { return e.product; }) : [],
-      workspace: WS.kind, acct: S.acct ? S.acct.metrics() : null, shared: S.shared ? S.shared.metrics() : null, team: S.team ? S.team.metrics() : null, mfg: S.mfg ? S.mfg.metrics() : null, review: S.review ? S.review.metrics() : null, present: S.present ? S.present.metrics() : null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
+      workspace: WS.kind, acct: S.acct ? S.acct.metrics() : null, shared: S.shared ? S.shared.metrics() : null, team: S.team ? S.team.metrics() : null, mfg: S.mfg ? S.mfg.metrics() : null, review: S.review ? S.review.metrics() : null, present: S.present ? S.present.metrics() : null, plan: S.plan ? S.plan.metrics() : null, billing: S.billing ? S.billing.metrics() : null, production: S.pp ? S.pp.metrics() : null, parts: WS.parts || null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
       layers: S.doc.surfaces.map(function (x) { return x.layers.length; }), findings: S.findings.length,
       saveState: S.saveState, lastSaveBytes: S.metrics.lastSaveBytes, announced: S.announced, lang: LANG, dir: DIR,
       server: { state: S.srv.state, busy: S.srv.busy, linked: !!S.srv.link, projectId: S.srv.link ? S.srv.link.projectId : null, revision: S.srv.link ? S.srv.link.revision : null,

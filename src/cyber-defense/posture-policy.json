@@ -914,6 +914,27 @@
         "POST /system/product-design/creators/:creatorId/suspend",
         "POST /system/product-design/creators/:creatorId/verify-email"
       ]
+    },
+    "product-design.routes :planId": {
+      "basis": "platform-only",
+      "reason": "The Platform Owner\u2019s commercial routes are behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts); a plan is the Owner\u2019s configuration and belongs to no club.",
+      "routes": [
+        "PUT /system/product-design/plans/:planId"
+      ]
+    },
+    "product-design.routes :subscriptionId": {
+      "basis": "platform-only",
+      "reason": "The Platform Owner\u2019s commercial routes are behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts); the Owner ends any tenant\u2019s subscription by id with a note, audited (src/platform/commercial/subscription.service.ts).",
+      "routes": [
+        "POST /system/product-design/billing/subscriptions/:subscriptionId/end"
+      ]
+    },
+    "product-design.routes :invoiceId": {
+      "basis": "platform-only",
+      "reason": "The Platform Owner\u2019s commercial routes are behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts); the Owner voids any tenant\u2019s open invoice by id, audited.",
+      "routes": [
+        "POST /system/product-design/billing/invoices/:invoiceId/void"
+      ]
     }
   },
   "ownerRooms": {
@@ -1036,12 +1057,14 @@
       "GET /creator/collections/:collectionId/order-sheet",
       "GET /creator/me",
       "GET /creator/me/export",
+      "GET /creator/plan",
       "GET /creator/projects",
       "GET /creator/projects/:id",
       "GET /creator/projects/:id/review",
       "GET /creator/projects/:id/revisions",
       "GET /creator/projects/:id/revisions/:number",
       "GET /creator/projects/:id/shares",
+      "GET /creator/projects/:id/tech-pack",
       "GET /creator/requests",
       "GET /creator/requests/:requestId",
       "GET /creator/rosters",
@@ -1050,6 +1073,7 @@
       "GET /creator/shared/:sharedProjectId",
       "GET /creator/shared/:sharedProjectId/review",
       "PATCH /creator/me",
+      "POST /creator/billing/invoices/:invoiceId/checkout",
       "POST /creator/brand-kit/assets",
       "POST /creator/brand-kit/assets/:assetId/archive",
       "POST /creator/brand-kit/assets/:assetId/unarchive",
@@ -1060,12 +1084,15 @@
       "POST /creator/me/delete",
       "POST /creator/me/password",
       "POST /creator/me/verification",
+      "POST /creator/plan/cancel",
+      "POST /creator/plan/request",
       "POST /creator/projects",
       "POST /creator/projects/:id/archive",
       "POST /creator/projects/:id/comments",
       "POST /creator/projects/:id/comments/:commentId/reopen",
       "POST /creator/projects/:id/comments/:commentId/resolve",
       "POST /creator/projects/:id/decisions",
+      "POST /creator/projects/:id/exports",
       "POST /creator/projects/:id/revisions",
       "POST /creator/projects/:id/revisions/:number/restore",
       "POST /creator/projects/:id/shares",
@@ -1490,7 +1517,10 @@
     "DesignReviewComment",
     "DesignApproval",
     "ManufacturingRequestPerson",
-    "DesignShare"
+    "DesignShare",
+    "CommercialSubscription",
+    "CommercialInvoice",
+    "PaymentEvent"
   ],
   "rlsSystemPaths": {
     "platform-owner": "A platform owner acts across clubs by role (authenticate); the owner rooms are pinned separately (owner-rooms-pinned).",
@@ -1500,6 +1530,7 @@
     "creator-signup": "Opening a creator account reads and consumes an invitation, which belongs to no club and no creator yet; it writes only the new CreatorAccount, its first session and its audit entry.",
     "creator-signin": "Signing in a creator finds the account by its address before any session exists; it reads CreatorAccount and writes a CreatorSession only, no Design Studio or club row.",
     "creator-session": "Refreshing, ending and checking a creator session reads CreatorAccount and CreatorSession by the presented token or the token\u2019s subject, never a club\u2019s row or another creator\u2019s Design Studio row.",
-    "creator-account": "A creator\u2019s own account changes (profile, password, email links) on CreatorAccount, CreatorSession and CreatorEmailToken, by the signed-in creator\u2019s id or a one-time link\u2019s hash."
+    "creator-account": "A creator\u2019s own account changes (profile, password, email links) on CreatorAccount, CreatorSession and CreatorEmailToken, by the signed-in creator\u2019s id or a one-time link\u2019s hash.",
+    "payment-events": "A payment provider\u2019s verified report settles one invoice (P6): it reads that invoice and writes its PaymentEvent, the invoice\u2019s status and its subscription\u2019s period, and nothing else. No provider is configured, so nothing calls it in production."
   }
 }

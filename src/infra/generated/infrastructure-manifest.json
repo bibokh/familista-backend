@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-26T10:44:29.707Z",
+  "generatedAt": "2026-11-26T11:27:00.870Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -324,7 +324,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "363 models, 223 enums, 59 migrations."
+      "note": "367 models, 229 enums, 60 migrations."
     },
     {
       "id": "prisma-orm",
@@ -1101,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 251 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 253 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "670 TypeScript modules under src/."
+      "note": "676 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1629,18 +1629,18 @@
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 670,
-    "testSuites": 251,
-    "migrations": 59,
-    "prismaModels": 363,
-    "prismaEnums": 223
+    "totalTypeScript": 676,
+    "testSuites": 253,
+    "migrations": 60,
+    "prismaModels": 367,
+    "prismaEnums": 229
   },
   "database": {
     "provider": "postgresql",
-    "models": 363,
-    "enums": 223,
-    "migrations": 59,
-    "latestMigration": "20261125200000_creator_sharing"
+    "models": 367,
+    "enums": 229,
+    "migrations": 60,
+    "latestMigration": "20261126100000_commercial_plans_billing"
   },
   "typescript": {
     "target": "ES2020",
@@ -1943,8 +1943,8 @@
       "path": "/system/product-design",
       "router": "productDesignRoutes",
       "file": "src/routes/product-design.routes.ts",
-      "writes": 13,
-      "reads": 8
+      "writes": 19,
+      "reads": 10
     },
     {
       "path": "/system/manufacturing",
@@ -1957,8 +1957,8 @@
       "path": "/club-design",
       "router": "clubDesignRoutes",
       "file": "src/routes/club-design.routes.ts",
-      "writes": 29,
-      "reads": 15
+      "writes": 33,
+      "reads": 17
     },
     {
       "path": "/creator/auth",
@@ -1971,8 +1971,8 @@
       "path": "/creator",
       "router": "creatorRoutes",
       "file": "src/routes/creator.routes.ts",
-      "writes": 35,
-      "reads": 20
+      "writes": 39,
+      "reads": 22
     },
     {
       "path": "/telemetry",

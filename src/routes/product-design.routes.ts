@@ -40,6 +40,9 @@ import { ownerApplyRetention, ownerReadRetention, ownerSetRetention } from '../p
 import {
   ownerCreateCreatorInvite, ownerListCreatorInvites, ownerListCreators, ownerReinstateCreator, ownerRevokeCreatorInvite, ownerSuspendCreator, ownerVerifyCreatorEmail,
 } from '../platform/creator/http';
+import {
+  ownerBilling, ownerCreatePlan, ownerEndSubscription, ownerExpire, ownerGrantPlan, ownerListPlans, ownerUpdatePlan, ownerVoidInvoice,
+} from '../platform/commercial/http';
 
 const router = Router();
 router.use(authenticate);
@@ -70,6 +73,15 @@ router.post('/creators/invites/:inviteId/revoke', ownerRevokeCreatorInvite);
 router.post('/creators/:creatorId/verify-email', ownerVerifyCreatorEmail);
 router.post('/creators/:creatorId/suspend', ownerSuspendCreator);
 router.post('/creators/:creatorId/reinstate', ownerReinstateCreator);
+// P5: the plans (creators' and clubs'); P6: every subscription and invoice, a plan granted outright, an end, a void.
+router.get('/plans', ownerListPlans);
+router.post('/plans', ownerCreatePlan);
+router.put('/plans/:planId', ownerUpdatePlan);
+router.get('/billing', ownerBilling);
+router.post('/billing/grant', ownerGrantPlan);
+router.post('/billing/subscriptions/:subscriptionId/end', ownerEndSubscription);
+router.post('/billing/invoices/:invoiceId/void', ownerVoidInvoice);
+router.post('/billing/expire', ownerExpire);
 router.post('/projects', createDesign);
 router.get('/projects/:id', openDesign);
 router.post('/projects/:id/revisions', saveDesign);

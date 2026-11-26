@@ -276,6 +276,8 @@ export const TENANT_RESOURCES = {
   manufacturingQuote:       (id: string): Promise<Owner> => designOwner(prisma.manufacturingQuote.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),
   // A comment on a club's design (M7b).
   designReviewComment:      (id: string): Promise<Owner> => designOwner(prisma.designReviewComment.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),
+  // P6: an invoice of a club's (or a creator's) subscription.
+  commercialInvoice:        (id: string): Promise<Owner> => designOwner(prisma.commercialInvoice.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),
 } as const;
 
 export type TenantResource = keyof typeof TENANT_RESOURCES;

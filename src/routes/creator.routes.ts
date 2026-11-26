@@ -15,6 +15,9 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { authenticateCreator } from '../platform/creator/authenticate';
 import { creatorOwns, creatorSharedWith, requireVerifiedEmail } from '../platform/creator/guard';
 import {
+  creatorBilling, creatorCancelPlan, creatorCheckout, creatorFeature, creatorLimit, creatorProExport, creatorRequestPlan, creatorTechPack,
+} from '../platform/commercial/http';
+import {
   commentOnSharedDesign, createProjectShare, listProjectShares, listSharedWithMe, openSharedDesign, readSharedReview, revokeProjectShare,
 } from '../platform/creator/share-http';
 import { creatorChangePassword, creatorDeleteAccount, creatorExport, creatorMe, creatorResendVerification, creatorUpdateProfile } from '../platform/creator/http';
@@ -49,6 +52,7 @@ router.param('requestId', creatorOwns('manufacturingRequest'));
 router.param('quoteId', creatorOwns('manufacturingQuote'));
 router.param('shareId', creatorOwns('designShare'));
 router.param('sharedProjectId', creatorSharedWith);
+router.param('invoiceId', creatorOwns('commercialInvoice'));
 
 // The account.
 router.get('/me', creatorMe);
@@ -61,7 +65,7 @@ router.post('/me/delete', creatorDeleteAccount);
 
 // The creator's designs and their versions.
 router.get('/projects', listDesigns);
-router.post('/projects', createDesign);
+router.post('/projects', creatorLimit('projects'), createDesign);
 router.get('/projects/:id', openDesign);
 router.post('/projects/:id/revisions', saveDesign);
 router.get('/projects/:id/revisions', listDesignRevisions);
@@ -71,57 +75,66 @@ router.post('/projects/:id/archive', archiveDesign);
 router.post('/projects/:id/unarchive', unarchiveDesign);
 
 // Review notes and the creator's own approval of a version (P4 adds collaborators).
-router.get('/projects/:id/review', readDesignReview);
-router.post('/projects/:id/comments', commentOnDesign);
-router.post('/projects/:id/comments/:commentId/resolve', resolveDesignComment);
-router.post('/projects/:id/comments/:commentId/reopen', reopenDesignComment);
-router.post('/projects/:id/decisions', decideOnDesign);
+router.get('/projects/:id/review', creatorFeature('reviews'), readDesignReview);
+router.post('/projects/:id/comments', creatorFeature('reviews'), commentOnDesign);
+router.post('/projects/:id/comments/:commentId/resolve', creatorFeature('reviews'), resolveDesignComment);
+router.post('/projects/:id/comments/:commentId/reopen', creatorFeature('reviews'), reopenDesignComment);
+router.post('/projects/:id/decisions', creatorFeature('reviews'), decideOnDesign);
 
 // P4: sharing. The owner shares a design with another creator (VIEW or COMMENT) and revokes it; the collaborator sees
 // what is shared with them, its review, and, with COMMENT, adds a note. The owner alone edits, resolves and approves.
-router.get('/projects/:id/shares', listProjectShares);
-router.post('/projects/:id/shares', createProjectShare);
-router.post('/projects/:id/shares/:shareId/revoke', revokeProjectShare);
+router.get('/projects/:id/shares', creatorFeature('collaboration'), listProjectShares);
+router.post('/projects/:id/shares', creatorFeature('collaboration'), creatorLimit('shares'), createProjectShare);
+router.post('/projects/:id/shares/:shareId/revoke', creatorFeature('collaboration'), revokeProjectShare);
 router.get('/shared', listSharedWithMe);
 router.get('/shared/:sharedProjectId', openSharedDesign);
 router.get('/shared/:sharedProjectId/review', readSharedReview);
 router.post('/shared/:sharedProjectId/comments', commentOnSharedDesign);
 
 // The creator's brand kit: colours and logos (raw image bytes in, a re-encoded PNG kept).
-router.get('/brand-kit', readBrandKit);
-router.put('/brand-kit/colours', saveBrandColours);
-router.post('/brand-kit/assets', rawBrandImage, uploadBrandAsset);
-router.get('/brand-kit/assets/:assetId/image', brandAssetImage);
-router.post('/brand-kit/assets/:assetId/archive', archiveBrandAsset);
-router.post('/brand-kit/assets/:assetId/unarchive', unarchiveBrandAsset);
+router.get('/brand-kit', creatorFeature('brand_studio'), readBrandKit);
+router.put('/brand-kit/colours', creatorFeature('brand_studio'), saveBrandColours);
+router.post('/brand-kit/assets', creatorFeature('brand_studio'), rawBrandImage, uploadBrandAsset);
+router.get('/brand-kit/assets/:assetId/image', creatorFeature('brand_studio'), brandAssetImage);
+router.post('/brand-kit/assets/:assetId/archive', creatorFeature('brand_studio'), archiveBrandAsset);
+router.post('/brand-kit/assets/:assetId/unarchive', creatorFeature('brand_studio'), unarchiveBrandAsset);
 
 // Team kit: rosters of names, numbers and sizes.
-router.get('/rosters', listTeamRosters);
-router.post('/rosters', createTeamRoster);
-router.get('/rosters/:rosterId', openTeamRoster);
-router.put('/rosters/:rosterId', saveTeamRoster);
-router.post('/rosters/:rosterId/archive', archiveTeamRoster);
-router.post('/rosters/:rosterId/unarchive', unarchiveTeamRoster);
-router.delete('/rosters/:rosterId', deleteTeamRoster);
+router.get('/rosters', creatorFeature('team_kit'), listTeamRosters);
+router.post('/rosters', creatorFeature('team_kit'), createTeamRoster);
+router.get('/rosters/:rosterId', creatorFeature('team_kit'), openTeamRoster);
+router.put('/rosters/:rosterId', creatorFeature('team_kit'), saveTeamRoster);
+router.post('/rosters/:rosterId/archive', creatorFeature('team_kit'), archiveTeamRoster);
+router.post('/rosters/:rosterId/unarchive', creatorFeature('team_kit'), unarchiveTeamRoster);
+router.delete('/rosters/:rosterId', creatorFeature('team_kit'), deleteTeamRoster);
 
 // Collections and their order sheets.
-router.get('/collections', listDesignCollections);
-router.post('/collections', createDesignCollection);
-router.get('/collections/:collectionId', openDesignCollection);
-router.put('/collections/:collectionId', saveDesignCollection);
-router.post('/collections/:collectionId/archive', archiveDesignCollection);
-router.post('/collections/:collectionId/unarchive', unarchiveDesignCollection);
-router.delete('/collections/:collectionId', deleteDesignCollection);
-router.get('/collections/:collectionId/order-sheet', readOrderSheet);
+router.get('/collections', creatorFeature('team_kit'), listDesignCollections);
+router.post('/collections', creatorFeature('team_kit'), creatorLimit('collections'), createDesignCollection);
+router.get('/collections/:collectionId', creatorFeature('team_kit'), openDesignCollection);
+router.put('/collections/:collectionId', creatorFeature('team_kit'), saveDesignCollection);
+router.post('/collections/:collectionId/archive', creatorFeature('team_kit'), archiveDesignCollection);
+router.post('/collections/:collectionId/unarchive', creatorFeature('team_kit'), unarchiveDesignCollection);
+router.delete('/collections/:collectionId', creatorFeature('team_kit'), deleteDesignCollection);
+router.get('/collections/:collectionId/order-sheet', creatorFeature('team_kit'), readOrderSheet);
 
 // Quotation requests, brokered by the Platform Owner: non-binding, nothing is charged. Sending one needs a confirmed
 // address, so the Owner can answer it.
-router.post('/collections/:collectionId/requests', requireVerifiedEmail, submitManufacturingRequest);
-router.get('/requests', listManufacturingRequests);
-router.get('/requests/:requestId', openManufacturingRequest);
-router.post('/requests/:requestId/cancel', cancelManufacturingRequest);
-router.post('/requests/:requestId/decline', declineManufacturingQuotes);
-router.post('/requests/:requestId/delivered', confirmManufacturingDelivery);
-router.post('/requests/:requestId/quotes/:quoteId/accept', acceptManufacturingQuote);
+router.post('/collections/:collectionId/requests', creatorFeature('manufacturing'), requireVerifiedEmail, submitManufacturingRequest);
+router.get('/requests', creatorFeature('manufacturing'), listManufacturingRequests);
+router.get('/requests/:requestId', creatorFeature('manufacturing'), openManufacturingRequest);
+router.post('/requests/:requestId/cancel', creatorFeature('manufacturing'), cancelManufacturingRequest);
+router.post('/requests/:requestId/decline', creatorFeature('manufacturing'), declineManufacturingQuotes);
+router.post('/requests/:requestId/delivered', creatorFeature('manufacturing'), confirmManufacturingDelivery);
+router.post('/requests/:requestId/quotes/:quoteId/accept', creatorFeature('manufacturing'), acceptManufacturingQuote);
+
+// P5: the professional tools, each only where the plan includes it. P6: the creator's plan, its invoices and the way to
+// pay one (no payment provider is configured, so a checkout says so and charges nothing).
+router.get('/projects/:id/tech-pack', creatorFeature('manufacturing_prep'), creatorTechPack);
+router.post('/projects/:id/exports', creatorFeature('pro_export'), creatorProExport);
+router.get('/plan', creatorBilling);
+router.post('/plan/request', creatorRequestPlan);
+router.post('/plan/cancel', creatorCancelPlan);
+router.post('/billing/invoices/:invoiceId/checkout', creatorCheckout);
 
 export default router;

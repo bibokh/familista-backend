@@ -56,7 +56,7 @@ const REFERENCE = path.join(ROOT, 'docs/design-studio', REGIONS.reference);
 // Studio (M2), PROOF_ONLY=P19 only the Team panel (M3), PROOF_ONLY=P20 only manufacturing (M4), PROOF_ONLY=P21 only a design's
 // review (M7b), PROOF_ONLY=P22 only a collection's presentation sheet (M7b-2),
 // PROOF_ONLY=P23 only colourways (M7c), PROOF_ONLY=P24 only the Owner's club releases (M8a), PROOF_ONLY=P25 only the
-// privacy foundation (P1), PROOF_ONLY=P26 only the Creator Studio (P3), PROOF_ONLY=P27 only sharing (P4); unset, everything runs.
+// privacy foundation (P1), PROOF_ONLY=P26 only the Creator Studio (P3), PROOF_ONLY=P27 only sharing (P4), PROOF_ONLY=P28 only plans, billing and the professional tools (P5, P6); unset, everything runs.
 const want = (n) => !process.env.PROOF_ONLY || process.env.PROOF_ONLY.split(',').includes(n);
 const roomWord = (code, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/i18n', code + '.json'), 'utf8'))[en];
 
@@ -191,6 +191,7 @@ const budget = (name, values, ok, detail) => {
   async function proofRollout() { await require('./product-design-rollout-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   async function proofPrivacy() { await require('./product-design-privacy-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   async function proofSharing() { await require('./product-design-sharing-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofPlans() { await require('./product-design-plans-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   async function proofCreator() { await require('./product-design-creator-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   const boxOf = (pg, sel) => pg.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }, sel);
 
@@ -731,6 +732,7 @@ const budget = (name, values, ok, detail) => {
     if (want('P25')) await proofPrivacy();
     if (want('P26')) await proofCreator();
     if (want('P27')) await proofSharing();
+    if (want('P28')) await proofPlans();
   } catch (e) {
     fail('proof crashed', String(e && e.stack || e).slice(0, 1200));
   } finally {

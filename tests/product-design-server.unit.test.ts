@@ -58,8 +58,8 @@ describe('what it may call', () => {
     expect([...new Set(verbs)].sort()).toEqual(['DELETE', 'GET', 'PATCH', 'POST', 'PUT']);
     // P3: PATCH is a creator's own profile, and nothing else.
     expect([...CODE.matchAll(/call\('PATCH', '([^']+)'/g)].map((m) => m[1])).toEqual(['/me']);
-    // M4: the Platform Owner's console saves a supplier (PUT) and discards a draft quotation (DELETE).
-    expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/privacy/retention', '/rollout/', '/brand-kit/colours', '/rosters/', '/collections/', '/suppliers/']);
+    // M4: the Platform Owner's console saves a supplier (PUT) and discards a draft quotation (DELETE); P5: and saves a plan.
+    expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/privacy/retention', '/plans/', '/rollout/', '/brand-kit/colours', '/rosters/', '/collections/', '/suppliers/']);
     expect([...CODE.matchAll(/call\('DELETE', '([^']+)'/g)].map((m) => m[1])).toEqual(['/rosters/', '/collections/', '/requests/']);
   });
 
@@ -90,10 +90,15 @@ describe('what it may call', () => {
     // P2: the Creator Studio's accounts and the invitations that are the only way in.
     await P.api.creators(); await P.api.creatorInvites(); await P.api.createCreatorInvite({ email: 'a@example.com' }); await P.api.revokeCreatorInvite(id);
     await P.api.verifyCreatorEmail(id, 'met in person'); await P.api.suspendCreator(id, 'abuse report'); await P.api.reinstateCreator(id, 'resolved');
+    // P5/P6: the plans and every tenant's billing, configured and overseen by the Owner alone.
+    await P.api.plans(); await P.api.createPlan({ key: 'free' }); await P.api.savePlan(id, { name: 'Free' }); await P.api.billing();
+    await P.api.grantPlan({ tenantKind: 'club', tenantId: 'club-x', planKey: 'pro', months: 3, note: 'pilot' }); await P.api.endSubscription(id, 'over');
+    await P.api.voidInvoice(id); await P.api.expireSubscriptions(true);
+    expect(P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }).api.billing).toBeUndefined();
     expect((await P.api.setRollout('../x', { studio: 'on' })).code).toBe('BAD_CLUB');
     expect(P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }).api.rollout).toBeUndefined();
     await P.api.archive(id); await P.api.unarchive(id); await P.api.getRevision(id, 3);
-    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/product-design', '').replace(/\?.*$/, '').replace('/rollout/club-1', '/rollout/:clubId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number').replace(/\/invites\/:id\//, '/invites/:inviteId/').replace(/\/creators\/:id\//, '/creators/:creatorId/')}`).sort();
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/product-design', '').replace(/\?.*$/, '').replace('/rollout/club-1', '/rollout/:clubId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number').replace(/\/invites\/:id\//, '/invites/:inviteId/').replace(/\/creators\/:id\//, '/creators/:creatorId/').replace(/\/plans\/:id$/, '/plans/:planId').replace('/subscriptions/:id/', '/subscriptions/:subscriptionId/').replace('/invoices/:id/', '/invoices/:invoiceId/')}`).sort();
     // DS-1c: the room now calls every route, the single-version read included (the 3D comparison, read only).
     expect([...new Set(used)].sort()).toEqual(served);
     expect(calls[calls.length - 1].init).toMatchObject({ method: 'GET' });
@@ -142,8 +147,12 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
     const cid = '22222222-2222-4222-8222-222222222222';
     await C.api.readReview(id); await C.api.commentOnDesign(id, { revision: 1, surface: 'back', body: 'Taller' });
     await C.api.resolveComment(id, cid); await C.api.reopenComment(id, cid); await C.api.decideOnDesign(id, { revision: 1, decision: 'APPROVED', note: null });
+    // P5/P6: the club's plan, its invoices, and the professional tools a club plan opens.
+    await C.api.plan(); await C.api.requestPlan('club-pro'); await C.api.cancelPlan(); await C.api.checkout(cid);
+    await C.api.techPack(id, 'json'); await C.api.techPack(id, 'csv'); await C.api.proExport(id);
+    expect(calls.find((c) => c.url.endsWith('format=csv')).init.headers.Accept).toBe('text/csv');
     expect(calls.every((c) => c.url.startsWith('/api/v1/club-design/'))).toBe(true);
-    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(`/assets/${id}`, '/assets/:assetId').replace(`/rosters/${id}`, '/rosters/:rosterId').replace(`/collections/${id}`, '/collections/:collectionId').replace(`/requests/${id}/quotes/${id}`, '/requests/:requestId/quotes/:quoteId').replace(`/requests/${id}`, '/requests/:requestId').replace(`/comments/${cid}`, '/comments/:commentId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(`/assets/${id}`, '/assets/:assetId').replace(`/rosters/${id}`, '/rosters/:rosterId').replace(`/collections/${id}`, '/collections/:collectionId').replace(`/requests/${id}/quotes/${id}`, '/requests/:requestId/quotes/:quoteId').replace(`/requests/${id}`, '/requests/:requestId').replace(`/comments/${cid}`, '/comments/:commentId').replace(`/invoices/${cid}`, '/invoices/:invoiceId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
     expect([...new Set(used)].sort()).toEqual(served);
     expect(calls.some((c) => c.url.includes('club-1') || String(c.init.body || '').includes('club-1'))).toBe(false);
     expect(calls[0].init.headers).toMatchObject({ Authorization: 'Bearer tkn' });
