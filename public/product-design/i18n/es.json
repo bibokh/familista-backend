@@ -1363,5 +1363,19 @@
   "The invoice is void.": "La factura está anulada.",
   "No subscription is past its end date.": "Ninguna suscripción ha pasado su fecha de fin.",
   "Marked expired: %d.": "Marcadas como vencidas: %d.",
-  "Enter the price as a number, such as 9.90.": "Escribe el precio como número, por ejemplo 9,90."
+  "Enter the price as a number, such as 9.90.": "Escribe el precio como número, por ejemplo 9,90.",
+  "Only a club administrator accepts or declines quotations.": "Solo un administrador del club acepta o rechaza los presupuestos.",
+  "Quotations are non-binding. Accepting one asks Familista to confirm the order with that supplier; nothing is ordered or charged until Familista confirms it here.": "Los presupuestos no son vinculantes. Aceptar uno pide a Familista que confirme el pedido con ese proveedor; no se encarga ni se cobra nada hasta que Familista lo confirme aquí.",
+  "Supplier’s conditions:": "Condiciones del proveedor:",
+  "The supplier’s conditions: plain text, at most 1000 characters.": "Condiciones del proveedor: texto sin formato, 1000 caracteres como máximo.",
+  "Before verifying, record a way to reach the supplier (an e-mail or a website), the garments it makes and the methods it offers.": "Antes de verificar, registra cómo contactar con el proveedor (un correo o una web), las prendas que fabrica y los métodos que ofrece.",
+  "a way to reach it": "cómo contactar con él",
+  "the garments it makes": "las prendas que fabrica",
+  "the methods it offers": "los métodos que ofrece",
+  "The tech pack is available once the order is confirmed with the supplier.": "La ficha técnica está disponible cuando el pedido se confirma con el proveedor.",
+  "Download the tech pack of %s": "Descargar la ficha técnica de %s",
+  "Download the tech pack (CSV)": "Descargar la ficha técnica (CSV)",
+  "The supplier’s conditions": "Condiciones del proveedor",
+  "Optional. What the price includes or excludes, samples, artwork approval: the club reads them with the quotation, which stays non-binding until you confirm the order.": "Opcional. Qué incluye o excluye el precio, muestras, aprobación del diseño: el club las lee con el presupuesto, que sigue sin ser vinculante hasta que confirmes el pedido.",
+  "Before it can be verified, record %s.": "Antes de poder verificarlo, registra %s."
 }

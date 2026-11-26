@@ -78,12 +78,12 @@ export async function ownerAudit(
 
 export async function listSuppliers(status?: ManufacturingSupplierStatus) {
   const suppliers = await prisma.manufacturingSupplier.findMany({ where: status ? { status } : {}, orderBy: [{ status: 'asc' }, { name: 'asc' }, { id: 'asc' }], take: 500, select: SELECT });
-  return { suppliers };
+  return { suppliers: suppliers.map(withGaps) };
 }
 export async function getSupplier(id: string) {
   const supplier = await prisma.manufacturingSupplier.findUnique({ where: { id }, select: SELECT });
   if (!supplier) throw new NotFoundError('Supplier');
-  return { supplier };
+  return { supplier: withGaps(supplier) };
 }
 
 export async function createSupplier(actor: DesignActor, raw: SupplierInput) {
@@ -91,7 +91,7 @@ export async function createSupplier(actor: DesignActor, raw: SupplierInput) {
   return prisma.$transaction(async (tx) => {
     const supplier = await tx.manufacturingSupplier.create({ data: { ...input, createdById: actor.userId }, select: SELECT });
     await ownerAudit(tx, actor, { action: 'manufacturing.supplier.created', resourceType: 'ManufacturingSupplier', resourceId: supplier.id, metadata: { country: input.country }, message: 'A supplier was recorded as a prospect' });
-    return { supplier };
+    return { supplier: withGaps(supplier) };
   });
 }
 
@@ -104,8 +104,26 @@ export async function updateSupplier(actor: DesignActor, id: string, raw: Suppli
     if (moved.count !== 1) throw new SupplierConflictError(current.version);
     const supplier = await tx.manufacturingSupplier.findUniqueOrThrow({ where: { id }, select: SELECT });
     await ownerAudit(tx, actor, { action: 'manufacturing.supplier.updated', resourceType: 'ManufacturingSupplier', resourceId: id, metadata: { version: supplier.version }, message: 'A supplier was updated' });
-    return { supplier };
+    return { supplier: withGaps(supplier) };
   });
+}
+
+/**
+ * P7: what a supplier's record still lacks before it can be verified: a way to reach it (an e-mail or a website), the
+ * garment forms it makes and the decoration methods it offers. Its minimum order and lead time stay optional: a request
+ * is matched against them where recorded and shows "not recorded" where not (M7d), never an assumed value.
+ */
+export function supplierGaps(s: { contactEmail: string | null; website: string | null; forms: string[]; methods: string[] }): Array<'contact' | 'forms' | 'methods'> {
+  const gaps: Array<'contact' | 'forms' | 'methods'> = [];
+  if (!s.contactEmail && !s.website) gaps.push('contact');
+  if (!s.forms.length) gaps.push('forms');
+  if (!s.methods.length) gaps.push('methods');
+  return gaps;
+}
+
+/** A supplier as the Owner's console reads it: its record, and what it lacks before verification (P7). */
+function withGaps<T extends { contactEmail: string | null; website: string | null; forms: string[]; methods: string[] }>(s: T): T & { gaps: Array<'contact' | 'forms' | 'methods'> } {
+  return { ...s, gaps: supplierGaps(s) };
 }
 
 /** Verify a supplier (from a prospect, or again after a suspension), suspend it, or return it to prospect. */
@@ -113,9 +131,11 @@ export async function setSupplierStatus(actor: DesignActor, id: string, to: Manu
   const text = tidy(note, 500, 'note', true) as string;
   if (to === ManufacturingSupplierStatus.VERIFIED && Array.from(text).length < 10) throw new SupplierInvalidError('note-too-short', 'note');
   return prisma.$transaction(async (tx) => {
-    const current = await tx.manufacturingSupplier.findUnique({ where: { id }, select: { status: true } });
+    const current = await tx.manufacturingSupplier.findUnique({ where: { id }, select: { status: true, contactEmail: true, website: true, forms: true, methods: true } });
     if (!current) throw new NotFoundError('Supplier');
     if (current.status === to) throw new SupplierInvalidError('same-status', 'status');
+    const gaps = to === ManufacturingSupplierStatus.VERIFIED ? supplierGaps(current) : [];
+    if (gaps.length) throw new SupplierInvalidError('incomplete', gaps.join(','));
     const data: Prisma.ManufacturingSupplierUpdateInput = to === ManufacturingSupplierStatus.VERIFIED
       ? { status: to, verificationNote: text, verifiedAt: new Date(), verifiedById: actor.userId, version: { increment: 1 } }
       : { status: to, version: { increment: 1 } };
@@ -124,6 +144,6 @@ export async function setSupplierStatus(actor: DesignActor, id: string, to: Manu
       action: `manufacturing.supplier.${to.toLowerCase()}`, resourceType: 'ManufacturingSupplier', resourceId: id,
       metadata: { from: current.status, to, note: text }, message: `A supplier's status became ${to}`,
     });
-    return { supplier };
+    return { supplier: withGaps(supplier) };
   });
 }

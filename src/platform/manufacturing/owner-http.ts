@@ -7,7 +7,7 @@ import { ManufacturingRequestStatus, ManufacturingSupplierStatus } from '@prisma
 import { z } from 'zod';
 import type { DesignActor } from '../product-design/service';
 import { refusals } from './errors';
-import { discardDraft, eraseRequestNames, getRequest, listAllRequests, ownerStep, productionSheet, publishQuote, recordQuote, requestFit, specDesign, withdrawQuote } from './request.service';
+import { discardDraft, eraseRequestNames, getRequest, listAllRequests, ownerStep, productionSheet, productionTechPack, publishQuote, recordQuote, requestFit, specDesign, withdrawQuote } from './request.service';
 import { createSupplier, getSupplier, listSuppliers, setSupplierStatus, updateSupplier } from './supplier.service';
 
 const Id = z.string().guid();
@@ -26,7 +26,7 @@ const RequestQuery = z.object({ status: z.enum(STATUSES).optional() }).strict();
 const StepBody = z.object({ note: Text(4000).nullable().default(null) }).strict();
 const QuoteBody = z.object({
   supplierId: Id, currency: Text(3), totalMinor: z.number().int(), lines: z.array(z.object({ projectId: Id, unitMinor: z.number().int(), sets: z.number().int() }).strict()).max(24).default([]),
-  leadTimeDays: z.number().int(), validUntil: Text(10), supplierReference: Text(400), evidence: Text(2000),
+  leadTimeDays: z.number().int(), validUntil: Text(10), supplierReference: Text(400), evidence: Text(2000), terms: Text(2000).nullable().optional(),
 }).strict();
 const WithdrawBody = z.object({ note: Text(4000) }).strict();
 
@@ -69,6 +69,15 @@ export const ownerRequestFit = handler(async (req, res) => { res.json({ success:
 export const ownerSpecDesign = handler(async (req, res) => { res.json({ success: true, data: await specDesign(actorOf(req), Id.parse(req.params.requestId), Id.parse(req.params.projectId)) }); });
 // P1: the production sheet, once the order is confirmed with its supplier; a closed request's names, erased.
 export const ownerProductionSheet = handler(async (req, res) => { res.json({ success: true, data: await productionSheet(actorOf(req), Id.parse(req.params.requestId)) }); });
+// P7: a design's tech pack as the request froze it, for the order's supplier, once the order is confirmed.
+const TechQuery = z.object({ format: z.enum(['json', 'csv']).default('json') }).strict();
+export const ownerProductionTechPack = handler(async (req, res) => {
+  const { format } = TechQuery.parse(req.query);
+  const out = await productionTechPack(actorOf(req), Id.parse(req.params.requestId), Id.parse(req.params.projectId), format);
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(out.fileName)}`);
+  if (format === 'csv') { res.type('text/csv; charset=utf-8').send(out.csv); return; }
+  res.json({ success: true, data: { techPack: out.techPack, fileName: out.fileName, supplier: out.supplier } });
+});
 export const ownerEraseNames = handler(async (req, res) => {
   const { note } = WithdrawBody.parse(req.body ?? {});
   res.json({ success: true, data: await eraseRequestNames(actorOf(req), Id.parse(req.params.requestId), note) });

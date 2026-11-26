@@ -1363,5 +1363,19 @@
   "The invoice is void.": "The invoice is void.",
   "No subscription is past its end date.": "No subscription is past its end date.",
   "Marked expired: %d.": "Marked expired: %d.",
-  "Enter the price as a number, such as 9.90.": "Enter the price as a number, such as 9.90."
+  "Enter the price as a number, such as 9.90.": "Enter the price as a number, such as 9.90.",
+  "Only a club administrator accepts or declines quotations.": "Only a club administrator accepts or declines quotations.",
+  "Quotations are non-binding. Accepting one asks Familista to confirm the order with that supplier; nothing is ordered or charged until Familista confirms it here.": "Quotations are non-binding. Accepting one asks Familista to confirm the order with that supplier; nothing is ordered or charged until Familista confirms it here.",
+  "Supplier’s conditions:": "Supplier’s conditions:",
+  "The supplier’s conditions: plain text, at most 1000 characters.": "The supplier’s conditions: plain text, at most 1000 characters.",
+  "Before verifying, record a way to reach the supplier (an e-mail or a website), the garments it makes and the methods it offers.": "Before verifying, record a way to reach the supplier (an e-mail or a website), the garments it makes and the methods it offers.",
+  "a way to reach it": "a way to reach it",
+  "the garments it makes": "the garments it makes",
+  "the methods it offers": "the methods it offers",
+  "The tech pack is available once the order is confirmed with the supplier.": "The tech pack is available once the order is confirmed with the supplier.",
+  "Download the tech pack of %s": "Download the tech pack of %s",
+  "Download the tech pack (CSV)": "Download the tech pack (CSV)",
+  "The supplier’s conditions": "The supplier’s conditions",
+  "Optional. What the price includes or excludes, samples, artwork approval: the club reads them with the quotation, which stays non-binding until you confirm the order.": "Optional. What the price includes or excludes, samples, artwork approval: the club reads them with the quotation, which stays non-binding until you confirm the order.",
+  "Before it can be verified, record %s.": "Before it can be verified, record %s."
 }

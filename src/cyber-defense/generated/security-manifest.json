@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-26T11:23:10.394Z",
+  "generatedAt": "2026-11-26T11:40:29.708Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 63,
-    "handlers": 935,
+    "handlers": 936,
     "publicHandlers": 29,
     "publicRoutes": [
       {
@@ -393,7 +393,7 @@
       {
         "path": "/system/manufacturing",
         "module": "manufacturing.routes",
-        "handlers": 21,
+        "handlers": 22,
         "public": 0,
         "routerWideAuth": true
       },
@@ -684,9 +684,9 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 476,
+      "idParameters": 478,
       "guarded": 219,
-      "exempt": 257,
+      "exempt": 259,
       "unguarded": [],
       "staleExemptions": [],
       "routerWideTenantGuardMounts": [],
@@ -804,7 +804,7 @@
         },
         "manufacturing.routes": {
           "guarded": 0,
-          "exempt": 22,
+          "exempt": 24,
           "unguarded": 0
         },
         "match-center.routes": {
@@ -940,13 +940,13 @@
       }
     },
     "authorization": {
-      "handlers": 935,
+      "handlers": 936,
       "byKind": {
         "public": 29,
         "member": 350,
         "scoped": 60,
         "roles": 286,
-        "platform-owner": 149,
+        "platform-owner": 150,
         "creator": 61
       },
       "memberUnreviewed": [],
@@ -1069,7 +1069,7 @@
           "roles": 4
         },
         "manufacturing.routes": {
-          "platform-owner": 21
+          "platform-owner": 22
         },
         "match-center.routes": {
           "member": 7
@@ -1602,6 +1602,7 @@
         "GET /system/manufacturing/requests": "platform-owner",
         "GET /system/manufacturing/requests/:requestId": "platform-owner",
         "GET /system/manufacturing/requests/:requestId/designs/:projectId": "platform-owner",
+        "GET /system/manufacturing/requests/:requestId/designs/:projectId/tech-pack": "platform-owner",
         "GET /system/manufacturing/requests/:requestId/fit": "platform-owner",
         "GET /system/manufacturing/suppliers": "platform-owner",
         "GET /system/manufacturing/suppliers/:supplierId": "platform-owner",
@@ -2322,7 +2323,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "219 of 476 route id parameter(s) checked against the caller's club before the handler; 257 exempted by name with a reason; 0 unguarded."
+      "note": "219 of 478 route id parameter(s) checked against the caller's club before the handler; 259 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2546,7 +2547,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "935 handler(s) classified: 29 public, 350 member, 60 scoped, 286 roles, 149 platform-owner, 61 creator; every member- and creator-level handler reviewed by name."
+      "note": "936 handler(s) classified: 29 public, 350 member, 60 scoped, 286 roles, 150 platform-owner, 61 creator; every member- and creator-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",

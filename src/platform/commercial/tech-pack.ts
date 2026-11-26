@@ -14,6 +14,7 @@ import type { DesignActor } from '../product-design/service';
 import { tenantWhere, type Tenant } from '../tenancy/tenant';
 
 type Layer = Record<string, unknown> & { id: string; type: string; name?: string; visible?: boolean };
+export type TechPackDoc = Doc;
 type Doc = { name: string; template: { key: string; version: number }; palette: Array<{ id: string; label: string; srgb: string }>; surfaces: Array<{ id: string; base: string; layers: Layer[] }> };
 
 export interface TechPackElement {

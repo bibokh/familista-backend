@@ -27,6 +27,7 @@ import { isCurrency, isMinor } from './money';
 import { FINAL, step, type Action } from './state';
 import { byFit, supplierFit, type FitRequest } from './fit';
 import { ownerAudit } from './supplier.service';
+import { buildTechPack, techPackCsv, type TechPackDoc } from '../commercial/tech-pack';
 
 /** At most this many open requests in a club at once. */
 export const OPEN_REQUEST_LIMIT = 50;
@@ -50,6 +51,20 @@ export interface PeopleView { kept: number; withheld: number; erased: number; mi
 export interface QuoteInput {
   supplierId: string; currency: string; totalMinor: number; lines: Array<{ projectId: string; unitMinor: number; sets: number }>;
   leadTimeDays: number; validUntil: string; supplierReference: string; evidence: string;
+  /** P7: the conditions the supplier attached; optional, frozen once published. */
+  terms?: string | null;
+}
+
+/**
+ * P7: a decision on quotations — accepting one, or declining them all — commits the club, so in a club only its
+ * administrators take it (a manager sees the quotations and is told who decides); a creator decides on their own.
+ */
+export class DecisionRoleError extends ForbiddenError {
+  readonly code = 'MANUFACTURING_ADMIN_REQUIRED';
+  constructor() { super('Only a club administrator accepts or declines quotations'); }
+}
+export function assertMayDecide(tenant: Tenant, role: UserRole | string | undefined): void {
+  if (tenant.kind === 'club' && role !== UserRole.CLUB_ADMIN) throw new DecisionRoleError();
 }
 
 /** A request the club cannot submit as it is: the collection, its roster or their sizes are not ready. */
@@ -90,7 +105,7 @@ function summaryView(r: { id: string; status: S; setsTotal: number; neededBy: Da
 }
 const EVENT_SELECT = { action: true, fromStatus: true, toStatus: true, actorKind: true, note: true, createdAt: true } as const;
 const CLUB_QUOTE_SELECT = {
-  id: true, status: true, currency: true, totalMinor: true, lines: true, leadTimeDays: true, validUntil: true, publishedAt: true,
+  id: true, status: true, currency: true, totalMinor: true, lines: true, leadTimeDays: true, validUntil: true, publishedAt: true, terms: true,
   supplier: { select: { name: true, country: true } },
 } as const;
 
@@ -259,7 +274,7 @@ function requesterView(r: { clubId: string | null; creatorId: string | null; clu
 }
 
 const OWNER_QUOTE_SELECT = {
-  id: true, status: true, currency: true, totalMinor: true, lines: true, leadTimeDays: true, validUntil: true, supplierReference: true, evidence: true,
+  id: true, status: true, currency: true, totalMinor: true, lines: true, leadTimeDays: true, validUntil: true, supplierReference: true, evidence: true, terms: true,
   publishedAt: true, createdAt: true, supplierId: true, supplier: { select: { name: true, country: true, status: true } },
 } as const;
 
@@ -335,7 +350,9 @@ function cleanQuote(input: QuoteInput, spec: RequestSpec): QuoteInput & { validD
     if (!isMinor(l.unitMinor)) throw new QuoteInvalidError('bad-amount', `lines[${i}].unitMinor`);
     if (!Number.isInteger(l.sets) || l.sets < 1 || l.sets > 100000) throw new QuoteInvalidError('bad-sets', `lines[${i}].sets`);
   });
-  return { ...input, supplierReference: ref, evidence, validDate };
+  const t = typeof input.terms === 'string' ? input.terms.normalize('NFC').trim() : '';
+  if (Array.from(t).length > 1000 || CONTROL.test(t.replace(/\n/g, ''))) throw new QuoteInvalidError('bad-terms', 'terms');
+  return { ...input, supplierReference: ref, evidence, terms: t || null, validDate };
 }
 
 /** Record a quotation a verified supplier gave, as a draft only the Owner sees. */
@@ -349,12 +366,14 @@ export async function recordQuote(actor: DesignActor, id: string, input: QuoteIn
     if (!supplier) throw new QuoteInvalidError('unknown-supplier', 'supplierId');
     if (supplier.status !== ManufacturingSupplierStatus.VERIFIED) throw new QuoteInvalidError('supplier-not-verified', 'supplierId');
     const quote = await tx.manufacturingQuote.create({
-      data: { clubId: r.clubId, requestId: id, supplierId: q.supplierId, currency: q.currency, totalMinor: q.totalMinor, lines: q.lines as unknown as Prisma.InputJsonValue,
-        leadTimeDays: q.leadTimeDays, validUntil: q.validDate, supplierReference: q.supplierReference, evidence: q.evidence, recordedById: actor.userId },
+      // P7: a creator's request is quoted as the creator's (one owner, as the request; it was left unset before, which the
+      // database's one-owner check refused, so a creator's request could not be quoted at all).
+      data: { clubId: r.clubId, creatorId: r.creatorId, requestId: id, supplierId: q.supplierId, currency: q.currency, totalMinor: q.totalMinor, lines: q.lines as unknown as Prisma.InputJsonValue,
+        leadTimeDays: q.leadTimeDays, validUntil: q.validDate, supplierReference: q.supplierReference, evidence: q.evidence, terms: q.terms ?? null, recordedById: actor.userId },
       select: { id: true },
     });
     await ownerAudit(tx, actor, { action: 'manufacturing.quote.recorded', resourceType: 'ManufacturingQuote', resourceId: quote.id, clubId: r.clubId,
-      metadata: { requestId: id, supplierId: q.supplierId, currency: q.currency, totalMinor: q.totalMinor }, message: 'A supplier quotation was recorded' });
+      metadata: { requestId: id, supplierId: q.supplierId, currency: q.currency, totalMinor: q.totalMinor, terms: q.terms !== null, creatorId: r.creatorId }, message: 'A supplier quotation was recorded' });
     return getRequestTx(tx, id);
   });
 }
@@ -446,6 +465,30 @@ export async function productionSheet(actor: DesignActor, id: string) {
       metadata: { supplierId: quote.supplierId, entries: rows.length, names: kept }, message: 'A production sheet was exported for the order’s supplier' });
     return { sheet: { csv: rosterCsv(rows), fileName: rosterCsvFileName(`${requesterView(r).requester.name ?? 'Familista'} ${spec.collection.name} production sheet`), entries: rows.length, names: kept,
       supplier: { id: quote.supplierId, name: quote.supplier.name } } };
+  });
+}
+
+/**
+ * P7: the tech pack of one design as the request froze it (its revision, checked against the hash the request kept), for
+ * the order's supplier: only once the order is confirmed with that supplier, like the production sheet; every export is
+ * recorded with the supplier. It holds no person's data: names and numbers come from the production sheet.
+ */
+export async function productionTechPack(actor: DesignActor, id: string, projectId: string, format: 'json' | 'csv') {
+  return prisma.$transaction(async (tx) => {
+    const r = await tx.manufacturingRequest.findUnique({ where: { id }, select: { id: true, status: true, spec: true, acceptedQuoteId: true, clubId: true } });
+    if (!r) throw new NotFoundError('Request');
+    if (!SHEET_STATES.has(r.status) || !r.acceptedQuoteId) throw new SheetRefusedError(r.status);
+    const quote = await tx.manufacturingQuote.findUnique({ where: { id: r.acceptedQuoteId }, select: { supplierId: true, supplier: { select: { name: true } } } });
+    if (!quote) throw new SheetRefusedError(r.status);
+    const g = (r.spec as unknown as RequestSpec).garments.find((x) => x.projectId === projectId);
+    if (!g) throw new NotFoundError('Design');
+    const rev = await tx.designRevision.findUnique({ where: { projectId_number: { projectId, number: g.revision } }, select: { number: true, sha256: true, document: true, createdAt: true } });
+    if (!rev || rev.sha256 !== g.sha256) throw new NotFoundError('Design revision');
+    const pack = buildTechPack({ id: projectId, name: g.name }, rev, rev.document as unknown as TechPackDoc);
+    const csv = format === 'csv' ? techPackCsv(pack.elements) : null;
+    await ownerAudit(tx, actor, { action: 'manufacturing.techpack.exported', resourceType: 'ManufacturingRequest', resourceId: id, clubId: r.clubId,
+      metadata: { projectId, revision: g.revision, sha256: rev.sha256, format, supplierId: quote.supplierId }, message: 'A tech pack was exported for the order’s supplier' });
+    return { techPack: pack, csv, fileName: `${g.name.replace(/[^\p{L}\p{N} _-]+/gu, '').trim().slice(0, 60) || 'design'} v${g.revision} tech pack.${format}`, supplier: { id: quote.supplierId, name: quote.supplier.name } };
   });
 }
 

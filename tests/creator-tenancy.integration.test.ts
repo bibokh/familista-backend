@@ -384,6 +384,25 @@ suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
     expect([seen.requester, seen.club]).toEqual([{ kind: 'creator', id: A.id, name: 'Alex Maker' }, null]);
     const audit = await sys(`SELECT "creatorId", "userId", "clubId" FROM "PlatformAuditLog" WHERE "action" = 'manufacturing.request.submitted' AND "resourceId" = $1`, id);
     expect(audit).toEqual([{ creatorId: A.id, userId: null, clubId: null }]);
+
+    // P7: the Owner quotes a creator's request (recording one was refused by the one-owner check before: the quotation
+    // was written with no owner), with the supplier's conditions; the creator sees it as non-binding and decides alone.
+    const M = '/api/v1/system/manufacturing';
+    const sup = (await owner().post(`${M}/suppliers`, { name: 'Factory C (test record)', country: 'PT', contactEmail: 'sales@factory-c.example', forms: ['top'], methods: ['SUBLIMATION'] })).body.data.supplier.id;
+    expect((await owner().post(`${M}/suppliers/${sup}/status`, { status: 'VERIFIED', note: 'Registration and samples checked (test record)' })).status).toBe(200);
+    expect((await owner().post(`${M}/requests/${id}/review`)).status).toBe(200);
+    const until = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+    const rec = await owner().post(`${M}/requests/${id}/quotes`, { supplierId: sup, currency: 'EUR', totalMinor: 4500, lines: [], leadTimeDays: 21, validUntil: until,
+      supplierReference: 'QC-1', evidence: 'Quotation e-mail of 26 Nov 2026', terms: 'Excludes delivery. Artwork approved before cutting.' });
+    expect(rec.status).toBe(201);
+    const quoteId = rec.body.data.request.quotes[0].id;
+    expect(await sys(`SELECT "clubId", "creatorId" FROM "ManufacturingQuote" WHERE "id" = $1`, quoteId)).toEqual([{ clubId: null, creatorId: A.id }]);
+    expect((await owner().post(`${M}/requests/${id}/quotes/${quoteId}/publish`)).status).toBe(200);
+    const mine = (await bearer(A.auth).get(`${CR}/requests/${id}`)).body.data.request.quotes;
+    expect(mine.map((q: Row) => [q.status, q.totalMinor, q.terms])).toEqual([['PUBLISHED', 4500, 'Excludes delivery. Artwork approved before cutting.']]);
+    expect((await bearer(B.auth).post(`${CR}/requests/${id}/quotes/${quoteId}/accept`)).status).toBe(404);
+    const acc = await bearer(A.auth).post(`${CR}/requests/${id}/quotes/${quoteId}/accept`);
+    expect([acc.status, acc.body.data.request.status]).toEqual([200, 'ACCEPTED']);
   });
 
   it('a password reset answers the same for every address, works once, and ends every session', async () => {

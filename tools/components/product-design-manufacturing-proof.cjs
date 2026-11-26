@@ -78,6 +78,12 @@ module.exports = async function p20(H) {
     await op.click(OWNP + ' [data-pd-act="mfg-supplier-new"]');
     await op.fill(OWNP + ' [data-pd-mfg-s="name"]', 'P20 Factory (test record)');
     await op.fill(OWNP + ' [data-pd-mfg-s="country"]', 'pt');
+    // P7: saved first without a way to reach it, the record says what it lacks before it can be verified
+    await op.click(OWNP + ' [data-pd-act="mfg-supplier-save"]');
+    await op.waitForSelector(OWNP + ' [data-pd-mfg-gaps]', { timeout: 15000 });
+    const gaps = await op.evaluate((sel) => document.querySelector(sel + ' [data-pd-mfg-gaps]').getAttribute('data-pd-mfg-gaps'), OWNP);
+    check('P7 a supplier saved without contact, garments or methods says, before Verify is pressed, what it lacks', gaps === 'contact forms methods', { gaps });
+    await op.fill(OWNP + ' [data-pd-mfg-s="contactEmail"]', 'sales@p20-factory.example');
     await op.check(OWNP + ' [data-pd-mfg-s-list="forms"][value="top"]');
     await op.check(OWNP + ' [data-pd-mfg-s-list="forms"][value="shorts"]');
     await op.check(OWNP + ' [data-pd-mfg-s-list="methods"][value="SUBLIMATION"]');
@@ -128,6 +134,7 @@ module.exports = async function p20(H) {
     await op.fill(OWNP + ' [data-pd-mfg-q="validUntil"]', inDays(14));
     await op.fill(OWNP + ' [data-pd-mfg-q="supplierReference"]', 'P20-TEST-1');
     await op.fill(OWNP + ' [data-pd-mfg-q="evidence"]', 'Test record written by the browser proof');
+    await op.fill(OWNP + ' [data-pd-mfg-q="terms"]', 'Excludes delivery. Artwork approved before cutting.');
     await op.click(OWNP + ' [data-pd-act="mfg-quote-save"]');
     await op.waitForSelector(OWNP + ' [data-pd-act="mfg-publish"]', { timeout: 15000 });
     const draftSeen = await call('clubAdmin', 'GET', '/api/v1/club-design/requests/' + req.id);
@@ -145,6 +152,8 @@ module.exports = async function p20(H) {
     await cp.click(CLUBP + ' [data-pd-act="req-open"][data-pd-id="' + req.id + '"]');
     await cp.waitForSelector(CLUBP + ' [data-pd-act="req-accept"]', { timeout: 15000 });
     const card = await cp.evaluate((sel) => document.querySelector(sel + ' .pd-req-quote').textContent, CLUBP);
+    const nonBinding = await cp.evaluate((sel) => !!document.querySelector(sel + ' [data-pd-req-nonbinding]'), CLUBP);
+    check('P7 the club reads the quotation as non-binding, with the supplier’s conditions', nonBinding && /Excludes delivery\. Artwork approved before cutting\./.test(card), { nonBinding, card });
     await cp.screenshot({ path: path.join(OUT, 'p20-club-quotation.png') });
     await cp.click(CLUBP + ' [data-pd-act="req-accept"]');
     await cp.click(CLUBP + ' [data-pd-act="team-confirm-go"]');
@@ -206,6 +215,13 @@ module.exports = async function p20(H) {
     await op.$eval(OWNP + ' [data-pd-act="mfg-design"][data-pd-id="' + shirt + '"]', (b) => b.scrollIntoView({ block: 'center', inline: 'center' }));
     const [design] = await Promise.all([op.waitForEvent('download', { timeout: 15000 }), op.click(OWNP + ' [data-pd-act="mfg-design"][data-pd-id="' + shirt + '"]')]);
     const doc = JSON.parse(fs.readFileSync(await design.path(), 'utf8'));
+    // P7: with the order confirmed, each design's tech pack for the order's supplier (CSV), recorded with it
+    await op.$eval(OWNP + ' [data-pd-act="mfg-techpack"][data-pd-id="' + shirt + '"]', (b) => b.scrollIntoView({ block: 'center', inline: 'center' }));
+    const [tech] = await Promise.all([op.waitForEvent('download', { timeout: 15000 }), op.click(OWNP + ' [data-pd-act="mfg-techpack"][data-pd-id="' + shirt + '"]')]);
+    const techHead = fs.readFileSync(await tech.path(), 'utf8').split('\r\n')[0];
+    const techAudit = await db.platformAuditLog.count({ where: { resourceId: req.id, action: 'manufacturing.techpack.exported' } });
+    check('P7 the Owner downloads a design’s tech pack (CSV) once the order is confirmed, recorded with its supplier',
+      techHead === '\uFEFFsurface,element,type,text,font,colour,hex,x_mm,y_mm,width_mm,height_mm,rotation_deg,printed' && techAudit === 1, { techHead, file: tech.suggestedFilename(), techAudit });
     // P1: the sheet is the server's, from the frozen entries and the names kept apart; every export is recorded.
     const exported = await db.platformAuditLog.findMany({ where: { resourceId: req.id, action: { in: ['manufacturing.sheet.exported', 'manufacturing.design.exported'] } }, select: { action: true, metadata: true } });
     check('P20 the Owner exports the production sheet (the roster as submitted) and a design exactly as submitted, each export recorded',

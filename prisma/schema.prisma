@@ -11402,6 +11402,8 @@ model ManufacturingQuote {
   supplierReference String
   /// How the quotation was received (an e-mail of a date, a signed PDF): the record that it is real.
   evidence          String
+  /// P7: the conditions the supplier attached (what the price includes, samples, artwork approval); frozen once published.
+  terms             String?
   recordedById      String
   publishedAt       DateTime?                @db.Timestamptz(3)
   createdAt         DateTime                 @default(now()) @db.Timestamptz(3)

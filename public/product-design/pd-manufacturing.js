@@ -74,7 +74,12 @@
     'bad-evidence': L('Say how the quotation was received: at least 10 characters.'), 'note-too-short': L('Say what was checked: at least 10 characters.'),
     'bad-country': L('Country: its two-letter ISO code, such as PT.'), 'bad-website': L('Website: an https:// address.'), 'bad-email': L('Contact: an e-mail address.'),
     required: L('A name is required.'), 'same-status': L('The supplier already has that status.'),
+    // P7
+    'bad-terms': L('The supplier’s conditions: plain text, at most 1000 characters.'),
+    incomplete: L('Before verifying, record a way to reach the supplier (an e-mail or a website), the garments it makes and the methods it offers.'),
   };
+  /** P7: what a supplier's record still lacks before it can be verified. */
+  var GAP = { contact: L('a way to reach it'), forms: L('the garments it makes'), methods: L('the methods it offers') };
 
   function money(minor, currency, lang) {
     try {
@@ -239,6 +244,19 @@
         st.busy = false;
         if (x.ok && x.data && x.data.sheet) { download(x.data.sheet.csv, x.data.sheet.fileName, 'text/csv;charset=utf-8'); return; }
         say(x.code === 'SHEET_NOT_AVAILABLE' ? T('The production sheet is available once the order is confirmed with the supplier.') : T('The production sheet could not be made.'));
+      });
+    }
+    /** P7: a design's tech pack as the request froze it, for the order's supplier, once the order is confirmed; recorded. */
+    function techPackFile(projectId) {
+      var r = st.cur.data;
+      api.techPack(r.id, projectId, 'csv').then(function (x) {
+        if (!x.ok || !x.blob) { say(x.code === 'SHEET_NOT_AVAILABLE' ? T('The tech pack is available once the order is confirmed with the supplier.') : T('The tech pack could not be made.')); return; }
+        var g = r.spec.garments.filter(function (y) { return y.projectId === projectId; })[0];
+        var name = R.csvFileName((g ? g.name : 'design') + ' v' + (g ? g.revision : '') + ' tech pack');
+        var url = URL.createObjectURL(x.blob), a = h('a', { href: url, download: name });
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+        ctx.say(tf('Exported %s.', name));
       });
     }
     function designFile(projectId) {
@@ -553,6 +571,7 @@
       });
       if (steps.length) out.push(h('div', { class: 'pd-team-tools', role: 'group', 'aria-label': T('Next steps') }, steps));
       // The specification, as frozen.
+      var ordered = r.status === 'ORDERED' || r.status === 'IN_PRODUCTION' || r.status === 'SHIPPED' || r.status === 'DELIVERED';
       var g = h('table', { class: 'pd-team-table pd-col-sheet' }, [h('thead', null, [h('tr', null, [h('th', { scope: 'col', text: T('Design') }), h('th', { scope: 'col', text: T('Garment') }), h('th', { scope: 'col', text: T('Sizes and sets') }), h('th', { scope: 'col' }, [h('span', { class: 'pd-sr', text: T('Actions') })])])])]);
       var gb = h('tbody');
       spec.garments.forEach(function (x) {
@@ -562,14 +581,15 @@
         gb.appendChild(h('tr', null, [h('th', { scope: 'row' }, [h('span', { 'data-user-content': '', text: x.name }), h('span', { class: 'pd-dock-kicker', text: ' · ' + tf('version %d', x.revision) }),
           ctx.approvalChip ? h('span', { class: 'pd-rv-cell', title: T('The club’s review of this version') }, [ctx.approvalChip(x.approval)]) : null]),
           h('td', { text: T(FORM[x.form]) }), cell,
-          h('td', { class: 'pd-team-acts' }, [btn({ class: 'pd-icbtn', 'data-pd-act': 'mfg-design', 'data-pd-id': x.projectId, 'aria-label': tf('Download %s as submitted', x.name), title: T('Download the design as submitted') }, [icon('export', 14)])])]));
+          h('td', { class: 'pd-team-acts' }, [btn({ class: 'pd-icbtn', 'data-pd-act': 'mfg-design', 'data-pd-id': x.projectId, 'aria-label': tf('Download %s as submitted', x.name), title: T('Download the design as submitted') }, [icon('export', 14)]),
+            // P7: once the order is confirmed with its supplier, the design's tech pack (placements in mm), for that supplier.
+            ordered ? btn({ class: 'pd-icbtn', 'data-pd-act': 'mfg-techpack', 'data-pd-id': x.projectId, 'aria-label': tf('Download the tech pack of %s', x.name), title: T('Download the tech pack (CSV)') }, [icon('ruler', 14)]) : null])]));
       });
       g.appendChild(gb);
       out.push(h('div', { class: 'pd-team-scroll pd-col-sheet-wrap', role: 'region', 'aria-label': T('Designs'), tabindex: '0' }, [g]));
       // P1: the people's names, kept apart; the production sheet only once the order is confirmed with its supplier.
       if (r.people) out.push(h('p', { class: 'pd-note', 'data-pd-mfg-people': '', text: tf('Names: %d kept · %d withheld · %d erased.', r.people.kept, r.people.withheld, r.people.erased)
         + (r.people.minors ? ' ' + (r.people.minorsConsent ? T('Includes players under 18: a club administrator confirmed a guardian’s consent.') : T('Includes players under 18: their names were not sent.')) : '') }));
-      var ordered = r.status === 'ORDERED' || r.status === 'IN_PRODUCTION' || r.status === 'SHIPPED' || r.status === 'DELIVERED';
       out.push(h('div', { class: 'pd-team-tools' }, [
         ordered ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-sheet', 'data-pd-mfg-key': 'sheet' }, [icon('export', 14), h('span', { text: tf('Export the production sheet (%d entries)', spec.entries.length) })]) : null,
         FINAL[r.status] && r.people && r.people.kept ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-erase-names', 'data-pd-mfg-key': 'erase-names' }, [icon('trash', 14), h('span', { text: T('Erase the names') })]) : null,
@@ -596,6 +616,7 @@
               h('span', { class: 'pd-dock-kicker' }, [h('span', { 'data-user-content': '', text: q.supplier.name }), ' · ' + region(q.supplier.country, lang) + ' · ' + tf('ref. %s', q.supplierReference)]),
               h('span', { class: 'pd-dock-kicker', text: tf('Made in %d days · valid until %s', q.leadTimeDays, day(q.validUntil, lang)) }),
               h('span', { class: 'pd-req-note', 'data-user-content': '', dir: 'auto', text: q.evidence }),
+              q.terms ? h('span', { class: 'pd-req-note', 'data-pd-quote-terms': '' }, [h('span', { text: T('Supplier’s conditions:') + ' ' }), h('span', { 'data-user-content': '', dir: 'auto', text: q.terms })]) : null,
             ]),
             h('div', { class: 'pd-dock-btns' }, acts),
           ]));
@@ -628,6 +649,9 @@
       var min = new Date().toISOString().slice(0, 10);
       var evidence = h('textarea', { class: 'pd-input', rows: '2', maxlength: '500', 'data-pd-mfg-q': 'evidence', 'data-pd-mfg-key': 'q-evidence', dir: 'auto', 'aria-label': T('How it was received') });
       evidence.value = q.evidence;
+      // P7: the conditions the supplier attached, shown to the club with the quotation and frozen once published.
+      var terms = h('textarea', { class: 'pd-input', rows: '2', maxlength: '1000', 'data-pd-mfg-q': 'terms', 'data-pd-mfg-key': 'q-terms', dir: 'auto', 'aria-label': T('The supplier’s conditions') });
+      terms.value = q.terms || '';
       return h('div', { class: 'pd-dock-alert pd-mfg-quote', role: 'group', 'aria-label': T('Record a quotation') }, [
         h('p', { class: 'pd-note', text: T('Record exactly what a verified supplier quoted. It stays a draft, seen by you alone, until you publish it to the club.') }),
         h('div', { class: 'pd-col-fields' }, [
@@ -638,6 +662,8 @@
           field(T('Supplier’s reference'), input({ class: 'pd-input', type: 'text', maxlength: '80', 'data-pd-mfg-q': 'supplierReference', 'data-pd-mfg-key': 'q-ref', 'aria-label': T('Supplier’s reference') }, q.supplierReference)),
         ]),
         field(T('How it was received'), evidence),
+        field(T('The supplier’s conditions'), terms),
+        h('p', { class: 'pd-note', text: T('Optional. What the price includes or excludes, samples, artwork approval: the club reads them with the quotation, which stays non-binding until you confirm the order.') }),
         h('div', { class: 'pd-dock-btns' }, [
           btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'mfg-quote-cancel', 'data-pd-mfg-key': 'q-cancel' }, [h('span', { text: T('Cancel') })]),
           btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'mfg-quote-save', 'data-pd-mfg-key': 'q-save' }, [h('span', { text: T('Record as draft') })]),
@@ -666,6 +692,9 @@
     function supplierBody() {
       var s = st.sup, f = s.fields, out = [];
       if (s.id) out.push(h('div', { class: 'pd-req-head' }, [h('span', { class: 'pd-dock-kicker', text: s.status === 'VERIFIED' && s.verificationNote ? tf('Verified: %s', s.verificationNote) : '' }), chip(T(SSTATUS[s.status]), s.status === 'VERIFIED')]));
+      // P7: what the saved record still lacks before it can be verified (as the server answered), said before Verify is pressed.
+      if (s.id && s.status !== 'VERIFIED' && s.gaps && s.gaps.length) out.push(h('p', { class: 'pd-note pd-note--warn', 'data-pd-mfg-gaps': s.gaps.join(' ') }, [icon('info', 14),
+        h('span', { text: tf('Before it can be verified, record %s.', s.gaps.map(function (g) { return T(GAP[g]); }).join(' · ')) })]));
       var checks = function (key, list, labels) {
         return h('div', { class: 'pd-mfg-checks', role: 'group', 'aria-label': key === 'forms' ? T('Garments it makes') : T('Methods it offers') }, list.map(function (v) {
           var c = h('input', { type: 'checkbox', 'data-pd-mfg-s-list': key, value: v });
@@ -712,7 +741,7 @@
       });
     }
     function fromSupplier(x) {
-      st.sup = { id: x.id, version: x.version, status: x.status, verificationNote: x.verificationNote,
+      st.sup = { id: x.id, version: x.version, status: x.status, verificationNote: x.verificationNote, gaps: x.gaps || [],
         fields: { name: x.name, country: x.country, city: x.city || '', website: x.website || '', contactEmail: x.contactEmail || '', forms: x.forms.slice(), methods: x.methods.slice(), minOrderSets: x.minOrderSets, leadTimeDays: x.leadTimeDays } };
     }
     function askNote(label, hint, then) { st.ask = { label: label, hint: hint, value: '', run: then }; render(); var n = el.querySelector('[data-pd-mfg-note]'); if (n) n.focus(); }
@@ -774,7 +803,7 @@
           return true;
         }
         case 'mfg-quote-new': case 'mfg-quote-from':
-          st.quote = { supplierId: act === 'mfg-quote-from' ? t.getAttribute('data-pd-id') || '' : '', currency: 'EUR', amount: '', leadTimeDays: '', validUntil: '', supplierReference: '', evidence: '' };
+          st.quote = { supplierId: act === 'mfg-quote-from' ? t.getAttribute('data-pd-id') || '' : '', currency: 'EUR', amount: '', leadTimeDays: '', validUntil: '', supplierReference: '', evidence: '', terms: '' };
           if (st.suppliers.state !== 'ready') loadSuppliers(); else render();
           return true;
         case 'mfg-quote-cancel': st.quote = null; render(); return true;
@@ -784,7 +813,7 @@
           if (minor === null) { say(T('Enter the amount the supplier quoted.')); return true; }
           run(function () {
             return api.recordQuote(r.id, { supplierId: q.supplierId, currency: q.currency, totalMinor: minor, lines: [], leadTimeDays: Number(q.leadTimeDays), validUntil: q.validUntil,
-              supplierReference: q.supplierReference, evidence: q.evidence });
+              supplierReference: q.supplierReference, evidence: q.evidence, terms: String(q.terms || '').trim() || null });
           }, T('Quotation recorded as a draft.'), L('The quotation could not be recorded.'));
           return true;
         }
@@ -803,6 +832,7 @@
           });
           return true;
         case 'mfg-design': designFile(id); return true;
+        case 'mfg-techpack': techPackFile(id); return true;
         case 'mfg-supplier-new':
           st.view = 'supplier'; st.sup = { id: null, version: 0, status: 'PROSPECT', fields: { name: '', country: '', city: '', website: '', contactEmail: '', forms: [], methods: [], minOrderSets: null, leadTimeDays: null } };
           st.note = ''; render(); return true;

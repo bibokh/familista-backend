@@ -1363,5 +1363,19 @@
   "The invoice is void.": "La facture est annulée.",
   "No subscription is past its end date.": "Aucun abonnement n’a dépassé sa date de fin.",
   "Marked expired: %d.": "Marqués expirés : %d.",
-  "Enter the price as a number, such as 9.90.": "Saisissez le prix en chiffres, par exemple 9,90."
+  "Enter the price as a number, such as 9.90.": "Saisissez le prix en chiffres, par exemple 9,90.",
+  "Only a club administrator accepts or declines quotations.": "Seul un administrateur du club accepte ou refuse les devis.",
+  "Quotations are non-binding. Accepting one asks Familista to confirm the order with that supplier; nothing is ordered or charged until Familista confirms it here.": "Les devis sont sans engagement. En accepter un demande à Familista de confirmer la commande avec ce fournisseur ; rien n’est commandé ni prélevé tant que Familista ne l’a pas confirmée ici.",
+  "Supplier’s conditions:": "Conditions du fournisseur :",
+  "The supplier’s conditions: plain text, at most 1000 characters.": "Conditions du fournisseur : texte simple, 1000 caractères au plus.",
+  "Before verifying, record a way to reach the supplier (an e-mail or a website), the garments it makes and the methods it offers.": "Avant de vérifier, indiquez comment joindre le fournisseur (e-mail ou site web), les vêtements qu’il fabrique et les procédés qu’il propose.",
+  "a way to reach it": "un moyen de le joindre",
+  "the garments it makes": "les vêtements qu’il fabrique",
+  "the methods it offers": "les procédés qu’il propose",
+  "The tech pack is available once the order is confirmed with the supplier.": "Le dossier technique est disponible une fois la commande confirmée avec le fournisseur.",
+  "Download the tech pack of %s": "Télécharger le dossier technique de %s",
+  "Download the tech pack (CSV)": "Télécharger le dossier technique (CSV)",
+  "The supplier’s conditions": "Conditions du fournisseur",
+  "Optional. What the price includes or excludes, samples, artwork approval: the club reads them with the quotation, which stays non-binding until you confirm the order.": "Facultatif. Ce que le prix inclut ou exclut, échantillons, validation des visuels : le club les lit avec le devis, qui reste sans engagement jusqu’à ce que vous confirmiez la commande.",
+  "Before it can be verified, record %s.": "Avant de pouvoir le vérifier, indiquez %s."
 }

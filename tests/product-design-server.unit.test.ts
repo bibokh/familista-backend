@@ -170,6 +170,8 @@ describe('in a club (M2): the club’s own routes, and a record of its own', () 
     expect(await M.step(id, 'pay', 'note')).toMatchObject({ ok: false, code: 'BAD_STEP' }); // a step the server has no route for is never sent
     await M.recordQuote(id, {}); await M.publishQuote(id, id); await M.withdrawQuote(id, id, 'why'); await M.discardDraft(id, id); await M.specDesign(id, id); await M.requestFit(id);
     await M.productionSheet(id); await M.eraseNames(id, 'closed');
+    // P7: a design's tech pack, as the request froze it, for the order's supplier
+    await M.techPack(id, id, 'csv'); await M.techPack(id, id, 'json');
     expect(calls.every((c) => c.url.startsWith('/api/v1/system/manufacturing/'))).toBe(true);
     const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/manufacturing', '').replace(/\?.*$/, '')
       .replace(`/quotes/${id}`, '/quotes/:quoteId').replace(`/designs/${id}`, '/designs/:projectId').replace(`/requests/${id}`, '/requests/:requestId').replace(`/suppliers/${id}`, '/suppliers/:supplierId')}`);

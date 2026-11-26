@@ -10,7 +10,7 @@ import { UserRole } from '@prisma/client';
 import { z } from 'zod';
 import type { DesignActor, DesignScope } from '../product-design/service';
 import { refusals } from './errors';
-import { acceptQuote, clubStep, getClubRequest, listClubRequests, submitRequest } from './request.service';
+import { acceptQuote, assertMayDecide, clubStep, getClubRequest, listClubRequests, submitRequest } from './request.service';
 
 const Id = z.string().guid();
 const Note = z.string().max(4000).nullable().default(null);
@@ -29,11 +29,13 @@ export const listManufacturingRequests = handler(async (_req, res, tenant) => { 
 export const openManufacturingRequest = handler(async (req, res, tenant) => { res.json({ success: true, data: await getClubRequest(tenant, Id.parse(req.params.requestId)) }); });
 const step = (action: 'cancel' | 'decline' | 'deliver') => handler(async (req, res, tenant) => {
   const { note } = StepBody.parse(req.body ?? {});
+  if (action === 'decline') assertMayDecide(tenant, req.user?.role);
   res.json({ success: true, data: await clubStep(tenant, actorOf(req), Id.parse(req.params.requestId), action, note) });
 });
 export const cancelManufacturingRequest = step('cancel');
 export const declineManufacturingQuotes = step('decline');
 export const confirmManufacturingDelivery = step('deliver');
 export const acceptManufacturingQuote = handler(async (req, res, tenant) => {
+  assertMayDecide(tenant, req.user?.role);
   res.json({ success: true, data: await acceptQuote(tenant, actorOf(req), Id.parse(req.params.requestId), Id.parse(req.params.quoteId)) });
 });

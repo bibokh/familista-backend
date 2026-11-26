@@ -160,10 +160,14 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
       expect([r.status, r.body.code, r.body.reason]).toEqual([400, 'SUPPLIER_INVALID', reason]);
     }
     expect(await rows()).toEqual(before);
-    const a = await as('owner').post(`${OWNER}/suppliers`, { name: 'Factory A (test record)', country: 'PT', forms: ['top', 'shorts'], methods: ['SUBLIMATION'], leadTimeDays: 30 });
+    const a = await as('owner').post(`${OWNER}/suppliers`, { name: 'Factory A (test record)', country: 'PT', contactEmail: 'sales@factory-a.example', forms: ['top', 'shorts'], methods: ['SUBLIMATION'], leadTimeDays: 30 });
     const b = await as('owner').post(`${OWNER}/suppliers`, { name: 'Factory B (test record)', country: 'TR', forms: ['top'], methods: ['SCREEN_PRINT'] });
     expect([a.status, a.body.data.supplier.status, b.body.data.supplier.status]).toEqual([201, 'PROSPECT', 'PROSPECT']);
     verified = a.body.data.supplier.id; prospect = b.body.data.supplier.id;
+    // P7: a record is complete before it is verified: a way to reach the supplier, its garment forms and its methods
+    expect([a.body.data.supplier.gaps, b.body.data.supplier.gaps]).toEqual([[], ['contact']]);
+    const gap = await as('owner').post(`${OWNER}/suppliers/${prospect}/status`, { status: 'VERIFIED', note: 'Business registration checked' });
+    expect([gap.status, gap.body.reason, gap.body.path]).toEqual([400, 'incomplete', 'contact']);
     expect((await as('owner').post(`${OWNER}/suppliers/${verified}/status`, { status: 'VERIFIED', note: 'short' })).body.reason).toBe('note-too-short');
     const v = await as('owner').post(`${OWNER}/suppliers/${verified}/status`, { status: 'VERIFIED', note: 'Business registration and sample garments checked' });
     expect([v.status, v.body.data.supplier.status]).toEqual([200, 'VERIFIED']);
@@ -223,24 +227,26 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
     for (const [over, reason] of [
       [{ supplierId: prospect }, 'supplier-not-verified'], [{ currency: 'XYZ' }, 'bad-currency'], [{ totalMinor: 0 }, 'bad-amount'], [{ totalMinor: 12.5 }, undefined],
       [{ validUntil: inDays(-1) }, 'bad-valid-until'], [{ evidence: 'trust me' }, 'bad-evidence'], [{ supplierReference: '' }, 'bad-reference'],
-      [{ lines: [{ projectId: '00000000-0000-4000-8000-000000000000', unitMinor: 100, sets: 1 }] }, 'unknown-design'],
+      [{ lines: [{ projectId: '00000000-0000-4000-8000-000000000000', unitMinor: 100, sets: 1 }] }, 'unknown-design'], [{ terms: 'x'.repeat(1001) }, 'bad-terms'],
     ] as Array<[Row, string | undefined]>) {
       const r = await as('owner').post(`${OWNER}/requests/${req}/quotes`, { ...base, ...over });
       expect([JSON.stringify(over), r.status, r.body.reason]).toEqual([JSON.stringify(over), 400, reason]);
     }
     expect(await rows()).toEqual(before);
-    draft = (await as('owner').post(`${OWNER}/requests/${req}/quotes`, { ...base, lines: [{ projectId: shirt, unitMinor: 2900, sets: 3 }] })).body.data.request.quotes[0].id;
+    draft = (await as('owner').post(`${OWNER}/requests/${req}/quotes`, { ...base, lines: [{ projectId: shirt, unitMinor: 2900, sets: 3 }], terms: 'Excludes delivery. Artwork approved before cutting.' })).body.data.request.quotes[0].id;
     second = (await as('owner').post(`${OWNER}/requests/${req}/quotes`, { ...base, totalMinor: 99900, supplierReference: 'Q-2026-0043' })).body.data.request.quotes[1].id;
     expect((await as('admin').get(`${CLUB}/requests/${req}`)).body.data.request.quotes).toEqual([]); // drafts are the Owner's
     const pub = await as('owner').post(`${OWNER}/requests/${req}/quotes/${draft}/publish`);
     expect([pub.status, pub.body.data.request.status]).toEqual([200, 'QUOTED']);
     await as('owner').post(`${OWNER}/requests/${req}/quotes/${second}/publish`);
     const seen = (await as('admin').get(`${CLUB}/requests/${req}`)).body.data.request.quotes;
-    expect(seen.map((q: Row) => [q.status, q.currency, q.totalMinor, q.supplier])).toEqual([
-      ['PUBLISHED', 'EUR', 123450, { name: 'Factory A (test record)', country: 'PT' }], ['PUBLISHED', 'EUR', 99900, { name: 'Factory A (test record)', country: 'PT' }]]);
+    expect(seen.map((q: Row) => [q.status, q.currency, q.totalMinor, q.supplier, q.terms])).toEqual([
+      ['PUBLISHED', 'EUR', 123450, { name: 'Factory A (test record)', country: 'PT' }, 'Excludes delivery. Artwork approved before cutting.'],
+      ['PUBLISHED', 'EUR', 99900, { name: 'Factory A (test record)', country: 'PT' }, null]]);
     expect(JSON.stringify(seen)).not.toMatch(/evidence|supplierReference|Q-2026|contact|e-mail/);
     // a published quotation is never edited, and a prospect's is never published, on the system path either
     await expect(sysExec(`UPDATE "ManufacturingQuote" SET "totalMinor" = 1 WHERE "id" = $1`, draft)).rejects.toThrow(/ManufacturingQuote_frozen/);
+    await expect(sysExec(`UPDATE "ManufacturingQuote" SET "terms" = 'Includes delivery' WHERE "id" = $1`, draft)).rejects.toThrow(/ManufacturingQuote_frozen/);
     await expect(sysExec(`UPDATE "ManufacturingQuote" SET "supplierId" = $2, "status" = 'DRAFT' WHERE "id" = $1`, second, prospect)).rejects.toThrow(/ManufacturingQuote_frozen/);
     await expect(sysExec(`INSERT INTO "ManufacturingQuote" ("id","clubId","requestId","supplierId","status","currency","totalMinor","leadTimeDays","validUntil","supplierReference","evidence","recordedById","publishedAt","updatedAt")
       VALUES ($1,$2,$3,$4,'PUBLISHED','EUR',100,10,now()::date,'R','planted by hand','u',now(),now())`, '99999999-9999-4999-8999-999999999999', C1, req, prospect)).rejects.toThrow(/ManufacturingQuote_verified_supplier/);
@@ -252,6 +258,10 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
     for (const r of [await as('other').get(`${CLUB}/requests/${req}`), await as('other').post(`${CLUB}/requests/${req}/cancel`),
       await as('other').post(`${CLUB}/requests/${req}/quotes/${draft}/accept`)]) expect(r.status).toBe(404);
     expect((await as('other').get(`${CLUB}/requests`)).body.data.requests).toEqual([]);
+    // P7: a decision on quotations commits the club: a manager sees them, and only an administrator accepts or declines
+    for (const r of [await as('manager').post(`${CLUB}/requests/${req}/quotes/${draft}/accept`), await as('manager').post(`${CLUB}/requests/${req}/decline`)]) {
+      expect([r.status, r.body.code]).toEqual([403, 'MANUFACTURING_ADMIN_REQUIRED']);
+    }
     expect(await rows()).toEqual(before);
     // row-level security: in Away FC's context the database shows none of Home FC's requests, quotations or events
     const seen = await db.$transaction(async (tx) => {
@@ -262,7 +272,7 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
   });
 
   it('of two racing acceptances one lands; the other quotation is superseded; nothing is charged', async () => {
-    const race = await Promise.all([as('admin').post(`${CLUB}/requests/${req}/quotes/${draft}/accept`), as('manager').post(`${CLUB}/requests/${req}/quotes/${second}/accept`)]);
+    const race = await Promise.all([as('admin').post(`${CLUB}/requests/${req}/quotes/${draft}/accept`), as('admin').post(`${CLUB}/requests/${req}/quotes/${second}/accept`)]);
     expect(race.map((r) => r.status).sort()).toEqual([200, 409]);
     const won = race.find((r) => r.status === 200)!.body.data.request;
     expect(won.status).toBe('ACCEPTED');
@@ -339,6 +349,16 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
     expect(sheet.csv.split('\r\n').slice(0, 3)).toEqual(['\uFEFFname,number,top,shorts,socks,qty', 'SMITH,9,M,L,39-42,1', 'JONES,4,L,L,39-42,2']);
     const [a] = await sys(`SELECT "metadata" FROM "PlatformAuditLog" WHERE "resourceId" = $1 AND "action" = 'manufacturing.sheet.exported'`, req);
     expect(a.metadata).toMatchObject({ supplierId: verified, entries: 2, names: 2 });
+    // P7: each design's tech pack, as the request froze it, for the same supplier: JSON or CSV, the Owner's alone, recorded
+    expect((await as('admin').get(`${OWNER}/requests/${req}/designs/${shirt}/tech-pack`)).status).toBe(403);
+    expect((await as('owner').get(`${OWNER}/requests/${req}/designs/${roster}/tech-pack`)).status).toBe(404);
+    const tp = await as('owner').get(`${OWNER}/requests/${req}/designs/${shirt}/tech-pack`);
+    expect([tp.status, tp.body.data.techPack.design.name, tp.body.data.techPack.design.revision, tp.body.data.supplier.id]).toEqual([200, 'Home shirt', 1, verified]);
+    expect(JSON.stringify(tp.body.data.techPack)).not.toMatch(/SMITH|JONES/);
+    const csv = await as('owner').get(`${OWNER}/requests/${req}/designs/${shorts}/tech-pack?format=csv`);
+    expect([csv.headers['content-type'], csv.text.split('\r\n')[0]]).toEqual(['text/csv; charset=utf-8', '\uFEFFsurface,element,type,text,font,colour,hex,x_mm,y_mm,width_mm,height_mm,rotation_deg,printed']);
+    const packs = await sys(`SELECT "metadata"->>'format' AS f, "metadata"->>'supplierId' AS s FROM "PlatformAuditLog" WHERE "resourceId" = $1 AND "action" = 'manufacturing.techpack.exported' ORDER BY "createdAt"`, req);
+    expect(packs).toEqual([{ f: 'json', s: verified }, { f: 'csv', s: verified }]);
   });
 
   it('P1: minors: a child’s size or the club’s mark; their names are kept only with a club administrator’s attested consent', async () => {
@@ -411,10 +431,11 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
     // The race above, many times over: a loser that read the request before the winner committed, and its quotation
     // after, once answered 404 (seen in CI). Each round is a fresh request with two published quotations.
     // Its own verified supplier: the shared one was suspended by the test before.
-    const own = (await as('owner').post(`${OWNER}/suppliers`, { name: 'Factory R (test record)', country: 'ES', forms: ['top', 'shorts'], methods: ['SUBLIMATION'] })).body.data.supplier.id;
+    const own = (await as('owner').post(`${OWNER}/suppliers`, { name: 'Factory R (test record)', country: 'ES', website: 'https://factory-r.example', forms: ['top', 'shorts'], methods: ['SUBLIMATION'] })).body.data.supplier.id;
     expect((await as('owner').post(`${OWNER}/suppliers/${own}/status`, { status: 'VERIFIED', note: 'Business registration checked (test record)' })).status).toBe(200);
     const base = { supplierId: own, currency: 'EUR', totalMinor: 50000, lines: [], leadTimeDays: 20, validUntil: inDays(10), supplierReference: 'Q-R', evidence: 'Quotation PDF received by e-mail' };
     const seen: number[][] = [];
+    let last = '';
     for (let i = 0; i < 15; i++) {
       const r = (await as('admin').post(`${CLUB}/collections/${kit}/requests`, {})).body.data.request.id;
       await as('owner').post(`${OWNER}/requests/${r}/review`);
@@ -422,9 +443,12 @@ suite('Manufacturing (owner-brokered), on real PostgreSQL', () => {
       const q2 = (await as('owner').post(`${OWNER}/requests/${r}/quotes`, { ...base, totalMinor: 60000 })).body.data.request.quotes[1].id;
       await as('owner').post(`${OWNER}/requests/${r}/quotes/${q1}/publish`);
       await as('owner').post(`${OWNER}/requests/${r}/quotes/${q2}/publish`);
-      const race = await Promise.all([as('admin').post(`${CLUB}/requests/${r}/quotes/${q1}/accept`), as('manager').post(`${CLUB}/requests/${r}/quotes/${q2}/accept`)]);
+      const race = await Promise.all([as('admin').post(`${CLUB}/requests/${r}/quotes/${q1}/accept`), as('admin').post(`${CLUB}/requests/${r}/quotes/${q2}/accept`)]);
       seen.push(race.map((x) => x.status).sort());
+      last = r;
     }
     expect(seen.filter((x) => x.join() !== '200,409')).toEqual([]);
+    // P7: accepted is not ordered: no tech pack leaves for a supplier until the Owner confirms the order with it
+    expect((await as('owner').get(`${OWNER}/requests/${last}/designs/${shirt}/tech-pack`)).body.code).toBe('SHEET_NOT_AVAILABLE');
   });
 });

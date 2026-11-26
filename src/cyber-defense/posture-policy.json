@@ -872,7 +872,8 @@
         "POST /system/manufacturing/requests/:requestId/production",
         "POST /system/manufacturing/requests/:requestId/shipped",
         "POST /system/manufacturing/requests/:requestId/delivered",
-        "GET /system/manufacturing/requests/:requestId/designs/:projectId"
+        "GET /system/manufacturing/requests/:requestId/designs/:projectId",
+        "GET /system/manufacturing/requests/:requestId/designs/:projectId/tech-pack"
       ]
     },
     "manufacturing.routes :quoteId": {
@@ -886,9 +887,10 @@
     },
     "manufacturing.routes :projectId": {
       "basis": "cross-club-by-design",
-      "reason": "A design id is read only as one of the designs a request's frozen specification names, at the revision and hash it names (the service refuses any other), on the Platform Owner's console behind assertPlatformOwner, so the Owner can hand the supplier exactly what the club asked for.",
+      "reason": "A design id is read only as one of the designs a request's frozen specification names, at the revision and hash it names (the service refuses any other), on the Platform Owner's console behind assertPlatformOwner, so the Owner can hand the supplier exactly what the club asked for. P7: the same design's tech pack, built from that frozen revision, once the order is confirmed with its supplier.",
       "routes": [
-        "GET /system/manufacturing/requests/:requestId/designs/:projectId"
+        "GET /system/manufacturing/requests/:requestId/designs/:projectId",
+        "GET /system/manufacturing/requests/:requestId/designs/:projectId/tech-pack"
       ]
     },
     "product-design.routes :inviteId": {

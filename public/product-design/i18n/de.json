@@ -1363,5 +1363,19 @@
   "The invoice is void.": "Die Rechnung ist storniert.",
   "No subscription is past its end date.": "Kein Abonnement ist über sein Enddatum hinaus.",
   "Marked expired: %d.": "Als abgelaufen markiert: %d.",
-  "Enter the price as a number, such as 9.90.": "Geben Sie den Preis als Zahl ein, etwa 9,90."
+  "Enter the price as a number, such as 9.90.": "Geben Sie den Preis als Zahl ein, etwa 9,90.",
+  "Only a club administrator accepts or declines quotations.": "Nur ein Vereinsadministrator nimmt Angebote an oder lehnt sie ab.",
+  "Quotations are non-binding. Accepting one asks Familista to confirm the order with that supplier; nothing is ordered or charged until Familista confirms it here.": "Angebote sind unverbindlich. Wer eines annimmt, bittet Familista, die Bestellung mit diesem Lieferanten zu bestätigen; bis Familista sie hier bestätigt, wird nichts bestellt oder berechnet.",
+  "Supplier’s conditions:": "Bedingungen des Lieferanten:",
+  "The supplier’s conditions: plain text, at most 1000 characters.": "Bedingungen des Lieferanten: reiner Text, höchstens 1000 Zeichen.",
+  "Before verifying, record a way to reach the supplier (an e-mail or a website), the garments it makes and the methods it offers.": "Erfassen Sie vor der Verifizierung, wie der Lieferant erreichbar ist (E-Mail oder Website), welche Kleidungsstücke er herstellt und welche Verfahren er anbietet.",
+  "a way to reach it": "wie er erreichbar ist",
+  "the garments it makes": "welche Kleidungsstücke er herstellt",
+  "the methods it offers": "welche Verfahren er anbietet",
+  "The tech pack is available once the order is confirmed with the supplier.": "Das Tech Pack ist verfügbar, sobald die Bestellung mit dem Lieferanten bestätigt ist.",
+  "Download the tech pack of %s": "Tech Pack von %s herunterladen",
+  "Download the tech pack (CSV)": "Tech Pack herunterladen (CSV)",
+  "The supplier’s conditions": "Bedingungen des Lieferanten",
+  "Optional. What the price includes or excludes, samples, artwork approval: the club reads them with the quotation, which stays non-binding until you confirm the order.": "Optional. Was der Preis enthält oder ausschließt, Muster, Freigabe der Grafik: Der Verein liest sie mit dem Angebot, das unverbindlich bleibt, bis Sie die Bestellung bestätigen.",
+  "Before it can be verified, record %s.": "Bevor er verifiziert werden kann, erfassen Sie: %s."
 }

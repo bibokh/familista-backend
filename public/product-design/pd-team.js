@@ -69,7 +69,7 @@
     }) : null;
     // M4: the club's requests for quotation, the panel's third tab (pd-requests.js), when the room loaded it.
     var RQ = ctx.requests ? ctx.requests.create({
-      h: h, btn: btn, icon: icon, T: T, tf: tf, api: api, date: ctx.date, lang: ctx.lang, approvalChip: ctx.approvalChip || null,
+      h: h, btn: btn, icon: icon, T: T, tf: tf, api: api, date: ctx.date, lang: ctx.lang, approvalChip: ctx.approvalChip || null, role: ctx.role || null,
       render: function () { render(); },
       note: function (text) { st.note = text; var n = el.querySelector('[data-pd-team-status]'); if (n) n.textContent = text; },
       show: function (view) { st.view = view; st.note = ''; render(); },

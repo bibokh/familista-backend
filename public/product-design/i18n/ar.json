@@ -1363,5 +1363,19 @@
   "The invoice is void.": "أُلغيت الفاتورة.",
   "No subscription is past its end date.": "لا يوجد اشتراك تجاوز تاريخ انتهائه.",
   "Marked expired: %d.": "وُسمت منتهية: %d.",
-  "Enter the price as a number, such as 9.90.": "أدخل السعر رقمًا، مثل 9.90."
+  "Enter the price as a number, such as 9.90.": "أدخل السعر رقمًا، مثل 9.90.",
+  "Only a club administrator accepts or declines quotations.": "وحده مسؤول النادي يقبل عروض الأسعار أو يرفضها.",
+  "Quotations are non-binding. Accepting one asks Familista to confirm the order with that supplier; nothing is ordered or charged until Familista confirms it here.": "عروض الأسعار غير ملزمة. قبول أحدها يطلب من Familista تأكيد الطلب مع ذلك المورّد؛ ولا يُطلب أو يُحصَّل شيء حتى تؤكده Familista هنا.",
+  "Supplier’s conditions:": "شروط المورّد:",
+  "The supplier’s conditions: plain text, at most 1000 characters.": "شروط المورّد: نص عادي بحد أقصى 1000 حرف.",
+  "Before verifying, record a way to reach the supplier (an e-mail or a website), the garments it makes and the methods it offers.": "قبل التحقق، سجّل وسيلة للتواصل مع المورّد (بريد إلكتروني أو موقع)، والقطع التي يصنعها، والأساليب التي يقدمها.",
+  "a way to reach it": "وسيلة للتواصل معه",
+  "the garments it makes": "القطع التي يصنعها",
+  "the methods it offers": "الأساليب التي يقدمها",
+  "The tech pack is available once the order is confirmed with the supplier.": "يتاح الملف الفني بعد تأكيد الطلب مع المورّد.",
+  "Download the tech pack of %s": "تنزيل الملف الفني لـ %s",
+  "Download the tech pack (CSV)": "تنزيل الملف الفني (CSV)",
+  "The supplier’s conditions": "شروط المورّد",
+  "Optional. What the price includes or excludes, samples, artwork approval: the club reads them with the quotation, which stays non-binding until you confirm the order.": "اختياري. ما يشمله السعر أو يستثنيه، والعينات، واعتماد التصميم: يقرؤها النادي مع العرض، الذي يبقى غير ملزم حتى تؤكد الطلب.",
+  "Before it can be verified, record %s.": "قبل التحقق منه، سجّل %s."
 }

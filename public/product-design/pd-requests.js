@@ -56,6 +56,8 @@
 
   function create(shell) {
     var h = shell.h, btn = shell.btn, icon = shell.icon, T = shell.T, tf = shell.tf, api = shell.api;
+    /** P7: who decides on quotations: in a club its administrators (the server holds it); a creator on their own requests. */
+    function mayDecide() { var r = shell.role ? shell.role() : ''; return r === 'CLUB_ADMIN' || r === 'CREATOR'; }
     var st = { list: { state: 'idle', items: [], error: '' }, cur: null, busy: false, seq: 0 };
 
     function loadList() {
@@ -82,6 +84,7 @@
       st.busy = false;
       if (r.ok && r.data && r.data.request) { st.cur = { id: r.data.request.id, state: 'ready', data: r.data.request }; shell.note(okText); }
       else if (r.code === 'REQUEST_STEP_REFUSED') { shell.note(T(REFUSED[r.reason] || REFUSED['wrong-status'])); if (st.cur) open(st.cur.id); return; }
+      else if (r.code === 'MANUFACTURING_ADMIN_REQUIRED') shell.note(T('Only a club administrator accepts or declines quotations.'));
       else shell.note(r.status === 0 ? T('Not sent: the server could not be reached.') : T('The request could not be changed.'));
       shell.render();
     }
@@ -159,14 +162,19 @@
         out.push(h('p', { class: 'pd-empty', text: FINAL[r.status] ? T('No quotation was published for this request.')
           : T('No quotation yet. Familista asks verified suppliers and publishes their quotations here.') }));
       } else {
+        // P7: a quotation is an offer, not an order: said once, above them, while any can still be accepted.
+        if (r.status === 'QUOTED') out.push(h('p', { class: 'pd-note pd-note--info', 'data-pd-req-nonbinding': '' }, [icon('info', 14),
+          h('span', { text: T('Quotations are non-binding. Accepting one asks Familista to confirm the order with that supplier; nothing is ordered or charged until Familista confirms it here.') })]));
+        if (r.status === 'QUOTED' && !mayDecide()) out.push(h('p', { class: 'pd-note', 'data-pd-req-decider': '' , text: T('Only a club administrator accepts or declines quotations.') }));
         var ql = h('ul', { class: 'pd-dock-list pd-req-quotes', role: 'list' });
         r.quotes.forEach(function (q) {
-          var accept = r.status === 'QUOTED' && q.status === 'PUBLISHED';
+          var accept = r.status === 'QUOTED' && q.status === 'PUBLISHED' && mayDecide();
           ql.appendChild(h('li', { class: 'pd-dock-row pd-req-quote', 'data-pd-quote': q.id }, [
             h('div', { class: 'pd-dock-text' }, [
               h('span', { class: 'pd-req-amount', text: money(q.totalMinor, q.currency, lang) }),
               h('span', { class: 'pd-dock-kicker' }, [h('span', { 'data-user-content': '', text: q.supplier.name }), ' · ' + region(q.supplier.country, lang) + ' · ' + T('Verified by Familista')]),
               h('span', { class: 'pd-dock-kicker', text: tf('Made in %d days · valid until %s', q.leadTimeDays, day(q.validUntil, lang)) }),
+              q.terms ? h('span', { class: 'pd-req-note', 'data-pd-quote-terms': '' }, [h('span', { text: T('Supplier’s conditions:') + ' ' }), h('span', { 'data-user-content': '', dir: 'auto', text: q.terms })]) : null,
             ]),
             h('div', { class: 'pd-dock-btns' }, [
               h('span', { class: 'pd-chip ' + (q.status === 'SUPERSEDED' ? 'pd-chip--muted' : 'pd-chip--accent'), text: T(QUOTE[q.status] || q.status) }),
@@ -178,7 +186,7 @@
       }
       // The club's own steps.
       var steps = [];
-      if (r.status === 'QUOTED') steps.push(btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'req-decline' }, [h('span', { text: T('Decline the quotations') })]));
+      if (r.status === 'QUOTED' && mayDecide()) steps.push(btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'req-decline' }, [h('span', { text: T('Decline the quotations') })]));
       if (r.status === 'SUBMITTED' || r.status === 'IN_REVIEW' || r.status === 'QUOTED') steps.push(btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'req-cancel' }, [h('span', { text: T('Cancel the request') })]));
       if (r.status === 'SHIPPED') steps.push(btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'req-delivered' }, [icon('check', 14), h('span', { text: T('Confirm delivery') })]));
       if (steps.length) out.push(h('div', { class: 'pd-team-tools', role: 'group', 'aria-label': T('Your steps') }, steps));

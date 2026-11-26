@@ -20,7 +20,7 @@ import { assertPlatformOwner } from '../platform/system.service';
 import {
   ownerConfirmOrder, ownerCreateSupplier, ownerDiscardDraft, ownerListRequests, ownerListSuppliers, ownerOpenRequest, ownerOpenSupplier,
   ownerPublishQuote, ownerRecordDelivery, ownerRecordQuote, ownerRecordShipping, ownerRefuseRequest, ownerReviewRequest, ownerSaveSupplier,
-  ownerEraseNames, ownerProductionSheet, ownerRequestFit, ownerSetSupplierStatus, ownerSpecDesign, ownerStartProduction, ownerWithdrawQuote,
+  ownerEraseNames, ownerProductionSheet, ownerProductionTechPack, ownerRequestFit, ownerSetSupplierStatus, ownerSpecDesign, ownerStartProduction, ownerWithdrawQuote,
 } from '../platform/manufacturing/owner-http';
 
 const router = Router();
@@ -53,6 +53,8 @@ router.post('/requests/:requestId/production', ownerStartProduction);
 router.post('/requests/:requestId/shipped', ownerRecordShipping);
 router.post('/requests/:requestId/delivered', ownerRecordDelivery);
 router.get('/requests/:requestId/designs/:projectId', ownerSpecDesign);
+// P7: the tech pack of a design as the request froze it, for the order's supplier (once the order is confirmed).
+router.get('/requests/:requestId/designs/:projectId/tech-pack', ownerProductionTechPack);
 // M7d: how each verified supplier fits the request, from what was recorded about it.
 router.get('/requests/:requestId/fit', ownerRequestFit);
 // P1: the production sheet leaves only once the order is confirmed with its supplier, and is recorded when it does;

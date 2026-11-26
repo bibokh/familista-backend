@@ -274,6 +274,11 @@
         requestFit: function (requestId) { return call('GET', '/requests/' + id(requestId) + '/fit'); },
         // P1: the production sheet, once the order is confirmed with its supplier; a closed request's names, erased.
         productionSheet: function (requestId) { return call('POST', '/requests/' + id(requestId) + '/production-sheet', {}); },
+        // P7: a design's tech pack as the request froze it (CSV), for the order's supplier, once the order is confirmed.
+        techPack: function (requestId, projectId, format) {
+          return format === 'csv' ? call('GET', '/requests/' + id(requestId) + '/designs/' + id(projectId) + '/tech-pack?format=csv', undefined, { blob: true, accept: 'text/csv' })
+            : call('GET', '/requests/' + id(requestId) + '/designs/' + id(projectId) + '/tech-pack');
+        },
         eraseNames: function (requestId, note) { return call('POST', '/requests/' + id(requestId) + '/erase-names', { note: String(note || '') }); },
       };
     }
