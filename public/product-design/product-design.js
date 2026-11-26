@@ -136,7 +136,6 @@
     'No collections yet. A collection gathers the club’s saved designs as one kit, a season’s home kit for instance, and counts a roster’s sizes for each.':
       L('No collections yet. A collection gathers your saved designs as one kit, a season’s home kit for instance, and counts a roster’s sizes for each.'),
     'No designs yet. Add the club’s saved designs below: the shirt, the shorts and the socks of one kit.': L('No designs yet. Add your saved designs below: the shirt, the shorts and the socks of one kit.'),
-    'Familista works with verified suppliers for your club: ask for a quotation from a collection’s order sheet.': L('Familista works with verified suppliers for you: ask for a quotation from a collection’s order sheet.'),
     'The club has too many open requests: close one first.': L('You have too many open requests: close one first.'),
     'Cancelled by the club': L('Cancelled by you'),
     'Your club': L('You'),
@@ -339,7 +338,7 @@
     method: L('Production methods come from a connected supplier (DS-5). This is the template’s reference.'),
     fabric: L('Fabrics come from a connected supplier (DS-5). This is the template’s reference.'),
     store: L('The Global Store is planned (DS-7).'),
-    'suppliers-club': L('Familista works with verified suppliers for your club: ask for a quotation from a collection’s order sheet.'),
+    'suppliers-club': L('Quotations come through Familista, only from suppliers it has verified: ask for one from a collection’s order sheet.'),
     'not-in-plan': L('Not included in your club’s plan. The platform owner decides what each plan includes.'),
   };
 

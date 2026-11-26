@@ -4,6 +4,50 @@ Assessed 26 November 2026, on branch `claude/kind-bell-inkoyy`. This is an engin
 opening commercial access, activating payments, merging and deploying are the Platform Owner's, and none of them has
 been done.
 
+## Final acceptance (26 November 2026, PR #164)
+
+Three different bars, kept apart. **Engineering complete**: built, and held by automated evidence. **Invited pilot**:
+safe to put in front of invited clubs and creators under `PILOT-OPERATIONS.md`, with every external gap said on screen.
+**Public launch**: open to anyone, for money; needs what only the Owner can provide.
+
+| Feature | Engineering complete | Invited pilot | Public commercial launch |
+|---|---|---|---|
+| Design Studio (garments, 2D/2.5D/3D, versions) | Yes | Yes | Needs real-device performance validation |
+| Club workspaces and isolation (row-level security) | Yes | Yes | Needs an independent security review |
+| Brand kit, rosters, collections, order and presentation sheets | Yes | Yes | Yes, after legal review (rosters hold people's names) |
+| Reviews and approvals | Yes | Yes | Yes |
+| Colourways | Yes | Yes | Yes |
+| Rollout control (club by club) | Yes | Yes (the pilot's main control) | — |
+| Privacy controls (erasure, retention rules, minors' consent) | Yes | Yes | Needs retention periods and the legal review |
+| Creator Studio accounts (invitation only), export, deletion | Yes | Yes | Needs public enrolment decided; export to include billing records |
+| Sharing between creators | Yes | Yes | Yes |
+| Plans and server-side entitlements | Yes | Yes (plans granted by the Owner) | Needs payment collection |
+| Professional tools (print sheet, tech pack) | Yes | Yes | Yes |
+| Billing (invoices, subscriptions, grants, voids, expiry) | Yes | Yes, **no collection**: invoices stay open | Needs a payment provider, keys and tax treatment |
+| Manufacturing workflow (owner-brokered) | Yes | Only with `club_design_manufacturing` Off and no supplier verified, or after a supplier agreement | Needs supplier agreements and the contract structure of brokered orders |
+| Non-binding quotations, administrator-only decisions | Yes | As above | As above |
+| Getting started; sign-in page with honest service status; Owner readiness | Yes | Yes | Needs the services it reports on |
+| Five room languages | Yes (complete, checked) | Yes | Needs native-speaker review |
+
+**Defects fixed at acceptance**: none in the code paths. Wording that would have been untrue under pilot conditions was
+corrected in five languages: the account panel and Getting started said a confirmation link was "in the email sent when
+you opened the account" (no email is sent while email is not configured), and five sentences presented quotations as
+coming "from verified suppliers" while none is verified. Three index names in the P6 migration were aligned with the
+Prisma schema (no database change).
+
+**Security review** (creator accounts, sharing, entitlements, billing, isolation): every new route is behind its guard
+(creator authentication and ownership checks on every id, club roles and `tenantParam`, the Owner's
+`assertPlatformOwner`); the security posture check is unchanged (79 controls present, every handler classified); the
+public sign-in answer reads no account, club or person and sits behind the authentication rate limit; money paths
+cannot be reached over HTTP (no webhook route exists); the database enforces one owner per row, row-level security,
+one live subscription per workspace, PAID only from a recorded provider event, and immutable payment events. Accepted
+limits are listed in `PILOT-OPERATIONS.md`, section 6. An independent review has not been done.
+
+**Database integrity**: the migrations apply from scratch (every PostgreSQL suite, with enforcement on); the schema
+differs from the migrations only where the database is stricter than Prisma can express (composite owner foreign keys,
+the same as before this work); the eleven new migrations rewrite and delete no data; the previous release's
+`prisma migrate deploy` accepts the new schema, so the code can be rolled back without a schema rollback.
+
 ## Verdict
 
 | Release | Verdict | Why |

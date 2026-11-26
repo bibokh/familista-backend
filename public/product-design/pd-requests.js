@@ -101,7 +101,7 @@
     function listBody() {
       var Lst = st.list, out = [];
       if (Lst.state === 'idle') loadList();
-      out.push(h('p', { class: 'pd-note', text: T('Familista obtains quotations from verified suppliers for a collection and a roster, and follows the order to delivery. Ask for one from a collection’s order sheet.') }));
+      out.push(h('p', { class: 'pd-note', text: T('Familista obtains quotations, only from suppliers it has verified, for a collection and a roster, and follows the order to delivery. Ask for one from a collection’s order sheet.') }));
       if (Lst.state === 'loading' || Lst.state === 'idle') {
         out.push(h('ul', { class: 'pd-dock-list', 'aria-busy': 'true' }, [0, 1, 2].map(function () { return h('li', { class: 'pd-dock-row is-skeleton' }, [h('span', { class: 'pd-dock-bar' }), h('span', { class: 'pd-dock-bar is-short' })]); })));
       } else if (Lst.state === 'error') {
@@ -160,7 +160,7 @@
       out.push(h('h3', { class: 'pd-prop-sub', text: T('Quotations') }));
       if (!r.quotes.length) {
         out.push(h('p', { class: 'pd-empty', text: FINAL[r.status] ? T('No quotation was published for this request.')
-          : T('No quotation yet. Familista asks verified suppliers and publishes their quotations here.') }));
+          : T('No quotation yet. Familista asks only suppliers it has verified, and publishes their quotations here.') }));
       } else {
         // P7: a quotation is an offer, not an order: said once, above them, while any can still be accepted.
         if (r.status === 'QUOTED') out.push(h('p', { class: 'pd-note pd-note--info', 'data-pd-req-nonbinding': '' }, [icon('info', 14),

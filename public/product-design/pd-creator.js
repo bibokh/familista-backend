@@ -143,7 +143,7 @@
         [L('The full Design Studio'), L('Kits, goalkeeper shirts, training tops, shorts and socks, in 2D and 3D.')],
         [L('Every version kept'), L('Each save is a version you can open, compare and restore.')],
         [L('Team kits'), L('Rosters with names, numbers and sizes, and collections that count every size.')],
-        [L('Quotations through Familista'), L('Ask for a non-binding quotation from verified suppliers. Nothing is charged here.')],
+        [L('Quotations through Familista'), L('Ask Familista for a non-binding quotation; it comes only from a supplier Familista has verified. Nothing is charged here.')],
       ];
       return h('aside', { class: 'pd-gate-aside', 'aria-label': T('What the Creator Studio does') }, [
         h('p', { class: 'pd-dock-kicker', text: T('Creator Studio') }),
@@ -319,7 +319,7 @@
           h('p', { class: 'pd-acct-state' }, [h('span', { class: 'pd-chip' + (verified ? '' : ' pd-chip--muted'), 'data-verified': verified ? 'true' : 'false', text: verified ? T('Address confirmed') : T('Address not confirmed') })]),
         ]),
         verified ? null : h('div', { class: 'pd-acct-block' }, [
-          h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: T('Confirm your address to ask Familista for quotations. The link is in the email sent when you opened the account.') })]),
+          h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: T('Confirm your address to ask Familista for quotations: send yourself the link from here. Until this platform can send email, the Platform Owner confirms addresses.') })]),
           btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'acct-resend', 'data-pd-acct-key': 'resend', 'aria-disabled': busyAttr() }, [icon('link', 14), h('span', { text: T('Send the link again') })]),
           st.mail ? h('p', { class: 'pd-note' + (st.mail.sent ? '' : ' pd-note--warn'), 'data-pd-acct-mail': st.mail.sent ? 'sent' : st.mail.configured ? 'failed' : 'not-configured',
             text: st.mail.sent ? T('The link is on its way. It works once, for 48 hours.') : st.mail.configured ? T('The email could not be sent. Try again later.') : T('This platform cannot send email yet. The Platform Owner can confirm your address meanwhile.') }) : null,

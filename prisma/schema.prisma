@@ -11639,7 +11639,7 @@ model CommercialPlan {
   updatedAt      DateTime                 @default(now()) @updatedAt @db.Timestamptz(3)
   subscriptions  CommercialSubscription[]
 
-  @@index([audience, active, sortOrder])
+  @@index([audience, active, sortOrder], map: "CommercialPlan_audience_active_idx")
 }
 
 /// A tenant's subscription to a plan: one club's or one creator's (exactly one, SQL check); one live per tenant.
@@ -11664,7 +11664,7 @@ model CommercialSubscription {
 
   @@unique([id, clubId])
   @@unique([id, creatorId])
-  @@index([status, currentPeriodEnd])
+  @@index([status, currentPeriodEnd], map: "CommercialSubscription_status_idx")
 }
 
 /// An invoice for a subscription. Its amounts never change; it is PAID only after a recorded successful payment of its
@@ -11693,7 +11693,7 @@ model CommercialInvoice {
   @@unique([id, clubId])
   @@unique([id, creatorId])
   @@index([subscriptionId])
-  @@index([status, issuedAt])
+  @@index([status, issuedAt], map: "CommercialInvoice_status_idx")
 }
 
 /// What a payment provider reported about an invoice, once per provider event; never changed or removed.

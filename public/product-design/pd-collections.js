@@ -358,7 +358,7 @@
         ? h('p', { class: 'pd-note pd-note--warn', 'data-pd-col-unapproved': String(items.length - approved) }, [icon('alert', 14), h('span', { text: tf('%d of %d designs are approved by a club administrator. You can still ask for a quotation; approve them in Review first if they should be final.', approved, items.length) })])
         : null;
       return h('div', { class: 'pd-dock-alert pd-col-ask', role: 'group', 'aria-label': T('Request a quotation') }, [
-        h('p', { class: 'pd-note', text: T('Familista asks verified suppliers for quotations for exactly this collection and roster, as they are now, and publishes them in Requests. Nothing is ordered or charged until you accept one and Familista confirms it.') }),
+        h('p', { class: 'pd-note', text: T('Familista asks only suppliers it has verified for quotations for exactly this collection and roster, as they are now, and publishes them in Requests. Nothing is ordered or charged until you accept one and Familista confirms it.') }),
         unreviewed,
         h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('A note for Familista (optional)') }), note]),
         h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-dock-kicker', text: T('Needed by (optional)') }), date]),

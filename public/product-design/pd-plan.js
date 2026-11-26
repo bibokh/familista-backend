@@ -371,7 +371,7 @@
 
   /** Each step: what it is, why, and where the room takes the reader to do it. Shown only where the plan includes it. */
   var STEPS = [
-    { key: 'address', who: 'CREATOR', title: L('Confirm your email address'), text: L('Needed to ask Familista for quotations. The link is in the email sent when you opened the account.'), go: L('Open Account') },
+    { key: 'address', who: 'CREATOR', title: L('Confirm your email address'), text: L('Needed to ask Familista for quotations. Account sends the link; until this platform can send email, the Platform Owner confirms addresses.'), go: L('Open Account') },
     { key: 'design', title: L('Save a first design'), text: L('Saved on the Familista server, it keeps every version and can be shared, reviewed and quoted.'), go: L('Save design') },
     { key: 'brand', part: 'brandKit', title: L('Keep your colours in the brand kit'), text: L('Saved once, they are offered in every design and colourway.'), go: L('Open the brand kit') },
     { key: 'roster', part: 'teamKit', title: L('Add a team roster'), text: L('Names, numbers and sizes, typed or imported from a spreadsheet.'), go: L('Open Team') },
