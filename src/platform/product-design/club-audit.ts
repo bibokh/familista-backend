@@ -15,12 +15,14 @@ export async function tenantAudit(
   entry: { action: string; resourceType: string; resourceId: string; metadata: Record<string, unknown>; message: string },
 ): Promise<void> {
   const owner = tenant.kind === 'club' ? { userId: actor.userId, clubId: tenant.clubId, creatorId: null } : { userId: null, clubId: null, creatorId: tenant.creatorId };
+  // P4: on a creator's record, an action by another creator (a collaborator's note) names who took it.
+  const by = tenant.kind === 'creator' && actor.userId && actor.userId !== tenant.creatorId ? { actorCreatorId: actor.userId } : {};
   await tx.platformAuditLog.create({
     data: {
       adminId: null, ...owner, action: entry.action, category: PlatformAuditCategory.ASSET,
       resourceType: entry.resourceType, resourceId: entry.resourceId,
       ipAddress: actor.ipAddress ?? undefined, userAgent: actor.userAgent ?? undefined,
-      metadata: { ...entry.metadata, environment: currentEnvironment(), correlationId: actor.correlationId ?? null } as Prisma.InputJsonValue,
+      metadata: { ...entry.metadata, ...by, environment: currentEnvironment(), correlationId: actor.correlationId ?? null } as Prisma.InputJsonValue,
       message: entry.message,
     },
   });

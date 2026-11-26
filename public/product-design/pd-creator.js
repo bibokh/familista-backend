@@ -393,5 +393,179 @@
     };
   }
 
-  return { gate: gate, account: account, INVALID: INVALID };
+  // ── designs shared with me (P4) ───────────────────────────────────────────
+
+  var SHARE_ROLE = { VIEW: L('Can see'), COMMENT: L('Can comment') };
+  /**
+   * A floating panel, like the account panel: the designs other creators shared with this one, and one of them opened:
+   * drawn as its owner last saved it, its review, and (with COMMENT) a note. Nothing here can change the design.
+   * ctx: { h, btn, icon, T, tf, api, host, dirArrow, date, draw(doc, tpl, view, prefix), template(key), validate(raw, tpl),
+   * productLabel(key), approvalChip(a), onToggle() }
+   */
+  function shared(ctx) {
+    var h = ctx.h, btn = ctx.btn, icon = ctx.icon, T = ctx.T, tf = ctx.tf, api = ctx.api;
+    var st = { open: false, trigger: null, view: 'list', list: { state: 'idle', items: [] }, cur: null, busy: false, note: '', draft: { surface: '', body: '' }, seq: 0 };
+    var el = h('section', { class: 'pd-team pd-shared', id: 'pd-shared', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'pd-shared-title', 'data-open': 'false' });
+
+    function say(text) { st.note = text; var n = el.querySelector('[data-pd-shared-status]'); if (n) n.textContent = text; }
+    function loadList() {
+      var seq = ++st.seq;
+      st.list.state = st.list.state === 'ready' ? 'refresh' : 'loading'; render();
+      api.sharedWithMe().then(function (r) {
+        if (seq !== st.seq) return;
+        st.list = r.ok && r.data ? { state: 'ready', items: r.data.designs } : { state: 'error', items: [] };
+        render();
+      });
+    }
+    function openDesign(id) {
+      var seq = ++st.seq;
+      st.view = 'design'; st.cur = { id: id, state: 'loading', design: null, review: null, tpl: null, doc: null }; st.draft = { surface: '', body: '' }; st.note = ''; render();
+      Promise.all([api.openShared(id), api.readSharedReview(id)]).then(function (rs) {
+        if (seq !== st.seq) return null;
+        var d = rs[0], rv = rs[1];
+        if (!d.ok || !d.data || !rv.ok || !rv.data) { st.cur.state = d.status === 404 ? 'gone' : 'error'; render(); return null; }
+        st.cur.design = d.data.design; st.cur.review = rv.data.review;
+        return ctx.template(d.data.design.templateKey).then(function (tpl) {
+          if (seq !== st.seq) return;
+          st.cur.tpl = tpl; st.cur.doc = ctx.validate(d.data.design.revision.document, tpl); st.cur.state = 'ready'; render();
+        }, function () { if (seq === st.seq) { st.cur.state = 'ready'; render(); } });
+      });
+    }
+    function reloadReview() {
+      var c = st.cur; if (!c) return;
+      api.readSharedReview(c.id).then(function (r) { if (st.cur === c && r.ok && r.data) { c.review = r.data.review; render(); } });
+    }
+    function comment() {
+      var c = st.cur, text = st.draft.body.trim();
+      if (!c || !c.design || st.busy) return;
+      if (!text) { say(T('Write something first.')); return; }
+      st.busy = true; render();
+      api.commentOnShared(c.id, { revision: c.design.headRevision, surface: st.draft.surface || null, body: text }).then(function (r) {
+        st.busy = false;
+        if (r.ok) { st.draft.body = ''; say(T('Note added. Its owner sees it in the design’s review.')); reloadReview(); return; }
+        if (r.status === 404) { st.cur.state = 'gone'; render(); return; }
+        say(r.code === 'SHARE_VIEW_ONLY' ? T('This design is shared with you to see, not to comment on.') : r.status === 0 ? T('The server could not be reached.') : T('The server did not accept this.'));
+        render();
+      });
+    }
+
+    function render() {
+      var keep = el.querySelector('.pd-team-body'), scroll = keep ? keep.scrollTop : 0;
+      var active = document.activeElement && el.contains(document.activeElement) ? document.activeElement.getAttribute('data-pd-shared-key') : null;
+      while (el.firstChild) el.removeChild(el.firstChild);
+      var detail = st.view === 'design';
+      el.appendChild(h('div', { class: 'pd-dock-head pd-team-head' }, [
+        detail ? btn({ class: 'pd-btn pd-btn--ghost pd-team-back', 'data-pd-act': 'shared-back', 'data-pd-shared-key': 'back' }, [ctx.dirArrow('←'), h('span', { text: T('Shared with me') })]) : null,
+        h('h2', { class: 'pd-h2', id: 'pd-shared-title' }, [icon('link', 16), h('span', { text: detail ? T('Shared design') : T('Shared with me') })]),
+        btn({ class: 'pd-icbtn', 'data-pd-act': 'shared-close', 'data-pd-shared-key': 'close', 'aria-label': T('Close') }, [icon('close')]),
+      ]));
+      var body = h('div', { class: 'pd-dock-body pd-team-body', tabindex: '0' }, detail ? designBody() : listBody());
+      el.appendChild(body);
+      el.appendChild(h('p', { class: 'pd-note pd-team-status', role: 'status', 'aria-live': 'polite', 'data-pd-shared-status': '', text: st.note }));
+      body.scrollTop = scroll;
+      if (active) { var back = el.querySelector('[data-pd-shared-key="' + active + '"]'); if (back) back.focus({ preventScroll: true }); }
+    }
+    function skeleton(n) { return h('ul', { class: 'pd-dock-list', 'aria-busy': 'true', 'aria-hidden': 'true' }, Array.from({ length: n }, function () { return h('li', { class: 'pd-dock-row is-skeleton' }, [h('span', { class: 'pd-dock-bar' }), h('span', { class: 'pd-dock-bar is-short' })]); })); }
+    function listBody() {
+      var Lst = st.list;
+      if (Lst.state === 'loading' || Lst.state === 'idle') return [skeleton(3)];
+      if (Lst.state === 'error') return [h('div', { class: 'pd-dock-state', role: 'alert' }, [h('p', { class: 'pd-empty', text: T('The shared designs could not be loaded.') }), btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'shared-retry', 'data-pd-shared-key': 'retry' }, [h('span', { text: T('Try again') })])])];
+      if (!Lst.items.length) return [h('p', { class: 'pd-empty', text: T('No design is shared with you yet. When another creator shares one with your address, it appears here.') })];
+      return [h('ul', { class: 'pd-dock-list', role: 'list' }, Lst.items.map(function (d) {
+        return h('li', { class: 'pd-dock-row', 'data-pd-shared': d.id }, [
+          h('span', { class: 'pd-dock-main' }, [
+            h('span', { class: 'pd-dock-name', 'data-user-content': '', dir: 'auto', text: d.name }),
+            h('span', { class: 'pd-dock-kicker' }, [h('span', { text: ctx.productLabel(d.templateKey) }), h('span', { text: ' · ' }),
+              d.owner.displayName ? h('span', { 'data-user-content': '', dir: 'auto', text: d.owner.displayName }) : h('span', { text: T('Deleted account') }),
+              h('span', { text: ' · ' }), h('span', { text: tf('Version %d', d.headRevision) })]),
+          ]),
+          h('span', { class: 'pd-chip pd-chip--muted', 'data-role': d.role, text: T(SHARE_ROLE[d.role]) }),
+          btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'shared-open', 'data-pd-id': d.id, 'data-pd-shared-key': 'open-' + d.id },
+            [h('span', { text: T('Open') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + d.name })]),
+        ]);
+      }))];
+    }
+    function designBody() {
+      var c = st.cur;
+      if (!c || c.state === 'loading') return [skeleton(2)];
+      if (c.state === 'gone') return [h('p', { class: 'pd-empty', role: 'alert', text: T('This design is no longer shared with you.') })];
+      if (c.state === 'error') return [h('div', { class: 'pd-dock-state', role: 'alert' }, [h('p', { class: 'pd-empty', text: T('The shared design could not be loaded.') }), btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'shared-reopen', 'data-pd-shared-key': 'reopen' }, [h('span', { text: T('Try again') })])])];
+      var d = c.design, rv = c.review, out = [];
+      out.push(h('div', { class: 'pd-dock-current' }, [h('div', { class: 'pd-dock-text' }, [
+        h('span', { class: 'pd-dock-name', 'data-user-content': '', dir: 'auto', text: d.name }),
+        h('span', { class: 'pd-dock-kicker' }, [h('span', { text: ctx.productLabel(d.templateKey) }), h('span', { text: ' · ' }), h('span', { text: tf('Version %d', d.headRevision) }),
+          h('span', { text: ' · ' }), d.owner.displayName ? h('span', { 'data-user-content': '', dir: 'auto', text: d.owner.displayName }) : h('span', { text: T('Deleted account') })]),
+        h('div', { class: 'pd-rv-line' }, [h('span', { class: 'pd-chip pd-chip--muted', 'data-role': d.role, text: T(SHARE_ROLE[d.role]) }), ctx.approvalChip(rv.current)]),
+      ])]));
+      if (c.doc && c.tpl) {
+        out.push(h('div', { class: 'pd-shared-views', role: 'group', 'aria-label': T('The design, as its owner last saved it') }, c.tpl.views.map(function (v, i) {
+          var fig = h('figure', { class: 'pd-shared-view' }, [h('figcaption', { class: 'pd-dock-kicker', text: T(v.label) })]);
+          fig.insertBefore(ctx.draw(c.doc, c.tpl, v.id, 'pds' + i), fig.firstChild);
+          return fig;
+        })));
+      } else out.push(h('p', { class: 'pd-note pd-note--warn', text: T('This design cannot be drawn here: its garment is no longer offered.') }));
+      out.push(h('h3', { class: 'pd-dock-h', text: T('Notes') }));
+      if (!rv.comments.length) out.push(h('p', { class: 'pd-empty', text: T('No notes yet.') }));
+      else out.push(h('ul', { class: 'pd-dock-list pd-rv-list', role: 'list' }, rv.comments.map(function (x) {
+        var surface = x.surface ? (c.tpl && c.tpl.surfaces.filter(function (s) { return s.id === x.surface; })[0]) : null;
+        return h('li', { class: 'pd-rv-comment' + (x.resolvedAt ? ' is-resolved' : ''), 'data-pd-shared-comment': x.id }, [
+          h('div', { class: 'pd-rv-meta' }, [
+            h('span', { class: 'pd-chip pd-chip--muted', text: surface ? T(surface.label) : T('Whole garment') }),
+            h('span', { class: 'pd-note', text: tf('Version %d', x.revision) }),
+            x.by ? h('span', { class: 'pd-note', 'data-user-content': '', dir: 'auto', text: x.by }) : null,
+            h('span', { class: 'pd-note', text: ctx.date(x.createdAt) }),
+            x.resolvedAt ? h('span', { class: 'pd-chip pd-chip--muted', text: T('Resolved') }) : null,
+          ]),
+          h('p', { class: 'pd-req-note', 'data-user-content': '', dir: 'auto', text: x.body }),
+        ]);
+      })));
+      if (d.role === 'COMMENT') {
+        var sel = h('select', { class: 'pd-input', 'data-pd-shared-in': 'surface', 'data-pd-shared-key': 'surface', 'aria-label': T('About') }, [h('option', { value: '', text: T('Whole garment') })]
+          .concat(c.tpl ? c.tpl.surfaces.map(function (x) { return h('option', { value: x.id, text: T(x.label) }); }) : []));
+        sel.value = st.draft.surface;
+        var ta = h('textarea', { class: 'pd-input', rows: '3', maxlength: '1000', 'data-pd-shared-in': 'body', 'data-pd-shared-key': 'body', 'data-user-content': '', dir: 'auto', 'aria-label': T('Note') });
+        ta.value = st.draft.body;
+        out.push(h('div', { class: 'pd-rv-compose', role: 'group', 'aria-label': tf('Note on version %d', d.headRevision) }, [
+          h('span', { class: 'pd-dock-kicker', text: tf('Note on version %d', d.headRevision) }),
+          h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-sr', text: T('About') }), sel]),
+          h('label', { class: 'pd-team-field' }, [h('span', { class: 'pd-sr', text: T('Note') }), ta]),
+          h('div', { class: 'pd-dock-btns' }, [btn({ class: 'pd-btn pd-btn--ghost pd-btn--accent', 'data-pd-act': 'shared-comment', 'data-pd-shared-key': 'comment', 'aria-disabled': st.busy ? 'true' : null }, [h('span', { text: T('Add note') })])]),
+        ]));
+      } else out.push(h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: T('You can see this design. Its owner has not asked for notes on it.') })]));
+      return out;
+    }
+
+    function open(trigger) { st.open = true; st.trigger = trigger || null; st.view = 'list'; el.setAttribute('data-open', 'true'); loadList(); ctx.onToggle(true); var f = el.querySelector('[data-pd-shared-key="close"]'); if (f) f.focus({ preventScroll: true }); }
+    function close() {
+      if (!st.open) return;
+      st.open = false; st.seq++; el.setAttribute('data-open', 'false'); ctx.onToggle(false);
+      var back = st.trigger && ctx.host.contains(st.trigger) ? st.trigger : null; st.trigger = null;
+      if (back) back.focus({ preventScroll: true });
+    }
+    function onAction(act, t) {
+      if (act.indexOf('shared') !== 0) return false;
+      if (act === 'shared') { if (st.open) close(); else open(t); return true; }
+      if (act === 'shared-close') { close(); return true; }
+      if (act === 'shared-retry') { loadList(); return true; }
+      if (act === 'shared-back') { st.view = 'list'; st.cur = null; st.note = ''; loadList(); var b = el.querySelector('[data-pd-shared-key="close"]'); if (b) b.focus({ preventScroll: true }); return true; }
+      if (act === 'shared-open') { openDesign(t.getAttribute('data-pd-id')); var k = el.querySelector('[data-pd-shared-key="back"]'); if (k) k.focus({ preventScroll: true }); return true; }
+      if (act === 'shared-reopen') { if (st.cur) openDesign(st.cur.id); return true; }
+      if (act === 'shared-comment') { comment(); return true; }
+      return false;
+    }
+    function onInput(ev) {
+      var t = ev.target, k = t && t.getAttribute && t.getAttribute('data-pd-shared-in');
+      if (!k || !el.contains(t)) return false;
+      st.draft[k] = t.value;
+      return true;
+    }
+    return {
+      el: el, open: open, close: close, repaint: render, isOpen: function () { return st.open; },
+      onAction: onAction, onInput: onInput, onChange: onInput,
+      metrics: function () { var c = st.cur; return { open: st.open, view: st.view, list: st.list.state, count: st.list.items.length,
+        design: c ? c.state : null, role: c && c.design ? c.design.role : null, notes: c && c.review ? c.review.comments.length : null, drawn: !!(c && c.doc), busy: st.busy, note: st.note }; },
+    };
+  }
+
+  return { gate: gate, account: account, shared: shared, INVALID: INVALID };
 });

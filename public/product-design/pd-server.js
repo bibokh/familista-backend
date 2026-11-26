@@ -201,6 +201,14 @@
       api.resendVerification = function () { return call('POST', '/me/verification', {}); };
       api.exportData = function () { return call('GET', '/me/export'); };
       api.deleteAccount = function (password) { return call('POST', '/me/delete', { password: String(password || '') }); };
+      // P4: sharing a design with another creator (to see it, or to comment too), and the designs shared with this one.
+      api.listShares = function (projectId) { return call('GET', '/projects/' + id(projectId) + '/shares'); };
+      api.shareDesign = function (projectId, email, role) { return call('POST', '/projects/' + id(projectId) + '/shares', { email: String(email || ''), role: role === 'COMMENT' ? 'COMMENT' : 'VIEW' }); };
+      api.revokeShare = function (projectId, shareId) { return call('POST', '/projects/' + id(projectId) + '/shares/' + id(shareId) + '/revoke', {}); };
+      api.sharedWithMe = function () { return call('GET', '/shared'); };
+      api.openShared = function (projectId) { return call('GET', '/shared/' + id(projectId)); };
+      api.readSharedReview = function (projectId) { return call('GET', '/shared/' + id(projectId) + '/review'); };
+      api.commentOnShared = function (projectId, c) { return call('POST', '/shared/' + id(projectId) + '/comments', { revision: c.revision, surface: c.surface || null, body: c.body }); };
     }
     // P3: the way into a creator's account, before any session. Never retried, never carrying a club's token.
     if (base === CREATOR_AUTH) {

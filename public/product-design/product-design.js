@@ -1003,8 +1003,22 @@
   }
   function onAcctAction(act, t) {
     if (!S.acct || act.indexOf('acct') !== 0) return false;
-    if (act === 'acct' && !S.acct.isOpen()) { if (S.srv.open) closeDock(); if (S.team && S.team.isOpen()) S.team.close(); }
+    if (act === 'acct' && !S.acct.isOpen()) { if (S.srv.open) closeDock(); if (S.team && S.team.isOpen()) S.team.close(); if (S.shared && S.shared.isOpen()) S.shared.close(); }
     return S.acct.onAction(act, t);
+  }
+  /** P4: what the Shared with me panel is handed: the room's builders, words and renderer, and the creator's client. */
+  function sharedContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, dirArrow: dirArrow, date: when, host: S.host,
+      draw: drawDesign, template: templateFor, productLabel: productLabel, approvalChip: approvalChip,
+      validate: function (raw, tpl) { try { return C.validateDocument(raw, tpl); } catch (_) { return null; } },
+      onToggle: function () { var bs = S.host.querySelectorAll('[data-pd-act="shared"]'); for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', S.shared && S.shared.isOpen() ? 'true' : 'false'); },
+    };
+  }
+  function onSharedAction(act, t) {
+    if (!S.shared || act.indexOf('shared') !== 0) return false;
+    if (act === 'shared' && !S.shared.isOpen()) { if (S.srv.open) closeDock(); if (S.team && S.team.isOpen()) S.team.close(); if (S.acct && S.acct.isOpen()) S.acct.close(); }
+    return S.shared.onAction(act, t);
   }
   function syncTeamTriggers() {
     var bs = S.host.querySelectorAll('[data-pd-act="team"]');
@@ -1766,6 +1780,7 @@
     if (k === 'Escape' && S.team && S.team.isOpen()) { ev.preventDefault(); S.team.close(); return; }
     if (k === 'Escape' && S.mfg && S.mfg.isOpen()) { ev.preventDefault(); S.mfg.close(); return; }
     if (k === 'Escape' && S.acct && S.acct.isOpen()) { ev.preventDefault(); S.acct.close(); return; }
+    if (k === 'Escape' && S.shared && S.shared.isOpen()) { ev.preventDefault(); S.shared.close(); return; }
     if (k === 'Escape' && S.srv.open) { ev.preventDefault(); closeDock(); return; }
     if (k === 'Escape' && S.panel) { setPanel(null); return; }
     if (ev.target !== S.el.canvas) return;
@@ -2320,6 +2335,8 @@
   var SIDE_PERSONAL = [
     { page: 'creator', icon: 'shirt', label: L('Design Studio'), current: true },
     { act: 'team-requests', icon: 'box', label: L('Orders') },
+    // P4: the designs other creators shared with this one.
+    { act: 'shared', icon: 'link', label: L('Shared with me') },
     { act: 'acct', icon: 'people', label: L('Account') },
     { reason: 'store', icon: 'store', label: L('Global Store') },
     { reason: 'payments', icon: 'card', label: L('Payments') },
@@ -2331,7 +2348,7 @@
       if (it.reason && !plannedShown) { plannedShown = true; list.appendChild(h('li', { class: 'pd-side-group', text: T('Planned') })); }
       var b = it.current ? btn({ class: 'pd-side-btn is-current', 'aria-current': 'page' })
         : it.act === 'team-requests' && !(part('teamKit') && part('manufacturing')) ? planned(btn({ class: 'pd-side-btn is-planned' }), 'not-in-plan')
-        : it.act ? btn({ class: 'pd-side-btn', 'data-pd-act': it.act, 'data-pd-tab': it.tab || null, 'aria-controls': it.act === 'mfg' ? 'pd-mfg' : it.act === 'acct' ? 'pd-acct' : 'pd-team', 'aria-expanded': 'false' })
+        : it.act ? btn({ class: 'pd-side-btn', 'data-pd-act': it.act, 'data-pd-tab': it.tab || null, 'aria-controls': it.act === 'mfg' ? 'pd-mfg' : it.act === 'acct' ? 'pd-acct' : it.act === 'shared' ? 'pd-shared' : 'pd-team', 'aria-expanded': 'false' })
         : it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)
         : btn({ class: 'pd-side-btn', 'data-action': 'navTo', 'data-page': it.page });
       append(b, [icon(it.icon, 18), h('span', { class: 'pd-side-label', text: T(it.label) })]);
@@ -3254,6 +3271,8 @@
     if (!S.review && part('reviews') && P.api.readReview && window.FamilistaProductDesignReview) S.review = window.FamilistaProductDesignReview.create(reviewContext());
     // P3: a creator's account panel, in the creator's own workspace only.
     if (!S.acct && personal() && P.api.me && window.FamilistaProductDesignCreator) S.acct = window.FamilistaProductDesignCreator.account(acctContext());
+    // P4: the designs shared with this creator, in the creator's own workspace only.
+    if (!S.shared && personal() && P.api.sharedWithMe && window.FamilistaProductDesignCreator) S.shared = window.FamilistaProductDesignCreator.shared(sharedContext());
     // M4: the manufacturing console, in the platform's room only; its scripts are loaded by the owner's room alone.
     if (!S.mfg && !tenantWorkspace() && SERVER.manufacturing && window.FamilistaProductDesignManufacturing && window.FamilistaProductDesignRoster) {
       S.mfg = window.FamilistaProductDesignManufacturing.create(mfgContext());
@@ -3271,6 +3290,7 @@
       S.team ? S.team.el : null,
       S.mfg ? S.mfg.el : null,
       S.acct ? S.acct.el : null,
+      S.shared ? S.shared.el : null,
       S.present ? S.present.el : null,
       E.live,
     ]);
@@ -3289,6 +3309,7 @@
     if (S.team) S.team.repaint();
     if (S.mfg) S.mfg.repaint();
     if (S.acct) S.acct.repaint();
+    if (S.shared) S.shared.repaint();
     syncPreviewTag();
     renderThumbs();
     sync3d();
@@ -3356,6 +3377,7 @@
     if (a && onTeamAction(a, t)) return;
     if (a && onMfgAction(a, t)) return;
     if (a && onAcctAction(a, t)) return;
+    if (a && onSharedAction(a, t)) return;
     if ((a = t.getAttribute('data-pd-lang'))) { chooseSetLocale(a).then(function () { if (S) build(); }); return; }
     if ((a = t.getAttribute('data-pd-view'))) { setView(a); return; }
     if ((a = t.getAttribute('data-pd-mode'))) { setMode(a); return; }
@@ -3452,6 +3474,7 @@
     if (S.team && S.team.onInput(ev)) return;
     if (S.mfg && S.mfg.onInput(ev)) return;
     if (S.acct && S.acct.onInput(ev)) return;
+    if (S.shared && S.shared.onInput(ev)) return;
     if (S.review && S.review.onInput(ev)) return;
     if (t === S.el.docName) { if (t.value.trim()) commitOp({ op: 'set', target: { kind: 'doc' }, key: 'name', value: t.value.slice(0, LIMITS.name) }, T('Design name'), 'doc-name'); return; }
     var sid = t.getAttribute('data-pd-swatch');
@@ -3475,6 +3498,7 @@
     if (S.team && S.team.onChange(ev)) return;
     if (S.mfg && S.mfg.onChange(ev)) return;
     if (S.acct && S.acct.onChange(ev)) return;
+    if (S.shared && S.shared.onChange(ev)) return;
     if (S.review && S.review.onInput(ev)) return;
     if (t.hasAttribute('data-pd-brand-file')) { brandUpload(t.files && t.files[0]); return; }
     if (t.tagName === 'SELECT' && field) { var n = selectedLayer(); if (n) { setLayer(n.id, field, t.value, T(field === 'font' ? 'Font' : field === 'shape' ? 'Shape' : 'Pattern')); renderLayers(); } return; }
@@ -3819,7 +3843,7 @@
       renderMsMedian: ms.length ? ms[Math.floor(ms.length / 2)] : null, renderMsMax: ms.length ? ms[ms.length - 1] : null,
       edits: S.metrics.editMs.length, editMsMedian: ed.length ? ed[Math.floor(ed.length / 2)] : null, editMsP95: ed.length ? ed[Math.floor(ed.length * 0.95)] : null,
       template: TEMPLATE ? TEMPLATE.key : null, products: INDEX ? INDEX.map(function (e) { return e.product; }) : [],
-      workspace: WS.kind, acct: S.acct ? S.acct.metrics() : null, team: S.team ? S.team.metrics() : null, mfg: S.mfg ? S.mfg.metrics() : null, review: S.review ? S.review.metrics() : null, present: S.present ? S.present.metrics() : null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
+      workspace: WS.kind, acct: S.acct ? S.acct.metrics() : null, shared: S.shared ? S.shared.metrics() : null, team: S.team ? S.team.metrics() : null, mfg: S.mfg ? S.mfg.metrics() : null, review: S.review ? S.review.metrics() : null, present: S.present ? S.present.metrics() : null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
       layers: S.doc.surfaces.map(function (x) { return x.layers.length; }), findings: S.findings.length,
       saveState: S.saveState, lastSaveBytes: S.metrics.lastSaveBytes, announced: S.announced, lang: LANG, dir: DIR,
       server: { state: S.srv.state, busy: S.srv.busy, linked: !!S.srv.link, projectId: S.srv.link ? S.srv.link.projectId : null, revision: S.srv.link ? S.srv.link.revision : null,

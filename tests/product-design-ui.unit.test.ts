@@ -160,6 +160,8 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
       'src/contracts/owner-api.contracts.ts', 'src/cyber-defense/control-plane/registry.ts',
       // P2: a creator's session leaves a PERSONAL design scope, and the creator's own mount uses the studio's handlers.
       'src/platform/creator/authenticate.ts', 'src/platform/creator/privacy.service.ts',
+      // P4: sharing a creator's design reuses the studio's review and its audit entry.
+      'src/platform/creator/share-http.ts', 'src/platform/creator/share.service.ts',
       // M4: manufacturing builds on the Design Studio's collections, rosters, revisions and actor (src/platform/manufacturing).
       'src/platform/manufacturing/club-http.ts', 'src/platform/manufacturing/owner-http.ts', 'src/platform/manufacturing/request.service.ts',
       'src/platform/manufacturing/supplier.service.ts',

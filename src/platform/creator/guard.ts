@@ -17,6 +17,8 @@ const RESOURCES = {
   manufacturingRequest: (id: string): Owned => prisma.manufacturingRequest.findUnique({ where: { id }, select: { clubId: true, creatorId: true } }),
   manufacturingQuote: (id: string): Owned => prisma.manufacturingQuote.findUnique({ where: { id }, select: { clubId: true, creatorId: true } }),
   designReviewComment: (id: string): Owned => prisma.designReviewComment.findUnique({ where: { id }, select: { clubId: true, creatorId: true } }),
+  // P4: a share, by its owner (a grantee never reaches a share by id).
+  designShare: (id: string): Owned => prisma.designShare.findUnique({ where: { id }, select: { creatorId: true } }).then((r) => (r ? { clubId: null, creatorId: r.creatorId } : null)),
 } as const;
 export type CreatorResource = keyof typeof RESOURCES;
 
@@ -47,4 +49,19 @@ export function requireVerifiedEmail(req: Request, res: Response, next: NextFunc
     return;
   }
   next();
+}
+
+/**
+ * P4: a `router.param` hook for a design shared WITH the signed-in creator: a live share must exist, or the answer is
+ * 404 (nothing revealed about a design one cannot see). The share is left in res.locals.share for the handler.
+ */
+export async function creatorSharedWith(req: Request, res: Response, next: NextFunction, value: string): Promise<void> {
+  try {
+    const me = req.creator?.id;
+    if (!me) { res.status(401).json({ success: false, message: 'Sign in to the Creator Studio' }); return; }
+    const share = typeof value === 'string' && value ? await prisma.designShare.findFirst({ where: { projectId: value, granteeId: me, revokedAt: null }, select: { id: true, creatorId: true, role: true } }) : null;
+    if (!share) { res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'This design is not shared with you' }); return; }
+    res.locals.share = share;
+    next();
+  } catch (err) { next(err); }
 }

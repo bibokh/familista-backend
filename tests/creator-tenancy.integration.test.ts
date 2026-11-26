@@ -46,6 +46,7 @@ const USERS = {
   admin: { id: `cr-admin-${tag}`, role: 'CLUB_ADMIN', clubId: C1 },
 } as const;
 const PW = 'correct horse battery';
+const C_doc = () => C.createDocument(SHIRT, 'Taken');
 
 suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
   let admin: PrismaClient, db: PrismaClient, app: Application;
@@ -285,6 +286,76 @@ suite('Creator Studio tenancy (P2), on real PostgreSQL', () => {
     await sysExec(`INSERT INTO "DesignRoster" ("id","clubId","name","entries","entryCount","createdById","updatedById") VALUES ('r-club',$1,'Club roster','[]'::jsonb,0,'x','x')`, C1);
     await expect(sysExec(`UPDATE "DesignCollection" SET "rosterId" = 'r-club' WHERE "id" = $1`, aCollection)).rejects.toThrow(/DesignCollection_roster_club/);
     expect(await sys(`SELECT "rosterId" FROM "DesignCollection" WHERE "id" = $1`, aCollection)).toEqual([{ rosterId: aRoster }]);
+  });
+
+  it('P4: a design shared to see is seen and not written; to comment, a note is written as the collaborator; a revocation ends it — and the database holds each line', async () => {
+    const [bAcc] = await sys(`SELECT "email" FROM "CreatorAccount" WHERE "id" = $1`, B.id);
+    expect((await bearer(B.auth).patch(`${CR}/me`, { displayName: 'Bea Collaborator' })).body.data.creator.displayName).toBe('Bea Collaborator');
+    const third = await invite({});
+    const c = await signUp(third.code, 'outsider@example.com', { displayName: 'Outsider' });
+    const C = { id: c.body.data.creator.id, auth: `Bearer ${c.body.data.accessToken}` };
+    const S = `${CR}/projects/${aProject}/shares`;
+    // refusals first: no such creator, oneself, a bad role
+    expect([(await bearer(A.auth).post(S, { email: 'nobody@example.com', role: 'VIEW' })).body.reason, (await bearer(A.auth).post(S, { email: 'alex@example.com', role: 'VIEW' })).body.reason,
+      (await bearer(A.auth).post(S, { email: bAcc.email, role: 'EDIT' })).status]).toEqual(['no-creator', 'self', 400]);
+    const view = await bearer(A.auth).post(S, { email: bAcc.email, role: 'VIEW' });
+    expect([view.status, view.body.data.share.role, view.body.data.share.grantee.id]).toEqual([201, 'VIEW', B.id]);
+    expect((await bearer(A.auth).post(S, { email: bAcc.email, role: 'COMMENT' })).body.reason).toBe('exists');
+    expect((await bearer(A.auth).get(S)).body.data.shares.map((x: Row) => [x.grantee.id, x.role])).toEqual([[B.id, 'VIEW']]);
+    // only the owner manages shares
+    expect((await bearer(B.auth).get(S)).status).toBe(403);
+    expect((await bearer(C.auth).post(S, { email: 'outsider@example.com', role: 'VIEW' })).status).toBe(404);
+
+    // the collaborator sees it, read only
+    const mine = (await bearer(B.auth).get(`${CR}/shared`)).body.data.designs;
+    expect(mine.map((x: Row) => [x.id, x.role, x.owner.displayName])).toEqual([[aProject, 'VIEW', 'Alex Maker']]);
+    const opened = (await bearer(B.auth).get(`${CR}/shared/${aProject}`)).body.data.design;
+    expect([opened.name, opened.role, opened.revision.document.name]).toEqual(['Alex shirt', 'VIEW', 'Alex shirt']);
+    expect((await bearer(B.auth).get(`${CR}/shared/${aProject}/review`)).body.data.role).toBe('VIEW');
+    const note = { revision: 1, surface: null, body: 'The collar could be thinner' };
+    expect((await bearer(B.auth).post(`${CR}/shared/${aProject}/comments`, note)).body.code).toBe('SHARE_VIEW_ONLY');
+    // and writes nothing of the owner's: not a version, not an approval, not the project's routes at all
+    expect((await bearer(B.auth).post(`${CR}/projects/${aProject}/revisions`, { baseRevision: 1, document: C_doc() })).status).toBe(403);
+    expect((await bearer(B.auth).post(`${CR}/projects/${aProject}/decisions`, { revision: 1, decision: 'APPROVED', note: null })).status).toBe(403);
+    // a third creator and a club see nothing of it
+    expect((await bearer(C.auth).get(`${CR}/shared/${aProject}`)).status).toBe(404);
+    expect((await bearer(C.auth).get(`${CR}/shared`)).body.data.designs).toEqual([]);
+    expect((await club().get(`${CLUB}/projects/${aProject}`)).status).toBe(404);
+    expect(await seenAs('creator', C.id, 'SELECT "id" FROM "DesignProject" UNION ALL SELECT "id" FROM "DesignShare"')).toEqual([]);
+
+    // to comment: the VIEW share is revoked and a COMMENT share made; the note is the collaborator's, on the owner's design
+    const shareId = view.body.data.share.id;
+    expect((await bearer(A.auth).post(`${S}/${shareId}/revoke`)).body.data).toEqual({ revoked: true });
+    expect((await bearer(A.auth).post(S, { email: bAcc.email, role: 'COMMENT' })).status).toBe(201);
+    const wrote = await bearer(B.auth).post(`${CR}/shared/${aProject}/comments`, note);
+    expect(wrote.status).toBe(201);
+    const [row] = await sys(`SELECT "creatorId", "authorId" FROM "DesignReviewComment" WHERE "projectId" = $1`, aProject);
+    expect(row).toEqual({ creatorId: A.id, authorId: B.id });
+    const seen = (await bearer(A.auth).get(`${CR}/projects/${aProject}/review`)).body.data.review.comments;
+    expect(seen.map((x: Row) => [x.body, x.by])).toEqual([['The collar could be thinner', 'Bea Collaborator']]);
+    const [audit] = await sys(`SELECT "creatorId", "metadata"->>'actorCreatorId' AS by FROM "PlatformAuditLog" WHERE "action" = 'design.review.commented' AND "resourceId" = $1`, aProject);
+    expect(audit).toEqual({ creatorId: A.id, by: B.id });
+
+    // underneath: the collaborator cannot write as the owner, change the design, or share it on
+    const asB = (sql: string, ...p: unknown[]) => db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('familista.rls_mode', 'creator', true), set_config('familista.creator_id', ${B.id}, true)`;
+      return tx.$executeRawUnsafe(sql, ...p);
+    });
+    await expect(asB(`INSERT INTO "DesignReviewComment" ("id","creatorId","projectId","revision","body","authorId") VALUES ('forged',$1,$2,1,'x',$1)`, A.id, aProject)).rejects.toThrow(/row-level security/);
+    expect(await asB(`UPDATE "DesignProject" SET "name" = 'Taken' WHERE "id" = $1`, aProject)).toBe(0);
+    await expect(asB(`INSERT INTO "DesignShare" ("id","projectId","creatorId","granteeId","role") VALUES ('s2',$1,$2,$3,'VIEW')`, aProject, A.id, C.id)).rejects.toThrow(/row-level security/);
+    // a share is only ever revoked, on every path
+    await expect(sysExec(`UPDATE "DesignShare" SET "role" = 'COMMENT' WHERE "id" = $1`, shareId)).rejects.toThrow(/DesignShare_revoke_only/);
+
+    // revoked: gone at once, through the routes and underneath
+    const live = (await bearer(A.auth).get(S)).body.data.shares[0].id;
+    await bearer(A.auth).post(`${S}/${live}/revoke`);
+    expect((await bearer(B.auth).get(`${CR}/shared/${aProject}`)).status).toBe(404);
+    expect((await bearer(B.auth).post(`${CR}/shared/${aProject}/comments`, note)).status).toBe(404);
+    expect((await bearer(B.auth).get(`${CR}/shared`)).body.data.designs).toEqual([]);
+    expect(await seenAs('creator', B.id, 'SELECT "id" FROM "DesignProject" WHERE "creatorId" IS DISTINCT FROM \'' + B.id + '\'')).toEqual([]);
+    const acts = await sys(`SELECT "action" FROM "PlatformAuditLog" WHERE "action" LIKE 'design.share.%' AND "creatorId" = $1 ORDER BY "createdAt"`, A.id);
+    expect(acts.map((a) => a.action)).toEqual(['design.share.created', 'design.share.revoked', 'design.share.created', 'design.share.revoked']);
   });
 
   it('a quotation request needs a confirmed address; the link confirms it once; the Owner sees the creator as the requester', async () => {

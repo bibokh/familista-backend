@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-24T21:03:41.804Z",
+  "generatedAt": "2026-11-26T10:44:28.208Z",
   "generator": "scripts/security-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -8,7 +8,7 @@
   },
   "apiSurface": {
     "mountedRouters": 63,
-    "handlers": 908,
+    "handlers": 915,
     "publicHandlers": 29,
     "publicRoutes": [
       {
@@ -414,7 +414,7 @@
       {
         "path": "/creator",
         "module": "creator.routes",
-        "handlers": 48,
+        "handlers": 55,
         "public": 0,
         "routerWideAuth": true
       },
@@ -684,8 +684,8 @@
       "src/services/vision-realtime.service.ts"
     ],
     "tenancy": {
-      "idParameters": 460,
-      "guarded": 206,
+      "idParameters": 467,
+      "guarded": 213,
       "exempt": 254,
       "unguarded": [],
       "staleExemptions": [],
@@ -748,7 +748,7 @@
           "unguarded": 0
         },
         "creator.routes": {
-          "guarded": 35,
+          "guarded": 42,
           "exempt": 2,
           "unguarded": 0
         },
@@ -940,14 +940,14 @@
       }
     },
     "authorization": {
-      "handlers": 908,
+      "handlers": 915,
       "byKind": {
         "public": 29,
         "member": 350,
         "scoped": 60,
         "roles": 280,
         "platform-owner": 141,
-        "creator": 48
+        "creator": 55
       },
       "memberUnreviewed": [],
       "memberStale": [],
@@ -1014,7 +1014,7 @@
           "public": 8
         },
         "creator.routes": {
-          "creator": 48
+          "creator": 55
         },
         "cybersecurity.routes": {
           "platform-owner": 2
@@ -1302,10 +1302,14 @@
         "GET /creator/projects/:id/review": "creator",
         "GET /creator/projects/:id/revisions": "creator",
         "GET /creator/projects/:id/revisions/:number": "creator",
+        "GET /creator/projects/:id/shares": "creator",
         "GET /creator/requests": "creator",
         "GET /creator/requests/:requestId": "creator",
         "GET /creator/rosters": "creator",
         "GET /creator/rosters/:rosterId": "creator",
+        "GET /creator/shared": "creator",
+        "GET /creator/shared/:sharedProjectId": "creator",
+        "GET /creator/shared/:sharedProjectId/review": "creator",
         "GET /device-infra/devices": "member",
         "GET /device-infra/devices/:id": "member",
         "GET /device-infra/devices/:id/calibration": "member",
@@ -1784,6 +1788,8 @@
         "POST /creator/projects/:id/decisions": "creator",
         "POST /creator/projects/:id/revisions": "creator",
         "POST /creator/projects/:id/revisions/:number/restore": "creator",
+        "POST /creator/projects/:id/shares": "creator",
+        "POST /creator/projects/:id/shares/:shareId/revoke": "creator",
         "POST /creator/projects/:id/unarchive": "creator",
         "POST /creator/requests/:requestId/cancel": "creator",
         "POST /creator/requests/:requestId/decline": "creator",
@@ -1792,6 +1798,7 @@
         "POST /creator/rosters": "creator",
         "POST /creator/rosters/:rosterId/archive": "creator",
         "POST /creator/rosters/:rosterId/unarchive": "creator",
+        "POST /creator/shared/:sharedProjectId/comments": "creator",
         "POST /device-infra/devices": "roles:CLUB_ADMIN,HEAD_COACH",
         "POST /device-infra/devices/:id/calibration": "roles:CLUB_ADMIN,HEAD_COACH,ANALYST,MEDICAL_STAFF",
         "POST /device-infra/devices/:id/retire": "roles:CLUB_ADMIN,HEAD_COACH",
@@ -2295,7 +2302,7 @@
       "id": "tenant-guard",
       "status": "PRESENT",
       "evidence": "src/middleware/tenant-guard.middleware.ts",
-      "note": "206 of 460 route id parameter(s) checked against the caller's club before the handler; 254 exempted by name with a reason; 0 unguarded."
+      "note": "213 of 467 route id parameter(s) checked against the caller's club before the handler; 254 exempted by name with a reason; 0 unguarded."
     },
     {
       "id": "franchise-club-attach-authorised",
@@ -2519,7 +2526,7 @@
       "id": "authz-declared-per-handler",
       "status": "PRESENT",
       "evidence": "src/cyber-defense/posture-policy.json",
-      "note": "908 handler(s) classified: 29 public, 350 member, 60 scoped, 280 roles, 141 platform-owner, 48 creator; every member- and creator-level handler reviewed by name."
+      "note": "915 handler(s) classified: 29 public, 350 member, 60 scoped, 280 roles, 141 platform-owner, 55 creator; every member- and creator-level handler reviewed by name."
     },
     {
       "id": "owner-rooms-pinned",

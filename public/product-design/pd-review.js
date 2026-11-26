@@ -31,6 +31,12 @@
     'too-many-comments': L('This design has as many comments as it can keep.'),
   };
   var LIMIT = 1000;
+  /** P4: what a collaborator may do with a shared design, and why a share was refused. */
+  var ROLE = { VIEW: L('Can see'), COMMENT: L('Can comment') };
+  var SHARE_REFUSED = {
+    'bad-email': L('Enter a valid email address.'), 'no-creator': L('No creator account uses this address.'), self: L('This is your own address.'),
+    exists: L('This design is already shared with this creator.'), 'bad-role': L('Choose what they may do.'),
+  };
 
   function create(shell) {
     var h = shell.h, btn = shell.btn, icon = shell.icon, T = shell.T, tf = shell.tf, api = shell.api;
@@ -38,7 +44,10 @@
       state: 'idle', projectId: null, data: null, error: '', notice: '', seq: 0, busy: false, filter: 'open',
       draft: { surface: '', body: '' },
       ask: null,       // { note } while a club administrator writes what to change
+      // P4: in a creator's workspace, who the saved design is shared with.
+      sh: { state: 'idle', items: [], limit: 0, email: '', role: 'COMMENT', busy: false, note: '' },
     };
+    function sharing() { return !!api.listShares; }
 
     /** Who decides on a version: a club's administrator, or the creator on their own designs (P3). */
     function admin() { return shell.role() === 'CLUB_ADMIN' || shell.role() === 'CREATOR'; }
@@ -64,6 +73,40 @@
         if (r.ok && r.data && r.data.review) { st.data = r.data.review; st.state = 'ready'; }
         else { st.state = 'error'; st.error = problem(r); }
         shell.render();
+      });
+      if (sharing()) loadShares(link.projectId, seq);
+    }
+    function loadShares(projectId, seq) {
+      st.sh.state = st.sh.state === 'ready' ? 'refresh' : 'loading';
+      api.listShares(projectId).then(function (r) {
+        if (seq !== st.seq) return;
+        if (r.ok && r.data) { st.sh.items = r.data.shares; st.sh.limit = r.data.limit; st.sh.state = 'ready'; } else st.sh.state = 'error';
+        shell.render();
+      });
+    }
+    function share() {
+      var e = st.sh.email.trim();
+      if (st.sh.busy || !st.projectId) return;
+      if (!e) { st.sh.note = T(SHARE_REFUSED['bad-email']); shell.render(); focus('share-email'); return; }
+      st.sh.busy = true; st.sh.note = ''; shell.render();
+      api.shareDesign(st.projectId, e, st.sh.role).then(function (r) {
+        st.sh.busy = false;
+        if (r.ok && r.data && r.data.share) { st.sh.items = st.sh.items.concat([r.data.share]); st.sh.email = ''; shell.say(T('Shared.')); }
+        else st.sh.note = r.code === 'SHARE_REFUSED' && r.reason === 'limit' ? tf('A design is shared with at most %d creators.', st.sh.limit || 20)
+          : r.code === 'SHARE_REFUSED' && SHARE_REFUSED[r.reason] ? T(SHARE_REFUSED[r.reason]) : r.status === 0 ? T('The server could not be reached.') : T('The server did not accept this.');
+        shell.render();
+        focus('share-email');
+      });
+    }
+    function unshare(shareId) {
+      if (st.sh.busy || !st.projectId) return;
+      st.sh.busy = true; shell.render();
+      api.revokeShare(st.projectId, shareId).then(function (r) {
+        st.sh.busy = false;
+        if (r.ok) { st.sh.items = st.sh.items.filter(function (x) { return x.id !== shareId; }); shell.say(T('Sharing stopped.')); }
+        else st.sh.note = r.status === 0 ? T('The server could not be reached.') : T('The server did not accept this.');
+        shell.render();
+        focus('share-email');
       });
     }
     function after(r, done) {
@@ -126,6 +169,36 @@
           ]) : null]),
           behind ? h('span', { class: 'pd-note', text: tf('The review is of version %d as saved, not of the unsaved changes in the editor.', d.headRevision) }) : null,
         ]),
+      ]);
+    }
+    /** P4: who sees the saved design, and what they may do; the owner adds and removes collaborators here. */
+    function shareBlock() {
+      var S = st.sh;
+      var email = h('input', { class: 'pd-input', type: 'email', dir: 'ltr', autocomplete: 'off', 'data-pd-rv': 'share-email', 'data-pd-rv-key': 'share-email', 'aria-label': T('Creator’s email address'), placeholder: T('Creator’s email address') });
+      email.value = S.email;
+      var role = h('select', { class: 'pd-input pd-rv-role', 'data-pd-rv': 'share-role', 'aria-label': T('They may') },
+        ['COMMENT', 'VIEW'].map(function (k) { return h('option', { value: k, text: T(ROLE[k]) }); }));
+      role.value = S.role;
+      var list = S.state === 'loading' ? skeleton() : !S.items.length
+        ? h('p', { class: 'pd-empty', text: T('Not shared. Share it with another creator to show it, or to ask for their notes.') })
+        : h('ul', { class: 'pd-dock-list pd-rv-shares', role: 'list' }, S.items.map(function (x) {
+          var name = x.grantee.displayName || x.grantee.email || '';
+          return h('li', { class: 'pd-dock-row', 'data-pd-rv-share': x.id }, [
+            h('span', { class: 'pd-dock-main' }, [h('span', { class: 'pd-dock-name', 'data-user-content': '', dir: 'auto', text: name }),
+              x.grantee.email ? h('span', { class: 'pd-dock-kicker', 'data-user-content': '', dir: 'ltr', text: x.grantee.email }) : null]),
+            h('span', { class: 'pd-chip pd-chip--muted', 'data-role': x.role, text: T(ROLE[x.role]) }),
+            btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'rv-unshare', 'data-pd-id': x.id, 'aria-disabled': S.busy ? 'true' : null },
+              [h('span', { text: T('Stop sharing') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + name })]),
+          ]);
+        }));
+      return h('section', { class: 'pd-rv-share', 'aria-labelledby': 'pd-rv-share-h' }, [
+        h('h3', { class: 'pd-dock-h', id: 'pd-rv-share-h', text: T('Shared with') }),
+        S.state === 'error' ? h('p', { class: 'pd-note pd-note--warn', text: T('Who this design is shared with could not be loaded.') }) : list,
+        h('div', { class: 'pd-rv-share-add', role: 'group', 'aria-label': T('Share with a creator') }, [
+          email, role,
+          btn({ class: 'pd-btn pd-btn--ghost pd-btn--accent', 'data-pd-act': 'rv-share', 'aria-disabled': S.busy ? 'true' : null }, [icon('people', 14), h('span', { text: T('Share') })]),
+        ]),
+        h('p', { class: 'pd-note', role: 'status', 'data-pd-rv-share-note': '', text: S.note || T('They need a Familista creator account with this address. You alone change the design, resolve notes and approve versions.') }),
       ]);
     }
     function decisionBlock(d) {
@@ -215,7 +288,7 @@
       if (!st.data) return [skeleton()];
       var d = st.data;
       return [head(d), st.notice ? h('p', { class: 'pd-note pd-note--warn', role: 'alert' }, [icon('alert', 14), h('span', { text: st.notice })]) : null,
-        decisionBlock(d), composer(d)].concat(comments(d), history(d));
+        sharing() ? shareBlock() : null, decisionBlock(d), composer(d)].concat(comments(d), history(d));
     }
 
     // ── the room's events, handed on ──────────────────────────────────────
@@ -230,6 +303,8 @@
         case 'rv-ask-cancel': st.ask = null; st.notice = ''; shell.render(); return true;
         case 'rv-ask-send': decide('CHANGES_REQUESTED'); return true;
         case 'rv-filter-open': case 'rv-filter-resolved': st.filter = act === 'rv-filter-open' ? 'open' : 'resolved'; shell.render(); return true;
+        case 'rv-share': share(); return true;
+        case 'rv-unshare': unshare(t.getAttribute('data-pd-id')); return true;
         default: return false;
       }
     }
@@ -240,15 +315,18 @@
       if (k === 'body') st.draft.body = ev.target.value;
       else if (k === 'surface') st.draft.surface = ev.target.value;
       else if (k === 'note' && st.ask) st.ask.note = ev.target.value;
+      else if (k === 'share-email') st.sh.email = ev.target.value;
+      else if (k === 'share-role') st.sh.role = ev.target.value === 'VIEW' ? 'VIEW' : 'COMMENT';
       return true;
     }
     function metrics() {
       var d = st.data;
       return { state: st.state, busy: st.busy, head: d ? d.headRevision : null, current: d && d.current ? d.current.decision : null,
-        comments: d ? d.comments.length : null, open: d ? d.comments.filter(function (c) { return !c.resolvedAt; }).length : null, filter: st.filter };
+        comments: d ? d.comments.length : null, open: d ? d.comments.filter(function (c) { return !c.resolvedAt; }).length : null, filter: st.filter,
+        shares: sharing() ? { state: st.sh.state, count: st.sh.items.length, busy: st.sh.busy, note: st.sh.note } : null };
     }
     /** The saved design changed (another opened, a version saved): what was shown belongs to another version. */
-    function invalidate() { st.seq++; st.data = null; st.state = 'idle'; st.ask = null; st.notice = ''; }
+    function invalidate() { st.seq++; st.data = null; st.state = 'idle'; st.ask = null; st.notice = ''; st.sh = { state: 'idle', items: [], limit: 0, email: '', role: 'COMMENT', busy: false, note: '' }; }
 
     return { load: load, body: body, onAction: onAction, onInput: onInput, metrics: metrics, invalidate: invalidate };
   }

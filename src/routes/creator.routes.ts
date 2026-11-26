@@ -13,7 +13,10 @@
  */
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { authenticateCreator } from '../platform/creator/authenticate';
-import { creatorOwns, requireVerifiedEmail } from '../platform/creator/guard';
+import { creatorOwns, creatorSharedWith, requireVerifiedEmail } from '../platform/creator/guard';
+import {
+  commentOnSharedDesign, createProjectShare, listProjectShares, listSharedWithMe, openSharedDesign, readSharedReview, revokeProjectShare,
+} from '../platform/creator/share-http';
 import { creatorChangePassword, creatorDeleteAccount, creatorExport, creatorMe, creatorResendVerification, creatorUpdateProfile } from '../platform/creator/http';
 import {
   archiveDesign, createDesign, listDesignRevisions, listDesigns, openDesign, openDesignRevision, restoreDesignRevision, saveDesign, unarchiveDesign,
@@ -44,6 +47,8 @@ router.param('rosterId', creatorOwns('designRoster'));
 router.param('collectionId', creatorOwns('designCollection'));
 router.param('requestId', creatorOwns('manufacturingRequest'));
 router.param('quoteId', creatorOwns('manufacturingQuote'));
+router.param('shareId', creatorOwns('designShare'));
+router.param('sharedProjectId', creatorSharedWith);
 
 // The account.
 router.get('/me', creatorMe);
@@ -71,6 +76,16 @@ router.post('/projects/:id/comments', commentOnDesign);
 router.post('/projects/:id/comments/:commentId/resolve', resolveDesignComment);
 router.post('/projects/:id/comments/:commentId/reopen', reopenDesignComment);
 router.post('/projects/:id/decisions', decideOnDesign);
+
+// P4: sharing. The owner shares a design with another creator (VIEW or COMMENT) and revokes it; the collaborator sees
+// what is shared with them, its review, and, with COMMENT, adds a note. The owner alone edits, resolves and approves.
+router.get('/projects/:id/shares', listProjectShares);
+router.post('/projects/:id/shares', createProjectShare);
+router.post('/projects/:id/shares/:shareId/revoke', revokeProjectShare);
+router.get('/shared', listSharedWithMe);
+router.get('/shared/:sharedProjectId', openSharedDesign);
+router.get('/shared/:sharedProjectId/review', readSharedReview);
+router.post('/shared/:sharedProjectId/comments', commentOnSharedDesign);
 
 // The creator's brand kit: colours and logos (raw image bytes in, a re-encoded PNG kept).
 router.get('/brand-kit', readBrandKit);

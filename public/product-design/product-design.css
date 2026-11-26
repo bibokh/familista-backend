@@ -192,6 +192,8 @@ body.pd-studio-open { overflow: hidden; }
   border: var(--fam-border-width-hairline) solid var(--fam-border-strong); color: var(--fam-text-secondary); background: var(--fam-surface-tile);
 }
 .pd-chip--muted { color: var(--fam-text-tertiary); border-color: var(--fam-border-default); }
+/* On a sunken row (a panel's current item) the tertiary tone falls below AA: a muted chip there reads in the secondary tone. */
+.pd-dock-current .pd-chip--muted { color: var(--fam-text-secondary); }
 .pd-icbtn {
   display: inline-flex; align-items: center; justify-content: center; width: var(--fam-size-control-md); height: var(--fam-size-control-md); flex: none;
   border: var(--fam-border-width-hairline) solid transparent; border-radius: var(--fam-radius-md); background: none; cursor: pointer; color: var(--fam-text-secondary);
@@ -928,3 +930,12 @@ html:has(#pg-creator-design), html:has(#pg-creator-design) body { margin: 0; pad
 .pd-acct-block { display: flex; flex-direction: column; gap: var(--fam-space-2); padding-block: var(--fam-space-3); border-block-start: 1px solid var(--fam-border-subtle); }
 .pd-acct-block:first-child { border-block-start: 0; }
 .pd-acct .pd-team-field .pd-input, .pd-acct select.pd-input { width: 100%; }
+
+/* P4: a design shared with this creator, drawn as its owner last saved it: its views side by side, each with its name. */
+.pd-shared { z-index: 45; }
+.pd-shared-views { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--fam-space-2); }
+.pd-shared-view { margin: 0; display: flex; flex-direction: column; gap: 4px; align-items: center; padding: var(--fam-space-2); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: 1px solid var(--fam-border-subtle); }
+.pd-shared-view svg { width: 100%; height: auto; max-height: 220px; }
+.pd-rv-share { display: flex; flex-direction: column; gap: var(--fam-space-2); padding-block: var(--fam-space-2); border-block-end: 1px solid var(--fam-border-subtle); }
+.pd-rv-share-add { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; align-items: center; }
+.pd-rv-share-add .pd-input { min-width: 0; }
