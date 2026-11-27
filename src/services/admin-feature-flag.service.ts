@@ -65,6 +65,49 @@ const BUILTIN_FLAGS: ReadonlyArray<Omit<UpsertFeatureFlagInput, 'description'> &
     isInternal: false,
   },
   {
+    // Off for every club and every plan: the platform owner releases it to a club (an override) or a plan.
+    key: 'club_design_studio',
+    name: 'Club Design Studio',
+    description: 'A club’s administrators and managers design the club’s kits and save them in the club’s own workspace.',
+    defaultEnabled: false,
+    enabledForPlans: [],
+    isInternal: false,
+  },
+  // M7a: the parts of the Club Design Studio, each restrictable by plan. On by default inside the studio (which stays the
+  // gate), so they change nothing until the platform owner restricts one; no price is attached to any of them.
+  {
+    key: 'club_design_team_kit',
+    name: 'Club Design Studio: team kit',
+    description: 'Team rosters (names, numbers, sizes), collections and their order sheet, inside the Club Design Studio.',
+    defaultEnabled: true,
+    enabledForPlans: [],
+    isInternal: false,
+  },
+  {
+    key: 'club_design_brand_kit',
+    name: 'Club Design Studio: brand kit',
+    description: 'The club’s colours and logos, and logos on its garments, inside the Club Design Studio.',
+    defaultEnabled: true,
+    enabledForPlans: [],
+    isInternal: false,
+  },
+  {
+    key: 'club_design_manufacturing',
+    name: 'Club Design Studio: manufacturing requests',
+    description: 'Requests for quotation through Familista from a collection, and the order to delivery.',
+    defaultEnabled: true,
+    enabledForPlans: [],
+    isInternal: false,
+  },
+  {
+    key: 'club_design_reviews',
+    name: 'Club Design Studio: reviews and approvals',
+    description: 'Comments on a saved design version, and a club administrator’s approval before ordering.',
+    defaultEnabled: true,
+    enabledForPlans: [],
+    isInternal: false,
+  },
+  {
     key: 'impersonation',
     name: 'Operator impersonation',
     description: 'Allow platform admins to impersonate users in this org.',

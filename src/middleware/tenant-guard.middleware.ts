@@ -226,6 +226,14 @@ export async function tenantGuard(req: Request, res: Response, next: NextFunctio
 // exemption in `src/cyber-defense/posture-policy.json`.
 
 type Owner = { clubId: string | null; teamId?: string | null } | null;
+/**
+ * A Design Studio or manufacturing row a creator owns (P2) has no club, but it is not platform-wide: it is answered with
+ * an owner no club ever is, so a club session naming it is the tenant mismatch it is, never admitted as a platform row.
+ */
+const designOwner = async (row: Promise<{ clubId: string | null; creatorId: string | null } | null>): Promise<Owner> => {
+  const r = await row;
+  return r ? { clubId: r.clubId ?? (r.creatorId ? `creator:${r.creatorId}` : null) } : null;
+};
 const ownerVia = async (parentClub: Promise<{ clubId: string } | null>): Promise<Owner> => {
   const p = await parentClub;
   return p ? { clubId: p.clubId } : null;
@@ -255,6 +263,21 @@ export const TENANT_RESOURCES = {
   },
   // A competition with no club is a platform competition, open to every club.
   competition:              (id: string): Promise<Owner> => prisma.competition.findUnique({ where: { id }, select: { clubId: true } }),
+  // A Design Studio project: a club's (CLUB) or the platform's own (PLATFORM, no club; reached only on the system path).
+  designProject:            (id: string): Promise<Owner> => designOwner(prisma.designProject.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),
+  // A logo of a club's Design Studio brand kit (M2c).
+  designBrandAsset:         (id: string): Promise<Owner> => designOwner(prisma.designBrandAsset.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),
+  // A team roster of a club's Design Studio (M3).
+  designRoster:             (id: string): Promise<Owner> => designOwner(prisma.designRoster.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),
+  // A collection of a club's Design Studio (M3b).
+  designCollection:         (id: string): Promise<Owner> => designOwner(prisma.designCollection.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),
+  // Manufacturing (M4): a club's request for quotation, and a quotation recorded for one.
+  manufacturingRequest:     (id: string): Promise<Owner> => designOwner(prisma.manufacturingRequest.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),
+  manufacturingQuote:       (id: string): Promise<Owner> => designOwner(prisma.manufacturingQuote.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),
+  // A comment on a club's design (M7b).
+  designReviewComment:      (id: string): Promise<Owner> => designOwner(prisma.designReviewComment.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),
+  // P6: an invoice of a club's (or a creator's) subscription.
+  commercialInvoice:        (id: string): Promise<Owner> => designOwner(prisma.commercialInvoice.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),
 } as const;
 
 export type TenantResource = keyof typeof TENANT_RESOURCES;

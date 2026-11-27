@@ -22,7 +22,15 @@
     "POST /neuro/streams/:id/event-batch": "Edge camera ingest: HMAC over the batch verified with the camera credential, nonce replay-checked (device-nonce service).",
     "POST /vision/cameras/:id/frame": "Edge camera ingest: HMAC over ts.nonce.sha256(detections) verified with the camera credential.",
     "GET /phase-q/video/shared/:shareToken": "A shared clip link: the 192-bit random share token in the path is the credential, and the service refuses an unknown or expired token. Returns that one clip only.",
-    "GET /matches/:id/live": "Live match stream (SSE). Not anonymous: EventSource cannot send headers, so the handler verifies a user JWT from ?token= itself and checks the match's club. Known weaknesses tracked elsewhere: the token travels in the URL (websocket-token-outside-url) and session revocation is not checked on realtime channels (remediation R1c)."
+    "GET /matches/:id/live": "Live match stream (SSE). Not anonymous: EventSource cannot send headers, so the handler verifies a user JWT from ?token= itself and checks the match's club. Known weaknesses tracked elsewhere: the token travels in the URL (websocket-token-outside-url) and session revocation is not checked on realtime channels (remediation R1c).",
+    "GET /creator/auth/terms": "Creator Studio (P2): what a sign-up page shows before anyone has an account: sign-up is by invitation, and the minimum age to confirm. No account, invitation or person is read.",
+    "POST /creator/auth/register": "Creator Studio (P2): opens a creator account only with a valid Platform Owner invitation (hash compared, single use taken conditionally, address-bound when the Owner bound it); without one, 403 CREATOR_INVITE_REFUSED. Tighter auth rate limit per account and per failing address.",
+    "POST /creator/auth/login": "Creator Studio (P2): credential exchange for a creator token (its own audience, never a club session). Lockout checked before the password, every outcome recorded, a missing account takes as long as a wrong password; tighter auth rate limit.",
+    "POST /creator/auth/refresh": "Creator Studio (P2): exchanges the HttpOnly refresh cookie (path /api/v1/creator/auth) for a rotated one; the token is opaque, stored as a hash, single use; a replaced token presented again ends its whole family.",
+    "POST /creator/auth/logout": "Creator Studio (P2): ends the session the refresh cookie names (its family) and clears the cookies; an unknown token changes nothing.",
+    "POST /creator/auth/verify-email": "Creator Studio (P2): claims a one-time, expiring address-confirmation link (stored as a hash); it can only mark that link\u2019s own account verified.",
+    "POST /creator/auth/forgot-password": "Creator Studio (P2): always 202 whether or not the address has an account (no enumeration); sends a one-hour reset link through the EmailService only to an active account. Tighter auth rate limit per account.",
+    "POST /creator/auth/reset-password": "Creator Studio (P2): claims a one-time, one-hour reset link (hash) and sets a new password in one transaction; every session of that account ends. Tighter auth rate limit."
   },
   "appLevelRoutes": {
     "GET /api/health": "Liveness probe for the load balancer; returns no data.",
@@ -33,7 +41,9 @@
     "GET /reset-password": "Serves the static password-reset page shell.",
     "POST /internal/backups/run": "Scheduled backup trigger for .github/workflows/backup.yml. No session by design: authenticated by HMAC-SHA256 (BACKUP_TRIGGER_SECRET) over method, path and timestamp, 5-minute window, constant-time; closed when the secret is unset; takes no body or query; rate-limited; one run at a time; none within 12 hours of a success.",
     "GET /internal/backups/runs/:id": "Status of one scheduled backup run, same HMAC authentication and rate limit; answers only id, state, start and finish times and ok.",
-    "POST /internal/video/transcode-callback": "Transcode result from an external transcode worker (R1a). No session by design, and no user token opens it: authenticated by HMAC-SHA256 (VIDEO_WORKER_CALLBACK_SECRET) over method, path, timestamp and the raw body, 5-minute window, constant-time; closed when the secret is unset; rate-limited; strict body schema; the service refuses any storage key outside the asset's own club folder. The in-process transcode worker calls the service directly and never uses this route."
+    "POST /internal/video/transcode-callback": "Transcode result from an external transcode worker (R1a). No session by design, and no user token opens it: authenticated by HMAC-SHA256 (VIDEO_WORKER_CALLBACK_SECRET) over method, path, timestamp and the raw body, 5-minute window, constant-time; closed when the secret is unset; rate-limited; strict body schema; the service refuses any storage key outside the asset's own club folder. The in-process transcode worker calls the service directly and never uses this route.",
+    "GET /creator": "The Creator Studio\u2019s page (P3): a static document with no data in it; it loads the Design Studio room, which asks the creator routes who is signed in (behind authenticateCreator) and shows the sign-in gate otherwise. The fragment of an emailed link never reaches the server.",
+    "GET /creator/": "The Creator Studio\u2019s page (P3): a static document with no data in it; it loads the Design Studio room, which asks the creator routes who is signed in (behind authenticateCreator) and shows the sign-in gate otherwise. The fragment of an emailed link never reaches the server."
   },
   "dormantRouteModules": {
     "admin-dashboard.routes": "Not mounted. Must not be mounted without a security review.",
@@ -801,7 +811,7 @@
     },
     "product-design.routes :id": {
       "basis": "platform-only",
-      "reason": "The Design Studio's routes are behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts). A project id names a PLATFORM-owned design, not a club row: src/platform/product-design/service.ts reads and writes only ownerKind PLATFORM, and the database admits no other owner until the phase that activates Club Design Studio (DS-3) or Creator Studio (DS-4) adds that context's own guard and row-level security. Proven with a CLUB row forced in by hand: 404 on every route (tests/product-design-persistence.integration.test.ts).",
+      "reason": "The platform owner's Design Studio routes are behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts). A project id names a PLATFORM-owned design, which has no club: src/platform/product-design/service.ts reaches only the PLATFORM scope on these routes, and row-level security admits a club-less project only on the system path. A club's designs are reached only through /club-design, behind tenantParam('designProject').",
       "routes": [
         "GET /system/product-design/projects/:id",
         "POST /system/product-design/projects/:id/revisions",
@@ -812,12 +822,120 @@
         "POST /system/product-design/projects/:id/unarchive"
       ]
     },
+    "product-design.routes :clubId": {
+      "basis": "cross-club-by-design",
+      "reason": "The Platform Owner releases the Club Design Studio to invited clubs (M8a rollout control): the route is behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts) and names a club by design. It sets only the five Design Studio keys of that club's limits (src/platform/product-design/rollout.service.ts), each change audited with the club; no club route reaches it.",
+      "routes": [
+        "PUT /system/product-design/rollout/:clubId"
+      ]
+    },
     "product-design.routes :number": {
       "basis": "platform-only",
       "reason": "A revision number within one design (1, 2, 3\u2026), not a row id: it is read only together with that design's id under the same PLATFORM scope and the same assertPlatformOwner guard.",
       "routes": [
         "GET /system/product-design/projects/:id/revisions/:number",
         "POST /system/product-design/projects/:id/revisions/:number/restore"
+      ]
+    },
+    "club-design.routes :number": {
+      "basis": "not-an-identifier",
+      "reason": "A revision number within one design (1, 2, 3\u2026), not a row id: it is read only together with that design's id, which tenantParam('designProject') has checked against the caller's club on the same route, under the service's CLUB scope and the DesignRevision row-level security policy.",
+      "routes": [
+        "GET /club-design/projects/:id/revisions/:number",
+        "POST /club-design/projects/:id/revisions/:number/restore"
+      ]
+    },
+    "manufacturing.routes :supplierId": {
+      "basis": "platform-only",
+      "reason": "The Platform Owner's manufacturing console (src/routes/manufacturing.routes.ts) is behind authenticate and assertPlatformOwner. A supplier id names a ManufacturingSupplier, platform data with no club, created and verified by the Owner alone; no club route reaches a supplier's row, and a club sees a verified supplier's name and country only on a published quotation.",
+      "routes": [
+        "GET /system/manufacturing/suppliers/:supplierId",
+        "PUT /system/manufacturing/suppliers/:supplierId",
+        "POST /system/manufacturing/suppliers/:supplierId/status"
+      ]
+    },
+    "manufacturing.routes :requestId": {
+      "basis": "cross-club-by-design",
+      "reason": "The Platform Owner brokers every club's requests for quotation (owner-brokered manufacturing, the Owner's decision of 23 November 2026): the console behind authenticate and assertPlatformOwner runs on the named system path and reaches each club's request by design. A club reaches only its own, through /club-design behind tenantParam('manufacturingRequest'), and row-level security holds requests, quotations and events to their club.",
+      "routes": [
+        "GET /system/manufacturing/requests/:requestId",
+        "GET /system/manufacturing/requests/:requestId/fit",
+        "POST /system/manufacturing/requests/:requestId/production-sheet",
+        "POST /system/manufacturing/requests/:requestId/erase-names",
+        "POST /system/manufacturing/requests/:requestId/review",
+        "POST /system/manufacturing/requests/:requestId/refuse",
+        "POST /system/manufacturing/requests/:requestId/quotes",
+        "POST /system/manufacturing/requests/:requestId/quotes/:quoteId/publish",
+        "POST /system/manufacturing/requests/:requestId/quotes/:quoteId/withdraw",
+        "DELETE /system/manufacturing/requests/:requestId/quotes/:quoteId",
+        "POST /system/manufacturing/requests/:requestId/order",
+        "POST /system/manufacturing/requests/:requestId/production",
+        "POST /system/manufacturing/requests/:requestId/shipped",
+        "POST /system/manufacturing/requests/:requestId/delivered",
+        "GET /system/manufacturing/requests/:requestId/designs/:projectId",
+        "GET /system/manufacturing/requests/:requestId/designs/:projectId/tech-pack"
+      ]
+    },
+    "manufacturing.routes :quoteId": {
+      "basis": "cross-club-by-design",
+      "reason": "A quotation id is read only together with its request's id (the service filters by both) on the Platform Owner's console, behind assertPlatformOwner; a club reaches only its own quotations, through /club-design behind tenantParam('manufacturingQuote').",
+      "routes": [
+        "POST /system/manufacturing/requests/:requestId/quotes/:quoteId/publish",
+        "POST /system/manufacturing/requests/:requestId/quotes/:quoteId/withdraw",
+        "DELETE /system/manufacturing/requests/:requestId/quotes/:quoteId"
+      ]
+    },
+    "manufacturing.routes :projectId": {
+      "basis": "cross-club-by-design",
+      "reason": "A design id is read only as one of the designs a request's frozen specification names, at the revision and hash it names (the service refuses any other), on the Platform Owner's console behind assertPlatformOwner, so the Owner can hand the supplier exactly what the club asked for. P7: the same design's tech pack, built from that frozen revision, once the order is confirmed with its supplier.",
+      "routes": [
+        "GET /system/manufacturing/requests/:requestId/designs/:projectId",
+        "GET /system/manufacturing/requests/:requestId/designs/:projectId/tech-pack"
+      ]
+    },
+    "product-design.routes :inviteId": {
+      "basis": "platform-only",
+      "reason": "A creator invitation belongs to no club: it is the Platform Owner's, issued and revoked only on these routes behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts); src/platform/creator/account.service.ts reaches it by id on the Owner's path alone.",
+      "routes": [
+        "POST /system/product-design/creators/invites/:inviteId/revoke"
+      ]
+    },
+    "creator.routes :number": {
+      "basis": "not-an-identifier",
+      "reason": "A revision number within one design (1, 2, 3...), not a row id: it is read only together with that design's id, which router.param('id', creatorOwns('designProject')) checks against the signed-in creator first, under the same PERSONAL scope.",
+      "routes": [
+        "GET /creator/projects/:id/revisions/:number",
+        "POST /creator/projects/:id/revisions/:number/restore"
+      ]
+    },
+    "product-design.routes :creatorId": {
+      "basis": "platform-only",
+      "reason": "A creator account belongs to no club: it is reached by id only on the Platform Owner's routes, behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts), to confirm its address by hand, suspend or reinstate it; src/platform/creator/account.service.ts audits each with the Owner's note.",
+      "routes": [
+        "POST /system/product-design/creators/:creatorId/reinstate",
+        "POST /system/product-design/creators/:creatorId/suspend",
+        "POST /system/product-design/creators/:creatorId/verify-email"
+      ]
+    },
+    "product-design.routes :planId": {
+      "basis": "platform-only",
+      "reason": "The Platform Owner\u2019s commercial routes are behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts); a plan is the Owner\u2019s configuration and belongs to no club.",
+      "routes": [
+        "PUT /system/product-design/plans/:planId"
+      ]
+    },
+    "product-design.routes :subscriptionId": {
+      "basis": "platform-only",
+      "reason": "The Platform Owner\u2019s commercial routes are behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts); the Owner ends any tenant\u2019s subscription by id with a note, audited (src/platform/commercial/subscription.service.ts).",
+      "routes": [
+        "POST /system/product-design/billing/subscriptions/:subscriptionId/end"
+      ]
+    },
+    "product-design.routes :invoiceId": {
+      "basis": "platform-only",
+      "reason": "The Platform Owner\u2019s commercial routes are behind authenticate and assertPlatformOwner (src/routes/product-design.routes.ts); the Owner voids any tenant\u2019s open invoice by id, audited.",
+      "routes": [
+        "POST /system/product-design/billing/invoices/:invoiceId/void"
       ]
     }
   },
@@ -930,6 +1048,70 @@
       "GET /me/settings",
       "PATCH /me/settings",
       "POST /me/context"
+    ],
+    "creator.routes": [
+      "DELETE /creator/collections/:collectionId",
+      "DELETE /creator/rosters/:rosterId",
+      "GET /creator/brand-kit",
+      "GET /creator/brand-kit/assets/:assetId/image",
+      "GET /creator/collections",
+      "GET /creator/collections/:collectionId",
+      "GET /creator/collections/:collectionId/order-sheet",
+      "GET /creator/getting-started",
+      "GET /creator/me",
+      "GET /creator/me/export",
+      "GET /creator/plan",
+      "GET /creator/projects",
+      "GET /creator/projects/:id",
+      "GET /creator/projects/:id/review",
+      "GET /creator/projects/:id/revisions",
+      "GET /creator/projects/:id/revisions/:number",
+      "GET /creator/projects/:id/shares",
+      "GET /creator/projects/:id/tech-pack",
+      "GET /creator/requests",
+      "GET /creator/requests/:requestId",
+      "GET /creator/rosters",
+      "GET /creator/rosters/:rosterId",
+      "GET /creator/shared",
+      "GET /creator/shared/:sharedProjectId",
+      "GET /creator/shared/:sharedProjectId/review",
+      "PATCH /creator/me",
+      "POST /creator/billing/invoices/:invoiceId/checkout",
+      "POST /creator/brand-kit/assets",
+      "POST /creator/brand-kit/assets/:assetId/archive",
+      "POST /creator/brand-kit/assets/:assetId/unarchive",
+      "POST /creator/collections",
+      "POST /creator/collections/:collectionId/archive",
+      "POST /creator/collections/:collectionId/requests",
+      "POST /creator/collections/:collectionId/unarchive",
+      "POST /creator/me/delete",
+      "POST /creator/me/password",
+      "POST /creator/me/verification",
+      "POST /creator/plan/cancel",
+      "POST /creator/plan/request",
+      "POST /creator/projects",
+      "POST /creator/projects/:id/archive",
+      "POST /creator/projects/:id/comments",
+      "POST /creator/projects/:id/comments/:commentId/reopen",
+      "POST /creator/projects/:id/comments/:commentId/resolve",
+      "POST /creator/projects/:id/decisions",
+      "POST /creator/projects/:id/exports",
+      "POST /creator/projects/:id/revisions",
+      "POST /creator/projects/:id/revisions/:number/restore",
+      "POST /creator/projects/:id/shares",
+      "POST /creator/projects/:id/shares/:shareId/revoke",
+      "POST /creator/projects/:id/unarchive",
+      "POST /creator/requests/:requestId/cancel",
+      "POST /creator/requests/:requestId/decline",
+      "POST /creator/requests/:requestId/delivered",
+      "POST /creator/requests/:requestId/quotes/:quoteId/accept",
+      "POST /creator/rosters",
+      "POST /creator/rosters/:rosterId/archive",
+      "POST /creator/rosters/:rosterId/unarchive",
+      "POST /creator/shared/:sharedProjectId/comments",
+      "PUT /creator/brand-kit/colours",
+      "PUT /creator/collections/:collectionId",
+      "PUT /creator/rosters/:rosterId"
     ],
     "device-infra.routes": [
       "GET /device-infra/devices",
@@ -1324,12 +1506,35 @@
     "MatchAttendanceRecord",
     "OperationsPayment",
     "ClubCalendarEntry",
-    "StaffClubNote"
+    "StaffClubNote",
+    "DesignProject",
+    "DesignRevision",
+    "DesignBrandKit",
+    "DesignBrandAsset",
+    "DesignRoster",
+    "DesignCollection",
+    "DesignCollectionItem",
+    "ManufacturingRequest",
+    "ManufacturingRequestEvent",
+    "ManufacturingQuote",
+    "DesignReviewComment",
+    "DesignApproval",
+    "ManufacturingRequestPerson",
+    "DesignShare",
+    "CommercialSubscription",
+    "CommercialInvoice",
+    "PaymentEvent"
   ],
   "rlsSystemPaths": {
     "platform-owner": "A platform owner acts across clubs by role (authenticate); the owner rooms are pinned separately (owner-rooms-pinned).",
     "transfer-settlement": "An accepted offer, a purchase or a settled auction moves a player from one club to another; authorization is checked before the move.",
     "staff-market-move": "A completed staff move ends a membership at one club and starts it at another; both clubs agreed before it runs.",
-    "video-transcode": "The transcode worker and its callback belong to no club; keys are confined to the asset (worker-callback-authenticated)."
+    "video-transcode": "The transcode worker and its callback belong to no club; keys are confined to the asset (worker-callback-authenticated).",
+    "creator-signup": "Opening a creator account reads and consumes an invitation, which belongs to no club and no creator yet; it writes only the new CreatorAccount, its first session and its audit entry.",
+    "creator-signin": "Signing in a creator finds the account by its address before any session exists; it reads CreatorAccount and writes a CreatorSession only, no Design Studio or club row.",
+    "creator-session": "Refreshing, ending and checking a creator session reads CreatorAccount and CreatorSession by the presented token or the token\u2019s subject, never a club\u2019s row or another creator\u2019s Design Studio row.",
+    "creator-account": "A creator\u2019s own account changes (profile, password, email links) on CreatorAccount, CreatorSession and CreatorEmailToken, by the signed-in creator\u2019s id or a one-time link\u2019s hash.",
+    "payment-events": "A payment provider\u2019s verified report settles one invoice (P6): it reads that invoice and writes its PaymentEvent, the invoice\u2019s status and its subscription\u2019s period, and nothing else. No provider is configured, so nothing calls it in production.",
+    "public-offer": "The Creator Studio\u2019s sign-in page (P8): reads the plans offered to creators (names, features, limits, prices the Owner configured) and counts verified suppliers, to say whether quotations are available. It reads no account, club, request or person, and writes nothing."
   }
 }

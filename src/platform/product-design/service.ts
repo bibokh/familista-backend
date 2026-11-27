@@ -1,12 +1,13 @@
 /**
- * Familista Design Studio — designs saved on the server (DS-1b).
+ * Familista Design Studio — designs saved on the server (DS-1b; clubs, M2).
  *
  * A project, and the immutable revisions of its canonical document. Every
- * operation here is the platform owner's (the routes guard it on the server
- * before any of this runs) and reaches only PLATFORM-owned projects: a query
- * that does not name `ownerKind: PLATFORM` is not written here, so a CLUB or
- * PERSONAL project — which the database does not admit yet anyway — could never
- * be read or changed through these routes.
+ * operation names the scope it reaches — the platform's own designs, or one
+ * club's — and every query it makes carries that scope: a project of another
+ * scope is not found, whatever its id. The routes resolve the scope on the
+ * server (the platform owner's routes: PLATFORM; a club's: CLUB with the
+ * signed-in user's own club, never one the request names), and the database
+ * holds the same line underneath (row-level security, 20261122200000).
  *
  * Saving is optimistic. A save names the revision it was based on; the head
  * moves from that number to the next in one conditional update, and a save
@@ -17,11 +18,12 @@
  * so a change without its record cannot exist. The record holds numbers and a
  * hash, never the document.
  */
-import { DesignOrigin, DesignOwnerKind, DesignRevisionKind, PlatformAuditCategory, Prisma } from '@prisma/client';
+import { DesignOrigin, DesignOwnerKind, DesignRevisionKind, PlatformAuditCategory, Prisma, UserRole } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { ConflictError, NotFoundError } from '../../utils/errors';
 import { currentEnvironment } from '../environment';
-import { formatVersion, validateDesignDocument, type DesignDocument } from './core';
+import { DesignDocumentError, formatVersion, validateDesignDocument, type CoreProblem, type DesignDocument } from './core';
+import { clubTenant, creatorTenant, tenantWhere, type Tenant } from '../tenancy/tenant';
 
 /** Who is acting, as the routes resolved it. */
 export interface DesignActor {
@@ -61,8 +63,40 @@ export const PROJECT_LIST_LIMIT = 200;
 /** At most this many revisions in one list, newest first. */
 export const REVISION_LIST_LIMIT = 500;
 
-/** The one ownership these routes reach. The phase that activates CLUB or PERSONAL adds its own scope. */
-const SCOPE = { ownerKind: DesignOwnerKind.PLATFORM } as const;
+/** The entitlement that opens the Club Design Studio to a club: off for every club and plan until the platform owner releases it. */
+export const CLUB_DESIGN_FEATURE = 'club_design_studio';
+/**
+ * The account roles that design a club's kits. The club routes ask exactly this (authorize, in
+ * src/routes/club-design.routes.ts) and the session's capability `canDesignClubKits` mirrors it; a test holds them together.
+ */
+export const CLUB_DESIGN_ROLES: readonly UserRole[] = Object.freeze([UserRole.CLUB_ADMIN, UserRole.MANAGER]);
+
+/** Whose designs an operation reaches: the platform's own, one club's, or one creator's (PERSONAL, Creator Studio P2). */
+export type DesignScope =
+  | { readonly kind: 'PLATFORM' }
+  | { readonly kind: 'CLUB'; readonly clubId: string }
+  | { readonly kind: 'PERSONAL'; readonly creatorId: string };
+export const PLATFORM_SCOPE: DesignScope = Object.freeze({ kind: 'PLATFORM' as const });
+export function clubScope(clubId: string): DesignScope {
+  if (typeof clubId !== 'string' || !clubId) throw new Error('A club scope needs the club');
+  return Object.freeze({ kind: 'CLUB' as const, clubId });
+}
+export function personalScope(creatorId: string): DesignScope {
+  if (typeof creatorId !== 'string' || !creatorId) throw new Error('A personal scope needs the creator');
+  return Object.freeze({ kind: 'PERSONAL' as const, creatorId });
+}
+/** The tenant of a club's or a creator's scope. The platform's own designs have none, and asking for one is a defect. */
+export function tenantOfScope(scope: DesignScope | undefined): Tenant {
+  if (scope?.kind === 'CLUB') return clubTenant(scope.clubId);
+  if (scope?.kind === 'PERSONAL') return creatorTenant(scope.creatorId);
+  throw new Error('This route was reached without a club or creator scope');
+}
+/** The scope as a filter: every query below carries it. */
+function owned(scope: DesignScope) {
+  if (scope.kind === 'PLATFORM') return { ownerKind: DesignOwnerKind.PLATFORM, clubId: null, creatorId: null };
+  if (scope.kind === 'CLUB') return { ownerKind: DesignOwnerKind.CLUB, clubId: scope.clubId, creatorId: null };
+  return { ownerKind: DesignOwnerKind.PERSONAL, clubId: null, creatorId: scope.creatorId };
+}
 
 const PROJECT_SELECT = {
   id: true, name: true, templateKey: true, templateVersion: true, headRevision: true,
@@ -88,12 +122,14 @@ export class DesignProjectArchivedError extends ConflictError {
 
 type Tx = Prisma.TransactionClient;
 
-async function audit(tx: Tx, actor: DesignActor, action: string, projectId: string, metadata: Record<string, unknown>, message: string): Promise<void> {
+async function audit(tx: Tx, scope: DesignScope, actor: DesignActor, action: string, projectId: string, metadata: Record<string, unknown>, message: string): Promise<void> {
   const admin = await tx.platformAdmin.findUnique({ where: { userId: actor.userId }, select: { id: true } });
   await tx.platformAuditLog.create({
     data: {
       adminId: admin?.id ?? null,
-      userId: actor.userId,
+      userId: scope.kind === 'PERSONAL' ? null : actor.userId,
+      clubId: scope.kind === 'CLUB' ? scope.clubId : null,
+      creatorId: scope.kind === 'PERSONAL' ? scope.creatorId : null,
       action,
       category: PlatformAuditCategory.ASSET,
       resourceType: 'DesignProject',
@@ -106,16 +142,40 @@ async function audit(tx: Tx, actor: DesignActor, action: string, projectId: stri
   });
 }
 
-async function projectOrNotFound(db: Tx | typeof prisma, id: string): Promise<DesignProjectView> {
-  const project = await db.designProject.findFirst({ where: { id, ...SCOPE }, select: PROJECT_SELECT });
+/**
+ * Every logo a design names (an image layer, M2c): none on the platform's designs, which have no brand kit; on a club's
+ * or a creator's, that owner's own logos alone (archived ones too: an older design may still show one), at the pixel size the kit keeps
+ * them. A design naming another club's logo, or one that does not exist, is refused like any invalid document. Asked in
+ * the request's database context, so row-level security answers the same question underneath.
+ */
+async function assertBrandAssets(db: Tx | typeof prisma, scope: DesignScope, document: DesignDocument): Promise<void> {
+  const refs: Array<{ asset: string; px: [number, number]; path: string }> = [];
+  (document.surfaces as Array<{ layers: Array<{ type: string; asset?: string; px?: [number, number] }> }>).forEach((s, i) => s.layers.forEach((l, j) => {
+    if (l.type === 'image' && typeof l.asset === 'string' && Array.isArray(l.px)) refs.push({ asset: l.asset, px: l.px, path: `surfaces[${i}].layers[${j}]` });
+  }));
+  if (!refs.length) return;
+  if (scope.kind === 'PLATFORM') throw new DesignDocumentError(refs.map((r) => ({ code: 'image-not-allowed', path: r.path })));
+  const rows = await db.designBrandAsset.findMany({ where: { id: { in: [...new Set(refs.map((r) => r.asset))] }, ...tenantWhere(tenantOfScope(scope)) }, select: { id: true, width: true, height: true } });
+  const kept = new Map(rows.map((r) => [r.id, r]));
+  const problems: CoreProblem[] = [];
+  for (const r of refs) {
+    const row = kept.get(r.asset);
+    if (!row) problems.push({ code: 'unknown-brand-asset', path: `${r.path}.asset` });
+    else if (row.width !== r.px[0] || row.height !== r.px[1]) problems.push({ code: 'brand-asset-size', path: `${r.path}.px` });
+  }
+  if (problems.length) throw new DesignDocumentError(problems);
+}
+
+async function projectOrNotFound(db: Tx | typeof prisma, scope: DesignScope, id: string): Promise<DesignProjectView> {
+  const project = await db.designProject.findFirst({ where: { id, ...owned(scope) }, select: PROJECT_SELECT });
   if (!project) throw new NotFoundError('Design project');
   return project;
 }
 
 /** The projects, newest change first: the active ones, or the archived ones. */
-export async function listProjects(state: 'active' | 'archived'): Promise<{ projects: DesignProjectView[]; limit: number; truncated: boolean }> {
+export async function listProjects(scope: DesignScope, state: 'active' | 'archived'): Promise<{ projects: DesignProjectView[]; limit: number; truncated: boolean }> {
   const rows = await prisma.designProject.findMany({
-    where: { ...SCOPE, archivedAt: state === 'archived' ? { not: null } : null },
+    where: { ...owned(scope), archivedAt: state === 'archived' ? { not: null } : null },
     orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
     take: PROJECT_LIST_LIMIT + 1,
     select: PROJECT_SELECT,
@@ -124,12 +184,13 @@ export async function listProjects(state: 'active' | 'archived'): Promise<{ proj
 }
 
 /** A new project, its document as revision 1. */
-export async function createProject(actor: DesignActor, input: { document: unknown; origin: DesignOrigin }): Promise<{ project: DesignProjectView; revision: DesignRevisionMeta }> {
+export async function createProject(scope: DesignScope, actor: DesignActor, input: { document: unknown; origin: DesignOrigin }): Promise<{ project: DesignProjectView; revision: DesignRevisionMeta }> {
   const v = validateDesignDocument(input.document);
+  await assertBrandAssets(prisma, scope, v.document);
   return prisma.$transaction(async (tx) => {
     const project = await tx.designProject.create({
       data: {
-        ...SCOPE, name: v.document.name, templateKey: v.document.template.key, templateVersion: v.document.template.version,
+        ...owned(scope), name: v.document.name, templateKey: v.document.template.key, templateVersion: v.document.template.version,
         headRevision: 1, origin: input.origin, createdById: actor.userId,
       },
       select: PROJECT_SELECT,
@@ -141,15 +202,15 @@ export async function createProject(actor: DesignActor, input: { document: unkno
       },
       select: REVISION_META_SELECT,
     });
-    await audit(tx, actor, 'design.project.created', project.id, { revision: 1, origin: input.origin, sha256: v.sha256, bytes: v.bytes },
+    await audit(tx, scope, actor, 'design.project.created', project.id, { revision: 1, origin: input.origin, sha256: v.sha256, bytes: v.bytes },
       'A Design Studio project was created');
     return { project, revision };
   });
 }
 
 /** A project and its newest revision's document. */
-export async function getProject(id: string): Promise<{ project: DesignProjectView; revision: DesignRevisionView }> {
-  const project = await projectOrNotFound(prisma, id);
+export async function getProject(scope: DesignScope, id: string): Promise<{ project: DesignProjectView; revision: DesignRevisionView }> {
+  const project = await projectOrNotFound(prisma, scope, id);
   const revision = await prisma.designRevision.findUnique({
     where: { projectId_number: { projectId: id, number: project.headRevision } },
     select: { ...REVISION_META_SELECT, document: true },
@@ -165,13 +226,13 @@ export async function getProject(id: string): Promise<{ project: DesignProjectVi
  * document) answers that revision instead of a conflict.
  */
 async function advance(
-  actor: DesignActor, id: string, base: number,
+  scope: DesignScope, actor: DesignActor, id: string, base: number,
   next: { document: DesignDocument; sha256: string; bytes: number; kind: DesignRevisionKind; restoredFrom: number | null },
   action: string, message: string,
 ): Promise<{ project: DesignProjectView; revision: DesignRevisionMeta; replayed: boolean }> {
   const done = await prisma.$transaction(async (tx) => {
     const moved = await tx.designProject.updateMany({
-      where: { id, ...SCOPE, headRevision: base, archivedAt: null },
+      where: { id, ...owned(scope), headRevision: base, archivedAt: null },
       data: { headRevision: base + 1, name: next.document.name, templateKey: next.document.template.key, templateVersion: next.document.template.version },
     });
     if (moved.count !== 1) return null;
@@ -183,13 +244,13 @@ async function advance(
       },
       select: REVISION_META_SELECT,
     });
-    await audit(tx, actor, action, id, { revision: base + 1, basedOn: base, kind: next.kind, restoredFrom: next.restoredFrom, sha256: next.sha256, bytes: next.bytes }, message);
-    const project = await tx.designProject.findFirstOrThrow({ where: { id, ...SCOPE }, select: PROJECT_SELECT });
+    await audit(tx, scope, actor, action, id, { revision: base + 1, basedOn: base, kind: next.kind, restoredFrom: next.restoredFrom, sha256: next.sha256, bytes: next.bytes }, message);
+    const project = await tx.designProject.findFirstOrThrow({ where: { id, ...owned(scope) }, select: PROJECT_SELECT });
     return { project, revision, replayed: false };
   });
   if (done) return done;
 
-  const project = await projectOrNotFound(prisma, id);
+  const project = await projectOrNotFound(prisma, scope, id);
   if (project.archivedAt) throw new DesignProjectArchivedError();
   if (project.headRevision === base + 1 && next.kind === DesignRevisionKind.SAVE) {
     const head = await prisma.designRevision.findUnique({
@@ -201,55 +262,57 @@ async function advance(
 }
 
 /** Save a document as the project's next revision, if `baseRevision` is still the newest. */
-export async function saveRevision(actor: DesignActor, id: string, input: { baseRevision: number; document: unknown }) {
+export async function saveRevision(scope: DesignScope, actor: DesignActor, id: string, input: { baseRevision: number; document: unknown }) {
   const v = validateDesignDocument(input.document);
-  return advance(actor, id, input.baseRevision, { ...v, kind: DesignRevisionKind.SAVE, restoredFrom: null },
+  await assertBrandAssets(prisma, scope, v.document);
+  return advance(scope, actor, id, input.baseRevision, { ...v, kind: DesignRevisionKind.SAVE, restoredFrom: null },
     'design.revision.saved', 'A Design Studio revision was saved');
 }
 
 /** Copy revision `number` into a new revision, if `baseRevision` is still the newest. The head never moves back. */
-export async function restoreRevision(actor: DesignActor, id: string, number: number, input: { baseRevision: number }) {
-  await projectOrNotFound(prisma, id);
+export async function restoreRevision(scope: DesignScope, actor: DesignActor, id: string, number: number, input: { baseRevision: number }) {
+  await projectOrNotFound(prisma, scope, id);
   const source = await prisma.designRevision.findFirst({
-    where: { projectId: id, number, project: SCOPE }, select: { document: true },
+    where: { projectId: id, number, project: owned(scope) }, select: { document: true },
   });
   if (!source) throw new NotFoundError('Design revision');
   // Stored documents were valid when saved; validating again keeps a restore to what the editor can open now.
   const v = validateDesignDocument(source.document);
-  return advance(actor, id, input.baseRevision, { ...v, kind: DesignRevisionKind.RESTORE, restoredFrom: number },
+  await assertBrandAssets(prisma, scope, v.document);
+  return advance(scope, actor, id, input.baseRevision, { ...v, kind: DesignRevisionKind.RESTORE, restoredFrom: number },
     'design.revision.restored', `A Design Studio revision was restored from revision ${number}`);
 }
 
 /** The project's revisions, newest first, without their documents. */
-export async function listRevisions(id: string): Promise<{ project: DesignProjectView; revisions: DesignRevisionMeta[]; limit: number; truncated: boolean }> {
-  const project = await projectOrNotFound(prisma, id);
+export async function listRevisions(scope: DesignScope, id: string): Promise<{ project: DesignProjectView; revisions: DesignRevisionMeta[]; limit: number; truncated: boolean }> {
+  const project = await projectOrNotFound(prisma, scope, id);
   const rows = await prisma.designRevision.findMany({
-    where: { projectId: id }, orderBy: { number: 'desc' }, take: REVISION_LIST_LIMIT + 1, select: REVISION_META_SELECT,
+    where: { projectId: id, project: owned(scope) }, orderBy: { number: 'desc' }, take: REVISION_LIST_LIMIT + 1, select: REVISION_META_SELECT,
   });
   return { project, revisions: rows.slice(0, REVISION_LIST_LIMIT), limit: REVISION_LIST_LIMIT, truncated: rows.length > REVISION_LIST_LIMIT };
 }
 
 /** One revision, with its document. */
-export async function getRevision(id: string, number: number): Promise<{ revision: DesignRevisionView }> {
+export async function getRevision(scope: DesignScope, id: string, number: number): Promise<{ revision: DesignRevisionView }> {
   const revision = await prisma.designRevision.findFirst({
-    where: { projectId: id, number, project: SCOPE }, select: { ...REVISION_META_SELECT, document: true },
+    where: { projectId: id, number, project: owned(scope) }, select: { ...REVISION_META_SELECT, document: true },
   });
   if (!revision) throw new NotFoundError('Design revision');
   return { revision: { ...revision, document: revision.document as unknown as DesignDocument } };
 }
 
 /** Archive a project, or return it to the list. Its revisions are untouched either way. */
-export async function setArchived(actor: DesignActor, id: string, archived: boolean): Promise<{ project: DesignProjectView }> {
+export async function setArchived(scope: DesignScope, actor: DesignActor, id: string, archived: boolean): Promise<{ project: DesignProjectView }> {
   return prisma.$transaction(async (tx) => {
-    const current = await projectOrNotFound(tx, id);
+    const current = await projectOrNotFound(tx, scope, id);
     if (!!current.archivedAt === archived) return { project: current };
     const changed = await tx.designProject.updateMany({
-      where: { id, ...SCOPE, archivedAt: archived ? null : { not: null } },
+      where: { id, ...owned(scope), archivedAt: archived ? null : { not: null } },
       data: { archivedAt: archived ? new Date() : null },
     });
-    const project = await projectOrNotFound(tx, id);
+    const project = await projectOrNotFound(tx, scope, id);
     if (changed.count === 1) {
-      await audit(tx, actor, archived ? 'design.project.archived' : 'design.project.unarchived', id, { revision: project.headRevision },
+      await audit(tx, scope, actor, archived ? 'design.project.archived' : 'design.project.unarchived', id, { revision: project.headRevision },
         archived ? 'A Design Studio project was archived' : 'A Design Studio project was returned to the list');
     }
     return { project };

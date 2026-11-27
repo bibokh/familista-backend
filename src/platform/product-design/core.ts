@@ -28,7 +28,7 @@ export interface DesignDocument {
   surfaces: unknown[];
 }
 
-interface ProductTemplate { key: string; templateVersion: number }
+interface ProductTemplate { key: string; templateVersion: number; name?: string; form?: string; surfaces?: Array<{ id: string; label?: string; width?: number; height?: number }>; parts?: Array<{ id: string; label?: string }> }
 
 interface PdCore {
   FORMAT: string;
@@ -41,7 +41,18 @@ interface PdCore {
 }
 
 const PUBLIC_DIR = path.join(__dirname, '..', '..', '..', 'public', 'product-design');
-const TEMPLATE_FILES = ['football-jersey.json'];
+/**
+ * The released garments, as the editor lists them: one registry for both, so the server accepts a design for exactly
+ * the templates the editor offers, and a template the editor has never seen cannot be saved.
+ */
+function templateFiles(): string[] {
+  const index = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, 'templates', 'index.json'), 'utf8')) as { format?: string; templates?: Array<{ file?: unknown }> };
+  if (index.format !== 'familista.product-template-index' || !Array.isArray(index.templates)) throw new Error('product-design: templates/index.json is not a template index');
+  return index.templates.map((e) => {
+    if (typeof e.file !== 'string' || !/^[a-z0-9-]+\.json$/.test(e.file)) throw new Error('product-design: templates/index.json names a file it may not');
+    return e.file;
+  });
+}
 
 let loaded: { core: PdCore; templates: Map<string, ProductTemplate> } | null = null;
 
@@ -51,12 +62,38 @@ function load(): { core: PdCore; templates: Map<string, ProductTemplate> } {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const core = require(path.join(PUBLIC_DIR, 'pd-core.js')) as PdCore;
   const templates = new Map<string, ProductTemplate>();
-  for (const file of TEMPLATE_FILES) {
+  for (const file of templateFiles()) {
     const t = core.validateTemplate(JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, 'templates', file), 'utf8')));
     templates.set(`${t.key}@${t.templateVersion}`, t);
   }
   loaded = { core, templates };
   return loaded;
+}
+
+/**
+ * The garment form a released template builds (top, shorts or socks; a template that names none is a top), or null for a
+ * template the registry does not hold. What a collection's order sheet counts its sizes by (M3b).
+ */
+export function templateForm(key: string, version: number): 'top' | 'shorts' | 'socks' | null {
+  const t = load().templates.get(`${key}@${version}`);
+  if (!t) return null;
+  return t.form === 'shorts' || t.form === 'socks' ? t.form : 'top';
+}
+
+/** The surface ids a released template draws, in order (M7b: a review comment may name one), or null. */
+export function templateSurfaces(key: string, version: number): string[] | null {
+  const t = load().templates.get(`${key}@${version}`);
+  return t && Array.isArray(t.surfaces) ? t.surfaces.map((s) => s.id) : null;
+}
+
+/** P5: a released template's name, form and surfaces (with their labels and sizes in mm), for the tech pack; or null. */
+export function templateInfo(key: string, version: number): { name: string; form: 'top' | 'shorts' | 'socks'; surfaces: Array<{ id: string; label: string; widthMm: number | null; heightMm: number | null }> } | null {
+  const t = load().templates.get(`${key}@${version}`);
+  if (!t) return null;
+  return {
+    name: String(t.name ?? key), form: t.form === 'shorts' || t.form === 'socks' ? t.form : 'top',
+    surfaces: (t.surfaces ?? []).map((x) => ({ id: x.id, label: String(x.label ?? x.id), widthMm: typeof x.width === 'number' ? x.width : null, heightMm: typeof x.height === 'number' ? x.height : null })),
+  };
 }
 
 /** The core's limits (bytes, name length), for the routes' own envelope checks. */

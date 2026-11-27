@@ -261,6 +261,38 @@ jobs:
           PRODUCT_DESIGN_DB_REQUIRED: '1'
         run: npx jest --runInBand --ci tests/product-design-persistence.integration.test.ts
 
+      # Manufacturing, M4 (owner-brokered): requests for quotation, real quotation records, the club's approval and the
+      # order to delivery, on a freshly migrated database owned by a role that is not a superuser. Only a verified
+      # supplier's quotation reaches a club (the service and a trigger); a submitted specification, a published quotation
+      # and the request's history never change; every step is the workflow's and its status-conditioned write lets one of
+      # two racing steps land; clubs reach only their own requests (tenantParam and row-level security).
+      - name: Manufacturing workflow (real PostgreSQL)
+        env:
+          PRODUCT_DESIGN_DB_DATABASE_URL: postgresql://familista_ci:familista_ci_pw@localhost:5432/postgres
+          PRODUCT_DESIGN_DB_REQUIRED: '1'
+        run: npx jest --runInBand --ci tests/manufacturing.integration.test.ts
+
+      # Creator Studio, P2: personal creator accounts and the second kind of tenant. Sign-up only with the Platform Owner's
+      # invitation (bound, single use under a race, expiring); only hashes of codes, refresh tokens and links are kept, and
+      # none reaches the audit; a creator session is never a club session; refresh tokens rotate and a replayed one ends
+      # its family; a reset ends every session; one creator reaches no other creator's records nor a club's, nor a club a
+      # creator's — through the routes and in the database itself (one-owner checks, composite keys, row-level security).
+      - name: Creator Studio tenancy (real PostgreSQL)
+        env:
+          PRODUCT_DESIGN_DB_DATABASE_URL: postgresql://familista_ci:familista_ci_pw@localhost:5432/postgres
+          PRODUCT_DESIGN_DB_REQUIRED: '1'
+        run: npx jest --runInBand --ci tests/creator-tenancy.integration.test.ts
+
+      # P5/P6: plans, entitlements and provider-independent billing. A plan's features and limits are enforced route by
+      # route; a paid plan waits with an OPEN invoice and checkout says no provider is configured (nothing is charged);
+      # the database settles an invoice only from a recorded successful payment of its exact total, records a payment
+      # event once and never changes it; one tenant reaches no other's subscription or invoices, routes or underneath.
+      - name: Plans and billing (real PostgreSQL)
+        env:
+          PRODUCT_DESIGN_DB_DATABASE_URL: postgresql://familista_ci:familista_ci_pw@localhost:5432/postgres
+          PRODUCT_DESIGN_DB_REQUIRED: '1'
+        run: npx jest --runInBand --ci tests/commercial.integration.test.ts
+
       # Blocking since Cyber Defense Step 9: a dependency with a known HIGH or
       # CRITICAL advisory stops the change from merging. Moderate and low are
       # still printed. If the advisory service cannot be reached the step
@@ -544,7 +576,7 @@ jobs:
       - name: The Design Studio proof must have run, in full, with no functional check failed or skipped
         if: matrix.shard == 'isolation'
         env:
-          DESIGN_FLOOR: '153'
+          DESIGN_FLOOR: '344'
         run: |
           set -euo pipefail
           line="$(grep -E '^SUMMARY ' "$RUNNER_TEMP/design-proof.log" | tail -n 1)"

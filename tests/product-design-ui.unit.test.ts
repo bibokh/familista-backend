@@ -35,6 +35,14 @@ const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'
 const APP = read('public/app.js');
 const JS = read('public/product-design/product-design.js');
 const CODE = strip(JS);
+// M3: the Team panel is the room's own module; its words are the room's catalogue's, and it holds the room's rules.
+const TEAM = read('public/product-design/pd-team.js') + read('public/product-design/pd-collections.js') + read('public/product-design/pd-requests.js')
+  + read('public/product-design/pd-manufacturing.js') + read('public/product-design/pd-review.js') + read('public/product-design/pd-present.js')
+  // P3: the Creator Studio's gate and account panel are the room's own module too.
+  + read('public/product-design/pd-creator.js')
+  // P5/P6: the Plan & billing panel, the Production pack and the Owner's Plans & billing console.
+  + read('public/product-design/pd-plan.js');
+const TEAM_CODE = strip(TEAM);
 const CORE = read('public/product-design/pd-core.js');
 const CSS = read('public/product-design/product-design.css');
 const CSS_CODE = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -89,10 +97,28 @@ describe('the Interface Studio is preserved', () => {
 describe('wiring: an owner room of its own, its design routes guarded on the server', () => {
   it('app.js loads it on demand behind the platform-owner check, its core, its server client, its garment and 3D view, then its editor, under one version that the room also uses', () => {
     // DS-1c adds the garment geometry and the 3D view before the editor; Babylon itself is loaded only when 3D is chosen (pd-3d.js).
-    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261112-product-design-1c', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);");
-    expect(JS).toContain("var VERSION = '20261112-product-design-1c';");
+    expect(APP).toContain("_famLoadOwnerRoom(_PD_ROOM, '20261124-product-design-m7b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-manufacturing.js', '/product-design/pd-plan.js', '/product-design/product-design.js'], done);");
+    expect(JS).toContain("var VERSION = '20261124-product-design-m7b';");
     expect(APP).toContain("if (page === 'product-design' && !(_PD_ROOM && _PD_ROOM.state === 'ready')) {");
     expect(APP).toMatch(/_loadProductDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'owner-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
+    // The owner rooms keep their platform-owner check; the same asset loader serves the club's room behind its capability.
+    expect(APP).toMatch(/function _famLoadOwnerRoom\(room, v, css, scripts, done\) \{\s*_famLoadRoom\(room, v, css, scripts, done, function \(\) \{\s*return _isPlatformOwner\(\)/);
+    expect(APP).toContain('ask = Promise.resolve(allowed());');
+  });
+
+  it('M2b: opens in a club’s workspace for whoever its capability names, the same files under the same version, and falls back to the club’s home', () => {
+    expect(APP).toContain("_famLoadRoom(_PD_ROOM, '20261124-product-design-m7b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-collections.js', '/product-design/pd-requests.js', '/product-design/pd-review.js', '/product-design/pd-present.js', '/product-design/pd-team.js', '/product-design/pd-plan.js', '/product-design/product-design.js'], done,\n    function () { return _access('canDesignClubKits'); });");
+    expect(APP).toContain("if (!_access('canDesignClubKits')) { try { navTo('club-home', null, _opts); } catch (_) {} return; }");
+    expect(APP).toMatch(/_loadClubDesign\(function \(ok\) \{\s*try \{ navTo\(ok \? page : 'club-home', ok \? el : null, _opts\); \} catch \(_\) \{\}/);
+    const nav = APP.slice(APP.indexOf('var CLUB_NAV_ITEMS = ['), APP.indexOf('];', APP.indexOf('var CLUB_NAV_ITEMS = [')));
+    expect(nav).toMatch(/slug:\s+'club-design',[\s\S]*?requires: 'canDesignClubKits',/);
+    expect(/var _ALLOWED_PAGES = \{([\s\S]*?)\};/.exec(APP)![1]).toMatch(/'club-design': 1,/);
+    expect(APP).toContain('return `<div class="page" id="pg-club-design" data-no-i18n data-fam-module="club-design"><div id="pd-club-root" class="pd-host"></div></div>`;');
+    expect(APP).toContain("'club-design':                 renderClubDesignHTML,");
+    // The workspace passed is the session's open club; the room keys what it keeps by it, and the server serves the session's own.
+    expect(APP).toContain("kind: 'CLUB', clubId: String(_ctx.clubId),");
+    expect(JS).toContain("STORE_KEY = WS.kind === 'CLUB' ? STORE_BASE + '_club_' + WS.clubId : WS.kind === 'PERSONAL' ? STORE_BASE + '_creator_' + WS.creatorId : STORE_BASE;");
+    expect(JS).toContain('WS = ws; P = client;');
   });
 
   it('says plainly that the client check is convenience and not a security boundary', () => {
@@ -108,8 +134,9 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     expect(allow).toMatch(/'product-design': 1,/);
     expect(APP).toContain("'product-design':              renderProductDesignHTML,");
     expect(APP).toContain('return `<div class="page" id="pg-product-design" data-no-i18n data-fam-context="owner" data-fam-module="product-design"><div id="pd-root"></div></div>`;');
-    expect(APP).toContain("document.body.classList.toggle('pd-studio-open', page === 'product-design');");
-    expect(APP).toContain("if (_wasProduct && page !== 'product-design' && typeof window.teardownFamilistaProductDesign === 'function') {");
+    expect(APP).toContain("var _isProduct = page === 'product-design' || page === 'club-design';");
+    expect(APP).toContain("document.body.classList.toggle('pd-studio-open', _isProduct);");
+    expect(APP).toContain("if (_wasProduct && 'pg-' + page !== _leaving && typeof window.teardownFamilistaProductDesign === 'function') {");
     expect(APP).toContain("&& _pdRoot && (_leaving !== 'pg-product-design' || !_pdRoot.__famDrawn)) {");
     expect(APP).toContain("'product-design':'Design Studio',");
     expect(read('public/index.html')).not.toContain('/product-design/');
@@ -129,13 +156,51 @@ describe('wiring: an owner room of its own, its design routes guarded on the ser
     expect(JS).toContain("nav.innerHTML = window.famOwnerNav('product-design', T, 'pd-ownernav');");
   });
 
-  it('its server side is exactly the DS-1b files, mounted once behind the owner guard, and the CSP is the one it was', () => {
+  it('its server side is exactly the DS-1b files and M2’s club mount, each behind its guard, and the CSP is the one it was', () => {
     const ts = (d: string): string[] => fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? ts(path.join(d, e.name)) : /\.ts$/.test(e.name) ? [path.join(d, e.name)] : []));
     expect(ts('src').filter((f) => /product-design|ProductDesign|pd-core/.test(read(f))).sort()).toEqual([
       'src/contracts/owner-api.contracts.ts', 'src/cyber-defense/control-plane/registry.ts',
-      'src/platform/product-design/core.ts', 'src/routes/index.ts', 'src/routes/product-design.routes.ts',
+      // P5: a plan's professional tools read a design's head revision and its template (a tech pack, a print export).
+      'src/platform/commercial/http.ts', 'src/platform/commercial/plans.service.ts', 'src/platform/commercial/subscription.service.ts', 'src/platform/commercial/tech-pack.ts',
+      // P2: a creator's session leaves a PERSONAL design scope, and the creator's own mount uses the studio's handlers.
+      'src/platform/creator/authenticate.ts', 'src/platform/creator/privacy.service.ts',
+      // P4: sharing a creator's design reuses the studio's review and its audit entry.
+      'src/platform/creator/share-http.ts', 'src/platform/creator/share.service.ts',
+      // M4: manufacturing builds on the Design Studio's collections, rosters, revisions and actor (src/platform/manufacturing).
+      'src/platform/manufacturing/club-http.ts', 'src/platform/manufacturing/owner-http.ts', 'src/platform/manufacturing/request.service.ts',
+      'src/platform/manufacturing/supplier.service.ts',
+      // P1: the studio's privacy controls: erasing a person's name, and retention of the data it keeps.
+      'src/platform/privacy/erasure.service.ts', 'src/platform/privacy/privacy-http.ts', 'src/platform/privacy/retention.service.ts',
+      'src/platform/product-design/core.ts', 'src/platform/product-design/http.ts',
+      // M8a: the Owner's rollout control releases the Club Design Studio to clubs.
+      'src/platform/product-design/rollout-http.ts', 'src/platform/product-design/rollout.service.ts',
+      // M3: the server's copy of the roster core reads public/product-design/pd-roster.js, as core.ts reads pd-core.js.
+      'src/platform/product-design/roster-core.ts', 'src/routes/club-design.routes.ts',
+      'src/routes/creator.routes.ts', 'src/routes/index.ts', 'src/routes/product-design.routes.ts', 'src/services/context.service.ts',
     ]);
-    expect(fs.readdirSync(path.join(ROOT, 'src/platform/product-design')).sort()).toEqual(['core.ts', 'service.ts']);
+    // M2c: the club's brand kit: its image pipeline, its service and its handlers. M3: the team rosters' core, service and
+    // handlers, and the audit entry both write. M7b: a design's review, its service and handlers.
+    expect(fs.readdirSync(path.join(ROOT, 'src/platform/product-design')).sort()).toEqual(['brand-http.ts', 'brand-image.ts', 'brand-kit.service.ts',
+      'club-audit.ts', 'collection-http.ts', 'collection.service.ts', 'core.ts', 'entitlements.ts', 'http.ts', 'review-http.ts', 'review.service.ts', 'rollout-http.ts', 'rollout.service.ts', 'roster-core.ts', 'roster-http.ts',
+      'roster.service.ts', 'scope-http.ts', 'service.ts']);
+    // M2: a club's designs have their own mount, behind authenticate, the club roles that design kits, the club's
+    // entitlement, and an ownership check of every project id, all before any handler.
+    expect(read('src/routes/index.ts')).toContain("router.use('/club-design', clubDesignRoutes);");
+    const club = read('src/routes/club-design.routes.ts');
+    const order = ['router.use(authenticate);', 'router.use(authorize(UserRole.CLUB_ADMIN, UserRole.MANAGER));',
+      'isFeatureEnabled(clubId, CLUB_DESIGN_FEATURE)', 'setDesignScope(res, clubScope(clubId));', "router.get('/projects', listDesigns);"];
+    order.forEach((x) => expect(club).toContain(x));
+    order.slice(1).forEach((x, i) => expect(club.indexOf(order[i])).toBeLessThan(club.indexOf(x)));
+    const idRoutes = [...club.matchAll(/^router\.(get|post)\('([^']*:id[^']*)', (.*)\);$/gm)];
+    // DS-1b's seven, M7b's five review routes and P5's two professional tools: the part's (or the plan's) gate first, then
+    // the design's ownership, then a comment's own, then the handler.
+    expect(idRoutes).toHaveLength(14);
+    expect(idRoutes.filter((m) => /^clubFeature\('(manufacturing_prep|pro_export)'\), tenantParam\('designProject'\), club(TechPack|ProExport)$/.test(m[3]))).toHaveLength(2);
+    expect(idRoutes.filter((m) => /^tenantParam\('designProject'\), \w+$/.test(m[3]))).toHaveLength(7);
+    expect(idRoutes.filter((m) => /^reviews, tenantParam\('designProject'\), (tenantParam\('designReviewComment', 'commentId'\), )?\w+$/.test(m[3]))).toHaveLength(5);
+    idRoutes.filter((m) => m[2].includes(':commentId')).forEach((m) => expect(m[3]).toContain("tenantParam('designReviewComment', 'commentId')"));
+    // P2: a creator's design is answered with an owner no club is, so a club naming it is a tenant mismatch.
+    expect(read('src/middleware/tenant-guard.middleware.ts')).toContain("designProject:            (id: string): Promise<Owner> => designOwner(prisma.designProject.findUnique({ where: { id }, select: { clubId: true, creatorId: true } })),");
     expect(read('src/routes/index.ts').match(/product-design/g)).toHaveLength(2);
     expect(read('src/routes/index.ts')).toContain("router.use('/system/product-design', productDesignRoutes);");
     const routes = read('src/routes/product-design.routes.ts');
@@ -167,14 +232,21 @@ describe('the room is safe by construction', () => {
   });
 
   it('writes styles only through the stylesheet and the CSSOM: no style attribute, no cssText, no style key handed to the builders', () => {
-    expect(CODE).not.toMatch(/setAttribute\(\s*['"]style['"]|\.cssText|\bstyle\s*:\s*['"{]/);
+    // The `style:` keys in the room are Intl's formats (the Team panel's fit check; P5's plan prices), never a builder's attribute.
+    const noIntl = CODE.replace("new Intl.NumberFormat(LANG, { style: 'percent', maximumFractionDigits: 0 })", '')
+      .replace("new Intl.NumberFormat('en', { style: 'currency', currency: currency })", '')
+      .replace("new Intl.NumberFormat(LANG, { style: 'currency', currency: currency, minimumFractionDigits: d, maximumFractionDigits: d })", '');
+    expect(noIntl).not.toMatch(/setAttribute\(\s*['"]style['"]|\.cssText|\bstyle\s*:\s*['"{]/);
     for (const m of CODE.matchAll(/style\.setProperty\('([a-z-]+)'/g)) expect(m[1]).toBe('font-family');
   });
 
-  it('talks to nothing but its own static files: its template and its catalogue; no API, socket, beacon or form', () => {
+  it('talks to nothing but its own static files: its template registry, its templates and its catalogue; no API, socket, beacon or form', () => {
     const fetches = [...CODE.matchAll(/fetch\(([^)]*)\)/g)].map((m) => m[1].trim());
-    expect(fetches).toEqual(["'/product-design/i18n/' + LANG + '.json?v=' + VERSION", 'TEMPLATE_URL']);
-    expect(JS).toContain("var TEMPLATE_URL = '/product-design/templates/football-jersey.json?v=' + VERSION;");
+    expect(fetches).toEqual(["'/product-design/i18n/' + LANG + '.json?v=' + VERSION", 'INDEX_URL', "TEMPLATE_DIR + e.file + '?v=' + VERSION"]);
+    expect(JS).toContain("var TEMPLATE_DIR = '/product-design/templates/';");
+    expect(JS).toContain("var INDEX_URL = TEMPLATE_DIR + 'index.json?v=' + VERSION;");
+    // Only a file the registry names, and only a plain name: no path, no other directory.
+    expect(JS).toContain("/^[a-z0-9-]+\\.json$/.test(e.file)");
     expect(CODE).not.toMatch(/XMLHttpRequest|WebSocket|EventSource|sendBeacon|\/api\/|\.submit\(|<form/);
   });
 
@@ -212,15 +284,16 @@ describe('it says what it is, and what it is not yet', () => {
   const REASON_KEYS = new Set(REASONS.map((r) => r[0]));
 
   it('every unavailable control names a reason that exists, and every reason is in the room’s catalogue', () => {
-    expect([...REASON_KEYS].sort()).toEqual(['360', '3d', 'capture', 'context-club', 'context-creator', 'fabric', 'image', 'method', 'order', 'orders', 'payments', 'product', 'proof', 'store', 'suppliers', 'templates']);
+    // M4: Orders and Factories & suppliers are no longer planned: the Owner's console, and a club's requests (its suppliers stay Familista's).
+    expect([...REASON_KEYS].sort()).toEqual(['360', '3d', 'capture', 'context-club', 'context-creator', 'fabric', 'image', 'method', 'not-in-plan', 'order', 'product', 'proof', 'store', 'suppliers-club', 'templates']);
     // Each reason is defined once and used at least once: by planned(…, 'key'), a context, a read-only field or a side entry.
     for (const k of REASON_KEYS) {
       const quoted = (CODE.match(new RegExp(`'${k}'`, 'g')) || []).length;
       const definedQuoted = new RegExp(`^\\s+'${k}': L\\(`, 'm').test(CODE) ? 1 : 0;
       expect([k, quoted - definedQuoted >= 1]).toEqual([k, true]);
     }
-    for (const use of ["planned(image, 'image')", "planned(capture, 'capture')", "text: '3D' }), '3d')", "]), '360'))", "function live3d(el, reasonKey) { return can3d() ? el : planned(el, reasonKey); }", "]), 'proof')", "]), 'order')",
-      "if (t[0] === 'templates') planned(b, 'templates');", "if (!it.live) { planned(b, 'product');", "if (!active) { planned(b, key);", "planned(sel, reason);", ": it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)"]) {
+    for (const use of ["if (!tenantWorkspace()) planned(image, 'image');", "planned(capture, 'capture')", "text: '3D' }), '3d')", "]), '360'))", "function live3d(el, reasonKey) { return can3d() ? el : planned(el, reasonKey); }", "]), 'proof')", "]), 'order')",
+      "if (t[0] === 'templates') planned(b, 'templates');", "if (!e) { planned(b, 'product');", "if (!active) { planned(b, key);", "planned(sel, reason);", ": it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)"]) {
       expect([use, CODE.includes(use)]).toEqual([use, true]);
     }
     for (const [, text] of REASONS) expect([text, EN[text]]).toEqual([text, text]);
@@ -231,7 +304,10 @@ describe('it says what it is, and what it is not yet', () => {
   it('the side navigation names only the owner pages that exist; the rest are planned and say so', () => {
     for (const page of ['owner-home', 'neural-twin', 'agents-room', 'clubs']) expect(new RegExp(`'${page}': 1`).test(APP) || APP.includes(`'${page}': 1,`) || APP.includes(`'owner-home': 1, 'clubs': 1`)).toBe(true);
     expect(CODE).toContain("{ reason: 'store', icon: 'store', label: L('Global Store') }");
-    expect(CODE).toContain("{ reason: 'payments', icon: 'card', label: L('Payments') }");
+    // P5/P6: payments are no longer a planned entry: the Owner's Plans & billing, and a workspace's Plan & billing panel.
+    expect(CODE).toContain("{ act: 'bl', tab: 'plans', icon: 'card', label: L('Plans & billing') },");
+    expect(CODE.match(/\{ act: 'plan', icon: 'card', label: L\('Plan & billing'\) \},/g)).toHaveLength(2);
+    expect(CODE).not.toContain("reason: 'payments'");
   });
 
   it('shows no price, no currency and no connected supplier: the cost is a dash, and every supplier is under evaluation or not researched', () => {
@@ -267,13 +343,19 @@ describe('it says what it is, and what it is not yet', () => {
 
 describe('the official languages', () => {
   const literals = new Set<string>();
-  for (const m of JS.matchAll(/\b(?:T|tf|L)\('((?:[^'\\]|\\.)*)'/g)) literals.add(m[1]);
-  TEMPLATE.surfaces.forEach((s: { label: string }) => literals.add(s.label));
-  TEMPLATE.views.forEach((v: { label: string }) => literals.add(v.label));
-  literals.add(TEMPLATE.reference.method); literals.add(TEMPLATE.reference.fabric);
-  TEMPLATE.reference.fits.forEach((f: { label: string }) => literals.add(f.label));
-  TEMPLATE.start.palette.forEach((p: { label: string }) => literals.add(p.label));
-  Object.values(TEMPLATE.start.surfaces as Record<string, { layers: Array<{ name: string }> }>).forEach((s) => s.layers.forEach((l) => literals.add(l.name)));
+  for (const m of (JS + TEAM).matchAll(/\b(?:T|tf|L)\('((?:[^'\\]|\\.)*)'/g)) literals.add(m[1]);
+  // Every released garment's own words: the room shows whichever template is open.
+  const TEMPLATES = json('public/product-design/templates/index.json').templates.map((e: { file: string }) => json(`public/product-design/templates/${e.file}`));
+  for (const t of TEMPLATES) {
+    literals.add(t.name);
+    t.surfaces.forEach((s: { label: string }) => literals.add(s.label));
+    t.views.forEach((v: { label: string }) => literals.add(v.label));
+    if (t.partNames) Object.values(t.partNames as Record<string, string>).forEach((n) => literals.add(n));
+    literals.add(t.reference.method); literals.add(t.reference.fabric);
+    t.reference.fits.forEach((f: { label: string }) => literals.add(f.label));
+    t.start.palette.forEach((p: { label: string }) => literals.add(p.label));
+    Object.values(t.start.surfaces as Record<string, { layers: Array<{ name: string }> }>).forEach((s) => s.layers.forEach((l) => literals.add(l.name)));
+  }
   // The shared Platform Owner navigation is drawn in the room's head and worded by the room's catalogue: every label of it.
   const navBlock = APP.slice(APP.indexOf('var OWNER_NAV = ['), APP.indexOf('];', APP.indexOf('var OWNER_NAV = [')));
   const NAV_LABELS = [...navBlock.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
@@ -289,21 +371,55 @@ describe('the official languages', () => {
     expect(Object.keys(EN).filter((k) => !literals.has(k))).toEqual([]);
   });
 
-  it('every official language has the same keys, keeps every %s and %d, and is not empty', () => {
+  it('every official language has the same keys, keeps every %s and %d in their order, and is not empty', () => {
     for (const code of OFFICIAL) {
       const cat = json(`public/product-design/i18n/${code}.json`) as Record<string, string>;
       expect([code, Object.keys(cat).sort()]).toEqual([code, Object.keys(EN).sort()]);
       for (const [k, v] of Object.entries(cat)) {
         expect(v.trim().length).toBeGreaterThan(0);
-        expect([code, k, (v.match(/%[ds]/g) || []).sort().join('')]).toEqual([code, k, (k.match(/%[ds]/g) || []).sort().join('')]);
+        // In the English order, not merely the same set: tf() fills the slots in order, so a swapped %s and %d would print
+        // a surface's name where a number belongs.
+        expect([code, k, (v.match(/%[ds]/g) || []).join('')]).toEqual([code, k, (k.match(/%[ds]/g) || []).join('')]);
       }
     }
+  });
+
+  it('the Team panel (M3) fetches, stores and styles nothing itself, and writes no visible English outside the catalogue', () => {
+    expect(TEAM_CODE).not.toMatch(/fetch\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|localStorage|sessionStorage|\/api\/|<form|\.submit\(/);
+    // The only `style:` keys in these modules are Intl's currency format (M4), never a builder's attribute.
+    expect(TEAM_CODE.replace(/new Intl\.NumberFormat\((?:'en'|lang), \{ style: 'currency', currency: currency \}\)/g, ''))
+      .not.toMatch(/setAttribute\(\s*['"]style['"]|\.cssText|\bstyle\s*:|\.style\./);
+    expect(TEAM_CODE).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
+    const texts = [...TEAM_CODE.matchAll(/text: '([^']*)'/g)].map((m) => m[1]);
+    expect([...new Set(texts)].sort()).toEqual(['#', '—', ' · ', ' '].sort());
+    // Its server calls are the club client's own (pd-server.js), and its back arrow is the room's mirrored one.
+    for (const call of ['listRosters', 'openRoster', 'createRoster', 'saveRoster', 'archiveRoster', 'unarchiveRoster', 'deleteRoster', 'squadNames',
+      'listCollections', 'openCollection', 'createCollection', 'saveCollection', 'archiveCollection', 'unarchiveCollection', 'deleteCollection', 'orderSheet', 'listProjects']) {
+      expect(TEAM_CODE).toContain(`api.${call}(`);
+    }
+    expect(TEAM_CODE).toContain("ctx.dirArrow('←')");
+    // A spreadsheet is decoded as UTF-8 or refused, never guessed.
+    expect(TEAM_CODE).toContain("new TextDecoder('utf-8', { fatal: true })");
+  });
+
+  it('the Team panel is a floating panel: fixed, animated on opacity and transform, its body scrolling inside itself', () => {
+    const rule = CSS_CODE.match(/\n\.pd-team \{[^}]*\}/);
+    expect(rule && rule[0]).toMatch(/position: fixed/);
+    expect(rule && rule[0]).toMatch(/transition: opacity [^;]*transform [^;]*visibility/);
+    expect(CSS_CODE).toMatch(/\.pd-team-scroll \{[^}]*overflow: auto;[^}]*scrollbar-gutter: stable/);
+    expect(CSS_CODE).toMatch(/\.pd-preview-tag \{[^}]*position: absolute/);
+    // Only in a club's workspace: the room makes it when the club client has rosters.
+    // M7a: and only when the club's plan includes the team kit.
+    expect(JS).toContain("if (!S.team && part('teamKit') && P.api.listRosters && window.FamilistaProductDesignRoster && window.FamilistaProductDesignTeam) {");
   });
 
   it('writes no visible English outside the catalogue: the only literal texts are the brand, the mode names and symbols', () => {
     const noIcons = CODE.slice(0, CODE.indexOf('var ICONS = {')) + CODE.slice(CODE.indexOf('function icon(name, size)'));
     const texts = [...noIcons.matchAll(/text: '([^']*)'/g)].map((m) => m[1]);
-    expect([...new Set(texts)].sort()).toEqual(['2.5D', '2D', '360°', '3D', 'Familista', 'Familista Design Studio', '—', '→', ' · '].sort());
+    // ' ' joins a button's visible verb to the item's name, kept for assistive technology alone (a label that matches its
+    // visible text in every language).
+    // P3: the Creator Studio's loading line is its product name, like the Design Studio's.
+    expect([...new Set(texts)].sort()).toEqual(['2.5D', '2D', '360°', '3D', 'Familista', 'Familista Creator Studio', 'Familista Design Studio', '—', '→', ' · ', ' '].sort());
   });
 
   it('the product names stay as the approved reference shows them, in every language', () => {

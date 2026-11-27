@@ -1745,6 +1745,15 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
 //
 var CLUB_NAV_ITEMS = [
   {
+    slug:    'club-design',
+    label:   'Design Studio',
+    svgPath: 'M7 2.6 3 4.9l1.6 3.9 2.3-.8v9.2h6.2V8l2.3.8L17 4.9l-4-2.3c-.4 1.3-1.6 2.1-3 2.1S7.4 3.9 7 2.6z',
+    color:   '#e879f9',
+    enabled: true,
+    order:   8,
+    requires: 'canDesignClubKits',
+  },
+  {
     slug:    'club-home',
     i18nKey: 'navigation.home',
     label:   'Home',
@@ -3023,6 +3032,19 @@ function _ownerNavShow() {
 // A room loaded on demand: its stylesheet and scripts, once, and only for a
 // reader whom /system/whoami names the Platform Owner. `room` holds the state.
 function _famLoadOwnerRoom(room, v, css, scripts, done) {
+  _famLoadRoom(room, v, css, scripts, done, function () {
+    return _isPlatformOwner().then(function (yes) {
+      if (yes) return true;
+      _platformAuthority = null;
+      return _isPlatformOwner();
+    });
+  });
+}
+/**
+ * A room's assets, once, for whoever `allowed()` says yes to: the owner rooms ask the platform-owner check above, the
+ * Club Design Studio asks the session's capability. Either is convenience: every route the room calls checks for itself.
+ */
+function _famLoadRoom(room, v, css, scripts, done, allowed) {
   if (room.state === 'ready') { done(true); return; }
   room.waiting.push(done);
   if (room.state === 'loading') return;
@@ -3034,11 +3056,7 @@ function _famLoadOwnerRoom(room, v, css, scripts, done) {
   }
   var ask;
   try {
-    ask = _isPlatformOwner().then(function (yes) {
-      if (yes) return true;
-      _platformAuthority = null;
-      return _isPlatformOwner();
-    });
+    ask = Promise.resolve(allowed());
   } catch (_) {
     room.state = 'idle';
     room.waiting.length = 0;
@@ -3081,8 +3099,16 @@ function _loadSystemUpdates(done) {
 // client, then the editor (the order given). Not the Interface Studio above
 // (#design-studio), which is left exactly as it is.
 var _PD_ROOM = { state: 'idle', waiting: [] };
+// The Club Design Studio (M2b): the same room, opened in the club's own workspace for an account whose role designs the
+// club's kits, in a club the platform owner has entitled (the session's canDesignClubKits). Convenience, NOT a security
+// boundary: every club design route checks the role, the entitlement and each project's club on the server
+// (src/routes/club-design.routes.ts), and the database holds each club to its own rows.
+function _loadClubDesign(done) {
+  _famLoadRoom(_PD_ROOM, '20261124-product-design-m7b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-collections.js', '/product-design/pd-requests.js', '/product-design/pd-review.js', '/product-design/pd-present.js', '/product-design/pd-team.js', '/product-design/pd-plan.js', '/product-design/product-design.js'], done,
+    function () { return _access('canDesignClubKits'); });
+}
 function _loadProductDesign(done) {
-  _famLoadOwnerRoom(_PD_ROOM, '20261112-product-design-1c', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/product-design.js'], done);
+  _famLoadOwnerRoom(_PD_ROOM, '20261124-product-design-m7b', '/product-design/product-design.css', ['/product-design/pd-core.js', '/product-design/pd-server.js', '/product-design/pd-garment.js', '/product-design/pd-3d.js', '/product-design/pd-roster.js', '/product-design/pd-manufacturing.js', '/product-design/pd-plan.js', '/product-design/product-design.js'], done);
 }
 
 // ── NAVIGATION ──
@@ -3131,6 +3157,15 @@ function navTo(page, el, _opts) {
     if (!_SU_ROOM) return;
     _loadSystemUpdates(function (ok) {
       try { navTo(ok ? page : 'owner-home', ok ? el : null, _opts); } catch (_) {}
+    });
+    return;
+  }
+  // The Club Design Studio: the same room's assets, behind the club capability; without it, back to the club's home.
+  if (page === 'club-design' && !(_PD_ROOM && _PD_ROOM.state === 'ready')) {
+    if (!_PD_ROOM) return;
+    if (!_access('canDesignClubKits')) { try { navTo('club-home', null, _opts); } catch (_) {} return; }
+    _loadClubDesign(function (ok) {
+      try { navTo(ok ? page : 'club-home', ok ? el : null, _opts); } catch (_) {}
     });
     return;
   }
@@ -3260,8 +3295,11 @@ function navTo(page, el, _opts) {
     // FAMILISTA DESIGN STUDIO takes the shell the same way. Its teardown saves the
     // open draft in this browser and removes every listener the editor added.
     var _wasProduct = document.body.classList.contains('pd-studio-open');
-    document.body.classList.toggle('pd-studio-open', page === 'product-design');
-    if (_wasProduct && page !== 'product-design' && typeof window.teardownFamilistaProductDesign === 'function') {
+    var _isProduct = page === 'product-design' || page === 'club-design';
+    document.body.classList.toggle('pd-studio-open', _isProduct);
+    // Torn down whenever the page entered is not the one left (to another page, or between the platform's room and a
+    // club's); re-entering the same page keeps it, as before.
+    if (_wasProduct && 'pg-' + page !== _leaving && typeof window.teardownFamilistaProductDesign === 'function') {
       window.teardownFamilistaProductDesign();
     }
     // ENTERING IS NOT SYMMETRICAL WITH LEAVING, AND THAT WAS A BUG.
@@ -3299,6 +3337,8 @@ function navTo(page, el, _opts) {
   // a direct DOM mount — but they cannot become the active page.
   var _ALLOWED_PAGES = {
     'owner-home': 1, 'clubs': 1,
+    // The Club Design Studio (M2b): a club page, gated by its capability like every CLUB_NAV_ITEMS module.
+    'club-design': 1,
     // SYSTEM — the platform owner's command centre, and the default SYSTEM
     // experience. The FOS pages below it remain reachable as the infrastructure
     // and health views they always were; they are no longer the way in.
@@ -3519,6 +3559,22 @@ function navTo(page, el, _opts) {
         && _pdRoot && (_leaving !== 'pg-product-design' || !_pdRoot.__famDrawn)) {
       _pdRoot.__famDrawn = true;
       window.renderFamilistaProductDesign(_pdRoot);
+    }
+    // In a club: the same room, in the club's workspace. The club is the session's open club; it only names what the
+    // room keeps in this browser — the server serves the session's own club, whatever the page says.
+    var _pdClub = document.getElementById('pd-club-root');
+    var _ctx = window.State && State.context;
+    if (page === 'club-design' && typeof window.renderFamilistaProductDesign === 'function' && _pdClub && _ctx && _ctx.clubId
+        && (_leaving !== 'pg-club-design' || !_pdClub.__famDrawn)) {
+      _pdClub.__famDrawn = true;
+      var _club = (_ctx.availableClubs || []).filter(function (c) { return c && c.id === _ctx.clubId; })[0];
+      window.renderFamilistaProductDesign(_pdClub, { workspace: {
+        kind: 'CLUB', clubId: String(_ctx.clubId),
+        clubName: (_club && _club.name) || '',
+        role: String((window.State.user && State.user.role) || ''),
+        // M7a: the parts of the studio the club's plan includes, as the session says (the server enforces them).
+        parts: (_ctx.effectiveAccess && _ctx.effectiveAccess.clubDesignParts) || null,
+      } });
     }
   } catch (_) {}
   try {
@@ -3818,6 +3874,7 @@ function _buildPageTemplateMap() {
     'neural-twin':                 renderNeuralTwinHTML,
     'system-updates':              renderSystemUpdatesHTML,
     'product-design':              renderProductDesignHTML,
+    'club-design':                 renderClubDesignHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
@@ -29715,6 +29772,10 @@ function renderSystemUpdatesHTML() {
 // for every official language under /product-design/i18n/, behind the same
 // `data-no-i18n` boundary, in the owner context and its own module accent.
 // Not in _EAGER_PAGES.
+/** The Club Design Studio's host: a club page (no owner context), drawn into by product-design.js in the club's workspace. */
+function renderClubDesignHTML() {
+  return `<div class="page" id="pg-club-design" data-no-i18n data-fam-module="club-design"><div id="pd-club-root" class="pd-host"></div></div>`;
+}
 function renderProductDesignHTML() {
   return `<div class="page" id="pg-product-design" data-no-i18n data-fam-context="owner" data-fam-module="product-design"><div id="pd-root"></div></div>`;
 }

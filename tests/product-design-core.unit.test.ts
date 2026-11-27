@@ -412,3 +412,75 @@ describe('the core is pure', () => {
     expect(C.exportFileName('فاميليستا')).toBe('design.familista-product-design.json');
   });
 });
+
+describe('colourways (M7c): the design recoloured, deterministically, its lettering kept legible', () => {
+  const doc = () => C.createDocument(T, 'Home kit');
+  const srgbOf = (d: { palette: Array<{ id: string; srgb: string }> }) => (id: string) => d.palette.find((s) => s.id === id)!.srgb;
+  const CLUB = [{ srgb: '#C8102E', label: 'Club red' }, { srgb: '#ffffff', label: 'White' }, { srgb: '#000000', label: 'Black' }, { srgb: '#ffd100', label: 'Yellow' }];
+
+  it('measures contrast as WCAG 2.x does', () => {
+    expect(C.contrastRatio('#ffffff', '#000000')).toBeCloseTo(21, 5);
+    expect(C.contrastRatio('#123456', '#123456')).toBeCloseTo(1, 5);
+    expect(C.contrastRatio('#767676', '#ffffff')).toBeCloseTo(4.54, 2); // the familiar AA grey
+    expect(C.contrastRatio('#ffffff', '#767676')).toBeCloseTo(C.contrastRatio('#767676', '#ffffff'), 10);
+  });
+
+  it('measures lettering against its base and every strong pattern beneath it, an outline counting where it is the better edge', () => {
+    const d = doc();
+    // The template's worst pair: the gold mark over the royal-blue pattern.
+    expect(C.letteringContrast(d, srgbOf(d))).toBeCloseTo(C.contrastRatio('#d8ad3c', '#1f4fd6'), 6);
+    // A faint pattern (below half opacity) is not what the lettering is read against.
+    const faint = C.clone(d);
+    faint.surfaces.forEach((s: { layers: Array<{ type: string; opacity?: number }> }) => s.layers.forEach((n) => { if (n.type === 'pattern') n.opacity = 30; }));
+    expect(C.letteringContrast(faint, srgbOf(faint))).toBeGreaterThan(C.letteringContrast(d, srgbOf(d)));
+    // No lettering: nothing to measure.
+    const bare = C.clone(d);
+    bare.surfaces.forEach((s: { layers: Array<{ type: string }> }) => { s.layers = s.layers.filter((n) => n.type !== 'text' && n.type !== 'roster'); });
+    expect(C.letteringContrast(bare, srgbOf(bare))).toBeNull();
+  });
+
+  it('suggests the same colourways in the same order every time, each legible, each pattern showing, each a valid design', () => {
+    const d = doc();
+    const a = C.colourways(d, CLUB), b = C.colourways(C.clone(d), CLUB.map((c) => ({ ...c })));
+    expect(a).toEqual(b);
+    expect(a.length).toBe(6);
+    for (const v of a) {
+      expect(v.palette.map((s: { id: string }) => s.id)).toEqual(d.palette.map((s: { id: string }) => s.id));
+      expect(v.changed).toBeGreaterThan(0);
+      const next = C.clone(d); next.palette = v.palette;
+      expect(() => C.validateDocument(next, T)).not.toThrow();
+      expect(v.lettering).toBeGreaterThanOrEqual(C.LETTERING_MIN);
+      expect(C.letteringContrast(next, srgbOf(next))).toBeCloseTo(v.lettering, 10);
+      for (const s of next.surfaces) for (const n of s.layers) if (n.type === 'pattern' && n.visible) expect(C.contrastRatio(srgbOf(next)(n.color), srgbOf(next)(s.base))).toBeGreaterThanOrEqual(1.1);
+    }
+    expect(C.colourways(d, CLUB, 2)).toEqual(a.slice(0, 2));
+    // each strip looks different at a glance: no two share the main base and its accent, and none is the design's own
+    const main = d.surfaces[0], accent = main.layers.find((n: { type: string; visible: boolean }) => n.type === 'pattern' && n.visible).color;
+    const look = (p: Array<{ id: string; srgb: string }>) => p.find((s) => s.id === main.base)!.srgb + '/' + p.find((s) => s.id === accent)!.srgb;
+    const looks = a.map((v: { palette: Array<{ id: string; srgb: string }> }) => look(v.palette));
+    expect(new Set(looks).size).toBe(looks.length);
+    expect(looks).not.toContain(look(d.palette));
+    // the design itself is never suggested back, and the first is the simplest exchange that changes the main base
+    expect(a.some((v: { palette: Array<{ srgb: string }> }) => v.palette.every((s, i) => s.srgb === d.palette[i].srgb))).toBe(false);
+  });
+
+  it('offers a club colour only where it adds one: never a near-duplicate of a colour the design has, never a malformed one', () => {
+    const d = doc();
+    const all = C.colourways(d, [{ srgb: '#ffffff', label: 'Pure white' }, { srgb: '#f5f7fb', label: 'Off-white' }, { srgb: 'red', label: 'Bad' }, { srgb: '#00843d', label: 'Green' }], 50);
+    const labels = new Set(all.flatMap((v: { palette: Array<{ label: string }> }) => v.palette.map((s) => s.label)));
+    expect(labels.has('Pure white')).toBe(false);
+    expect(labels.has('Off-white')).toBe(false);
+    expect(labels.has('Bad')).toBe(false);
+    // the first suggestions' main bases are visibly apart from each other and from the design's own
+    const bases = all.slice(0, 3).map((v: { palette: Array<{ id: string; srgb: string }> }) => v.palette.find((s) => s.id === d.surfaces[0].base)!.srgb);
+    expect(new Set(bases).size).toBe(3);
+  });
+
+  it('suggests nothing rather than something illegible (negative control)', () => {
+    const d = doc();
+    // Four greys a step apart: no ordering of them keeps lettering at 3:1.
+    d.palette = d.palette.map((s: { id: string; label: string }, i: number) => ({ ...s, srgb: ['#5a5a5a', '#646464', '#6e6e6e', '#787878'][i] }));
+    expect(C.colourways(d, [])).toEqual([]);
+    expect(C.colourways(d, [{ srgb: '#5f5f5f', label: 'Grey' }])).toEqual([]);
+  });
+});

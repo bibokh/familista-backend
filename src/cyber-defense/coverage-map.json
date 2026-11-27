@@ -635,6 +635,21 @@
         5,
         6
       ],
+      "club-design.routes": [
+        4,
+        5,
+        6
+      ],
+      "creator-auth.routes": [
+        2,
+        3,
+        4
+      ],
+      "creator.routes": [
+        4,
+        5,
+        6
+      ],
       "club.routes": [
         4,
         5,
@@ -739,6 +754,12 @@
         4,
         5,
         6
+      ],
+      "manufacturing.routes": [
+        4,
+        5,
+        6,
+        7
       ],
       "match-center.routes": [
         4,

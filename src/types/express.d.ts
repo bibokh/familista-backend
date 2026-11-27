@@ -26,6 +26,11 @@ declare global {
         impersonatedBy?: { adminId: string; userId: string } | null;
       };
       clubId?: string;
+      /**
+       * A signed-in creator (Creator Studio, P2), resolved by `authenticateCreator` from a token of the creator audience
+       * alone. Never set together with `user`: a creator is not a club user, and no club route reads this.
+       */
+      creator?: { id: string; tokenVersion: number; emailVerified: boolean; locale: string };
     }
   }
 }

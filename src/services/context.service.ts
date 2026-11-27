@@ -16,6 +16,9 @@ import { clubLifecycleOf, isOperableLifecycle, isSuspendedLifecycle } from '../p
 import { meetsMembershipRank, strongestMembershipRole } from '../middleware/tenant.middleware';
 import { forgetIdentity } from '../middleware/auth.middleware';
 import { publishUserContextSwitched } from '../fabric/producers/users.producer';
+import { isFeatureEnabled } from './admin-organization.service';
+import { CLUB_DESIGN_FEATURE, CLUB_DESIGN_ROLES } from '../platform/product-design/service';
+import { designParts, NO_PARTS } from '../platform/product-design/entitlements';
 
 /**
  * How many clubs a platform owner's club picker offers.
@@ -259,6 +262,16 @@ export async function getContext(userId: string) {
     .map((m) => m.team!.kind as string);
   const canAccessAcademy = clubWideManage || myTeamKinds.some((k) => isAcademyKind(k));
 
+  // The Club Design Studio, as src/routes/club-design.routes.ts decides it: an account whose role designs the club's
+  // kits (authorize(CLUB_ADMIN, MANAGER)), in a club whose entitlement `club_design_studio` is on. The route acts in the
+  // request's club (auth.middleware: currentClubId ?? clubId), so the capability holds only when that is the club open
+  // here: when they disagree, it says no rather than promise a club the route would not serve.
+  const requestClubId = user.currentClubId ?? user.clubId;
+  const canDesignClubKits = !!currentClubId && currentClubId === requestClubId && CLUB_DESIGN_ROLES.includes(user.role)
+    && await isFeatureEnabled(currentClubId, CLUB_DESIGN_FEATURE);
+  // M7a: the parts of the studio the club's plan includes, mirroring each part's gate on the club routes.
+  const clubDesignParts = canDesignClubKits ? await designParts(currentClubId!) : { ...NO_PARTS };
+
   const scopedTeams = (!scope.unrestricted && scope.teamIds.length)
     ? await prisma.team.findMany({
       where: { id: { in: scope.teamIds }, clubId: currentClubId! },
@@ -366,6 +379,14 @@ export async function getContext(userId: string) {
        * governed one control at a time.
        */
       canAccessCoachMarket: clubWideManage || canShortlist,
+
+      /**
+       * The Club Design Studio: designing the club's kits in the club's own workspace. Mirrors
+       * src/routes/club-design.routes.ts — a CLUB_ADMIN or MANAGER account, in a club the platform owner has entitled.
+       */
+      canDesignClubKits,
+      /** M7a: within it, what the club's plan includes: team kit (rosters, collections), brand kit, manufacturing. */
+      clubDesignParts,
 
       /**
        * Adding to and removing from the club's watchlist, on both markets.

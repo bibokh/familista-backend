@@ -353,3 +353,6 @@ ${button(locale, ctx.acceptUrl, c.cta)}
 
   return { subject, html, text, locale };
 }
+
+/** The shell, the button and the escaping every Familista email uses, for the other templates (Creator Studio, P2). */
+export { shell as emailShell, button as emailButton, esc as emailEsc };

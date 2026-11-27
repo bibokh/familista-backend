@@ -317,12 +317,28 @@
      * A preset placed for this canvas: its distance fitted to the garment (or, in a comparison, to both garments and
      * their labels) and to the canvas's shape, so the garment fills the view on a tall canvas and a wide one alike.
      */
+    /**
+     * How far from the middle each garment of a comparison stands: never closer than the reviewed 0.36 m, and far enough
+     * that two garments of this width (long sleeves reach further out) stand apart rather than through each other.
+     */
+    function compareOffset() {
+      var b = garment.bounds, a = garment.across;
+      return Math.max(COMPARE_OFFSET, (Math.abs(a[0]) * (b.max[0] - b.min[0]) + Math.abs(a[2]) * (b.max[2] - b.min[2])) / 2 + 0.05);
+    }
+    /** Where the compared version stands: `compareOffset()` along the home view's screen-right, the current one opposite. */
+    function compareAt(sign) { var a = garment.across, off = sign * compareOffset(); return [a[0] * off, 0, a[2] * off]; }
+    /** The ground under both garments of a comparison, stretched along the line they stand on. */
+    function groundSpan(off) {
+      var k = 2.4 * off / COMPARE_OFFSET, a = garment.across;
+      ground.scaling.x = Math.abs(a[0]) > 0.5 ? k : 1;
+      ground.scaling.y = Math.abs(a[2]) > 0.5 ? 0.55 * k : 0.55;
+    }
     function framed(name) {
       var p = garment.presets[name];
       if (!p) return null;
       if (state.compare) {
-        var w = garment.presets.front.fit;
-        return G.frame({ alpha: p.alpha, beta: p.beta, target: [0, 0, 0] }, aspect(), camera.fov, { hw: COMPARE_OFFSET + w.hw, hh: w.hh + 0.1, hd: w.hd, fill: 0.92 });
+        var w = garment.presets[garment.home].fit;
+        return G.frame({ alpha: p.alpha, beta: p.beta, target: [0, 0, 0] }, aspect(), camera.fov, { hw: compareOffset() + w.hw, hh: w.hh + 0.1, hd: w.hd, fill: 0.92 });
       }
       return G.frame(p, aspect(), camera.fov);
     }
@@ -574,8 +590,8 @@
       if (!state.compare) return;
       disposeAll(state.compare.nodes);
       state.compare = null;
-      root.position.x = 0;
-      if (ground) ground.scaling.x = 1;
+      root.position.set(0, 0, 0);
+      if (ground) { ground.scaling.x = 1; ground.scaling.y = 0.55; }
     }
     /**
      * Show another version of the design beside this one (`texture(surface, w, h)` draws
@@ -583,7 +599,7 @@
      */
     function setCompare(texture, colours, labels) {
       clearCompare();
-      if (!texture) { preset(state.preset || 'front'); return true; }
+      if (!texture) { preset(state.preset || garment.home); return true; }
       var other = new B.TransformNode('pd3-compare', scene), nodes = [other];
       garment.panels.forEach(function (pg) {
         var m = panels[pg.surface].mesh.clone('pd3-cmp-' + pg.surface, other);
@@ -597,18 +613,19 @@
         if (text) drawSvg(text, st.tex, st.px, function () { dirty(); });
       });
       nodes = nodes.concat(trimMeshes(other, colours, 'pd3-cmp'));
-      root.position.x = -COMPARE_OFFSET;
-      other.position.x = COMPARE_OFFSET;
-      ground.scaling.x = 2.4;
+      var here = compareAt(-1), there = compareAt(1);
+      root.position.set(here[0], here[1], here[2]);
+      other.position.set(there[0], there[1], there[2]);
+      groundSpan(compareOffset());
       var top = garment.bounds.max[1] + 0.08;
       var a = label(labels.current, 'pd3-label-current'), b = label(labels.other, 'pd3-label-other');
-      a.position.set(-COMPARE_OFFSET, top, 0);
-      b.position.set(COMPARE_OFFSET, top, 0);
+      a.position.set(here[0], top, here[2]);
+      b.position.set(there[0], top, there[2]);
       nodes.push(a, b);
       state.compare = { nodes: nodes };
       setTurntable(false);
-      state.preset = 'front';
-      goTo(framed('front'));
+      state.preset = garment.home;
+      goTo(framed(garment.home));
       return true;
     }
 
@@ -733,7 +750,7 @@
     function project(surface, x, y, which) {
       var at = garment && garment.mappers[surface];
       if (!at || (which === 'compare' && !state.compare)) return null;
-      var p = at(x, y), o = which === 'compare' ? new B.Vector3(COMPARE_OFFSET, 0, 0) : root.position, v = new B.Vector3(p[0] + o.x, p[1] + o.y, p[2] + o.z);
+      var p = at(x, y), o = which === 'compare' ? B.Vector3.FromArray(compareAt(1)) : root.position, v = new B.Vector3(p[0] + o.x, p[1] + o.y, p[2] + o.z);
       var vp = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
       var s = B.Vector3.Project(v, B.Matrix.Identity(), scene.getTransformMatrix(), vp), k = engine.getHardwareScalingLevel();
       var n = G.outward(at, x, y), e = camera.position;
@@ -786,7 +803,7 @@
     build();
     scaling();
     camera.fovMode = B.Camera.FOVMODE_VERTICAL_FIXED;
-    preset('front', true);
+    preset(garment.home, true);
     setLighting('studio');
     invalidate();
     var readyMs = now() - t0;

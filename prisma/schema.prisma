@@ -271,8 +271,13 @@ model Club {
   // ── Club Home Dashboard ──
   announcements Announcement[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  /// The Club Design Studio's brand kit (M2c): the club's colours and logos.
+  designBrandKit        DesignBrandKit?
+  designRosters         DesignRoster[]
+  designCollections     DesignCollection[]
+  manufacturingRequests ManufacturingRequest[]
 
   @@index([stripeCustomerId])
   @@index([franchiseUnitId])
@@ -5963,9 +5968,11 @@ model PlatformAuditLog {
   adminId String?
   admin   PlatformAdmin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
 
-  userId String?
-  clubId String?
-  club   Club?   @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  userId    String?
+  clubId    String?
+  club      Club?   @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  /// A creator's own action (Creator Studio, P2): never recorded as a club user's.
+  creatorId String?
 
   action       String
   category     PlatformAuditCategory
@@ -5983,6 +5990,7 @@ model PlatformAuditLog {
 
   @@index([adminId])
   @@index([clubId])
+  @@index([creatorId])
   @@index([action])
   @@index([category])
   @@index([result])
@@ -11008,6 +11016,8 @@ model DesignProject {
   ownerKind       DesignOwnerKind @default(PLATFORM)
   clubId          String?
   ownerUserId     String?
+  /// The creator who owns a PERSONAL project (CreatorAccount, P2), held by an SQL foreign key.
+  creatorId       String?
   /// The design's name, as its newest revision's document names it.
   name            String
   templateKey     String
@@ -11020,11 +11030,19 @@ model DesignProject {
   createdAt       DateTime        @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime        @default(now()) @updatedAt @db.Timestamptz(3)
 
-  revisions DesignRevision[]
+  revisions       DesignRevision[]
+  collectionItems DesignCollectionItem[]
+  reviewComments  DesignReviewComment[]
+  approvals       DesignApproval[]
+  shares          DesignShare[]
 
+  /// A collection's item names a project and its club together (M3b), so the database holds an item to its club's projects.
+  @@unique([id, clubId])
+  @@unique([id, creatorId])
   @@index([ownerKind, archivedAt, updatedAt])
   @@index([clubId])
   @@index([ownerUserId])
+  @@index([creatorId])
 }
 
 /// One saved state of a design's document. Never changed once written.
@@ -11047,4 +11065,652 @@ model DesignRevision {
   createdAt     DateTime           @default(now()) @db.Timestamptz(3)
 
   @@unique([projectId, number])
+}
+
+/// What a brand-kit image is for: the club's crest, a sponsor's logo, or another mark.
+enum DesignBrandAssetKind {
+  CREST
+  SPONSOR
+  MARK
+}
+
+/// A club's brand kit for the Design Studio (M2c): its named colours. One per club, created on first use.
+/// Under row-level security (20261123100000): a club's kit is its club's alone.
+model DesignBrandKit {
+  id          String   @id @default(uuid())
+  clubId      String?  @unique
+  club        Club?    @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId   String?
+  /// [{ label, srgb }]: at most 24, each label at most 40 characters, each colour #rrggbb.
+  colours     Json     @default("[]")
+  updatedById String
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+
+  assets DesignBrandAsset[]
+
+  /// An asset names its kit and its club together, so the database holds an asset to its kit's club.
+  @@unique([id, clubId])
+  @@unique([id, creatorId])
+  @@unique([creatorId])
+}
+
+/// One image of a club's brand kit. Its bytes are never what was uploaded: the server decodes the upload and
+/// re-encodes it as a PNG (at most 1024 px a side, no metadata), and keeps that, with its SHA-256. Kept here rather
+/// than in object storage so it is backed up, restored and held by row-level security with the rest of the club's data.
+model DesignBrandAsset {
+  id          String               @id @default(uuid())
+  clubId      String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId   String?
+  kitId       String
+  kit         DesignBrandKit       @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  kind        DesignBrandAssetKind
+  name        String
+  png         Bytes
+  width       Int
+  height      Int
+  bytes       Int
+  sha256      String
+  createdById String
+  archivedAt  DateTime?            @db.Timestamptz(3)
+  createdAt   DateTime             @default(now()) @db.Timestamptz(3)
+
+  @@index([clubId, archivedAt, createdAt])
+  @@index([kitId])
+  @@index([creatorId, archivedAt, createdAt])
+}
+
+/// A club's team roster for the Design Studio (M3): the names, numbers and sizes a kit is made for. The design keeps
+/// none of them (a roster layer is a placeholder); they are joined only to preview and, later, to make production files.
+/// `entries` is what public/product-design/pd-roster.js validates, on the server and in the editor alike: at most 150,
+/// each { name, number, top, shorts, socks, qty } and nothing else. `version` is the concurrency token every save names.
+/// Under row-level security (20261123200000): a club's rosters are its club's alone.
+model DesignRoster {
+  id             String    @id @default(uuid())
+  clubId         String?
+  club           Club?     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId      String?
+  name           String
+  entries        Json      @default("[]")
+  entryCount     Int       @default(0)
+  version        Int       @default(1)
+  createdById    String
+  updatedById    String
+  /// P1: the club marks a roster that includes minors; a youth size marks it too, whatever this says.
+  includesMinors Boolean   @default(false)
+  archivedAt     DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @default(now()) @updatedAt @db.Timestamptz(3)
+
+  collections DesignCollection[]
+
+  @@unique([id, clubId])
+  @@unique([id, creatorId])
+  @@index([clubId, archivedAt, updatedAt])
+  @@index([creatorId, archivedAt, updatedAt])
+}
+
+/// What a design is in a collection: the kit it belongs to.
+enum DesignCollectionRole {
+  HOME
+  AWAY
+  THIRD
+  GOALKEEPER
+  TRAINING
+  OTHER
+}
+
+/// A club's collection (M3b): its designs across garments and colourways, gathered as one kit, and the roster it is
+/// made for by default. Under row-level security (20261123210000). `version` is the concurrency token every save names.
+/// A roster it names is its own club's (a trigger holds it, on the system path too); deleting the roster clears it.
+model DesignCollection {
+  id          String        @id @default(uuid())
+  clubId      String?
+  club        Club?         @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId   String?
+  name        String
+  /// A label the club chooses, such as 2026/27; at most 20 characters.
+  season      String?
+  rosterId    String?
+  roster      DesignRoster? @relation(fields: [rosterId], references: [id], onDelete: SetNull)
+  version     Int           @default(1)
+  createdById String
+  updatedById String
+  archivedAt  DateTime?     @db.Timestamptz(3)
+  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime      @default(now()) @updatedAt @db.Timestamptz(3)
+
+  items    DesignCollectionItem[]
+  requests ManufacturingRequest[]
+
+  /// An item names its collection and its club together.
+  @@unique([id, clubId])
+  @@unique([id, creatorId])
+  @@index([clubId, archivedAt, updatedAt])
+  @@index([rosterId])
+  @@index([creatorId, archivedAt, updatedAt])
+}
+
+/// One design of a collection, in its place. It names its collection and its project each with the club, so the
+/// database holds both to one club; deleting either deletes the item.
+model DesignCollectionItem {
+  id           String               @id @default(uuid())
+  clubId       String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId    String?
+  collectionId String
+  collection   DesignCollection     @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  projectId    String
+  project      DesignProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  role         DesignCollectionRole
+  position     Int
+
+  @@unique([collectionId, position])
+  @@unique([collectionId, projectId])
+  @@index([clubId])
+  @@index([projectId])
+  @@index([creatorId])
+}
+
+// ── Manufacturing (M4): owner-brokered quotations and orders ─────────────────
+// Until real factories are signed (the Owner's decision of 23 November 2026), a supplier is a record the Platform Owner
+// creates and verifies, not an account. Clubs request quotations for a collection and a roster; the Owner records the
+// quotations real suppliers give; the club accepts one; the Owner tracks the order to delivery. Every step is one
+// audited transaction and an immutable event. Nothing here moves money: an accepted quotation is not a payment.
+
+/// Where a supplier stands with the Platform Owner. Only a VERIFIED supplier's quotation ever reaches a club.
+enum ManufacturingSupplierStatus {
+  PROSPECT
+  VERIFIED
+  SUSPENDED
+}
+
+/// Where a club's request for quotation stands. The transitions are src/platform/manufacturing/state.ts.
+enum ManufacturingRequestStatus {
+  SUBMITTED
+  IN_REVIEW
+  QUOTED
+  ACCEPTED
+  ORDERED
+  IN_PRODUCTION
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  DECLINED
+  REFUSED
+}
+
+/// Where one recorded quotation stands. A DRAFT is the Owner's alone; a club sees it once PUBLISHED.
+enum ManufacturingQuoteStatus {
+  DRAFT
+  PUBLISHED
+  ACCEPTED
+  SUPERSEDED
+  WITHDRAWN
+}
+
+/// Who moved a request. SUPPLIER is reserved for the Supplier Portal and used by nothing yet.
+enum ManufacturingActorKind {
+  CLUB
+  OWNER
+  SUPPLIER
+}
+
+/// A factory the Platform Owner works with (M4). Platform data, reached only on the Owner's routes; a club sees a
+/// verified supplier's name and country on a quotation, never its contact or notes. Created by the Owner: no supplier
+/// is seeded, listed or presented as a partner until the Owner verifies it.
+model ManufacturingSupplier {
+  id                String                      @id @default(uuid())
+  name              String
+  /// ISO 3166-1 alpha-2.
+  country           String
+  city              String?
+  website           String?
+  contactEmail      String?
+  /// Garment forms it makes: top, shorts, socks.
+  forms             String[]
+  /// Decoration methods it offers: SUBLIMATION, SCREEN_PRINT, EMBROIDERY, HEAT_TRANSFER.
+  methods           String[]
+  minOrderSets      Int?
+  leadTimeDays      Int?
+  status            ManufacturingSupplierStatus @default(PROSPECT)
+  /// What the Owner checked before verifying it (required when VERIFIED).
+  verificationNote  String?
+  verifiedAt        DateTime?                   @db.Timestamptz(3)
+  verifiedById      String?
+  /// The supplier's own workspace once the Supplier Portal opens; null until then, and nothing reads it yet.
+  portalWorkspaceId String?
+  version           Int                         @default(1)
+  createdById       String
+  createdAt         DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                    @default(now()) @updatedAt @db.Timestamptz(3)
+
+  quotes ManufacturingQuote[]
+
+  @@index([status])
+}
+
+/// A club's request for quotation (M4): a frozen specification of a collection's designs (each at its saved revision and
+/// hash) and a roster's names, numbers and sizes, as submitted. Under row-level security (20261123220000).
+model ManufacturingRequest {
+  id                String                     @id @default(uuid())
+  clubId            String?
+  club              Club?                      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId         String?
+  creator           CreatorAccount?            @relation(fields: [creatorId], references: [id], onDelete: Restrict)
+  collectionId      String?
+  collection        DesignCollection?          @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  status            ManufacturingRequestStatus @default(SUBMITTED)
+  version           Int                        @default(1)
+  /// The specification as submitted; never changed afterwards (a trigger holds it).
+  spec              Json
+  setsTotal         Int
+  clubNote          String?
+  neededBy          DateTime?                  @db.Date
+  acceptedQuoteId   String?                    @unique
+  /// P1: the roster included minors (marked so, or a youth size); their names are kept only with an attested consent.
+  minors            Boolean                    @default(false)
+  minorsConsentAt   DateTime?                  @db.Timestamptz(3)
+  minorsConsentById String?
+  createdById       String
+  createdAt         DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                   @default(now()) @updatedAt @db.Timestamptz(3)
+
+  events  ManufacturingRequestEvent[]
+  quotes  ManufacturingQuote[]
+  persons ManufacturingRequestPerson[]
+
+  @@unique([id, clubId])
+  @@unique([id, creatorId])
+  @@index([clubId, status, updatedAt])
+  @@index([status, updatedAt])
+  @@index([collectionId])
+  @@index([creatorId, status, updatedAt])
+}
+
+/// P1: a person's name for one entry of a request, apart from the frozen specification so it can be erased. A kept
+/// name can only be erased (a trigger holds it); a withheld one was never kept (minors without an attested consent).
+model ManufacturingRequestPerson {
+  id        String                   @id @default(uuid())
+  clubId    String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId String?
+  requestId String
+  request   ManufacturingRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  position  Int
+  name      String?
+  state     ManufacturingPersonState @default(KEPT)
+  erasedAt  DateTime?                @db.Timestamptz(3)
+  createdAt DateTime                 @default(now()) @db.Timestamptz(3)
+
+  @@unique([requestId, position])
+  @@index([clubId])
+  @@index([creatorId])
+}
+
+enum ManufacturingPersonState {
+  KEPT
+  WITHHELD
+  ERASED
+}
+
+/// One step of a request's history. Never changed or removed (a trigger holds it).
+model ManufacturingRequestEvent {
+  id          String                      @id @default(uuid())
+  clubId      String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId   String?
+  requestId   String
+  request     ManufacturingRequest        @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  action      String
+  fromStatus  ManufacturingRequestStatus?
+  toStatus    ManufacturingRequestStatus
+  actorKind   ManufacturingActorKind
+  actorUserId String
+  note        String?
+  createdAt   DateTime                    @default(now()) @db.Timestamptz(3)
+
+  @@index([requestId, createdAt])
+  @@index([clubId])
+  @@index([creatorId])
+}
+
+/// A quotation a real supplier gave for a request, recorded by the Platform Owner with the supplier's own reference and
+/// how it was received. Amounts are integers in the currency's minor unit. Nothing is charged.
+model ManufacturingQuote {
+  id                String                   @id @default(uuid())
+  clubId            String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId         String?
+  requestId         String
+  request           ManufacturingRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  supplierId        String
+  supplier          ManufacturingSupplier    @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  status            ManufacturingQuoteStatus @default(DRAFT)
+  /// ISO 4217.
+  currency          String
+  totalMinor        Int
+  /// [{ projectId, unitMinor, sets }]: per design, when the supplier priced them apart.
+  lines             Json                     @default("[]")
+  leadTimeDays      Int
+  validUntil        DateTime                 @db.Date
+  supplierReference String
+  /// How the quotation was received (an e-mail of a date, a signed PDF): the record that it is real.
+  evidence          String
+  /// P7: the conditions the supplier attached (what the price includes, samples, artwork approval); frozen once published.
+  terms             String?
+  recordedById      String
+  publishedAt       DateTime?                @db.Timestamptz(3)
+  createdAt         DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                 @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@index([requestId])
+  @@index([supplierId])
+  @@index([clubId])
+  @@index([creatorId])
+}
+
+// ── Design reviews and approvals (M7b) ──────────────────────────────────────
+
+/// A club administrator's decision on one saved version of a design.
+enum DesignReviewDecision {
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+/// A comment on one saved version of a club's design, on the whole garment or on one of its surfaces (M7b). Under
+/// row-level security (20261124100000); held to its club's design by a composite key.
+model DesignReviewComment {
+  id           String        @id @default(uuid())
+  clubId       String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId    String?
+  projectId    String
+  project      DesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// The revision number it was made on.
+  revision     Int
+  /// A surface id of the design's template, or null for the whole garment.
+  surface      String?
+  body         String
+  authorId     String
+  resolvedAt   DateTime?     @db.Timestamptz(3)
+  resolvedById String?
+  createdAt    DateTime      @default(now()) @db.Timestamptz(3)
+
+  @@index([projectId, revision, createdAt])
+  @@index([clubId])
+  @@index([creatorId])
+}
+
+/// A club administrator's decision on one saved version, pinned to its revision and its SHA-256: approving a version
+/// says nothing about the next one. Never changed or removed (a trigger holds it); the newest for a revision is current.
+model DesignApproval {
+  id          String               @id @default(uuid())
+  clubId      String?
+  /// The personal owner (CreatorAccount, P2) when a creator owns this row: exactly one of clubId and creatorId is set, held by SQL foreign keys and checks.
+  creatorId   String?
+  projectId   String
+  project     DesignProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  revision    Int
+  sha256      String
+  decision    DesignReviewDecision
+  note        String?
+  decidedById String
+  createdAt   DateTime             @default(now()) @db.Timestamptz(3)
+
+  @@index([projectId, revision, createdAt])
+  @@index([clubId])
+  @@index([creatorId])
+}
+
+// ── Creator Studio (P2): personal creator accounts, independent of any club ─────────────────────────────────────────
+
+enum CreatorStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum CreatorEmailPurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+/// A code the Platform Owner issues to let one person (or a few) open a creator account. Only its hash is kept.
+model CreatorInvite {
+  id          String           @id @default(uuid())
+  codeHash    String           @unique
+  /// When set, the code opens an account for this address only (lower case).
+  email       String?
+  note        String?
+  maxUses     Int              @default(1)
+  uses        Int              @default(0)
+  expiresAt   DateTime         @db.Timestamptz(3)
+  revokedAt   DateTime?        @db.Timestamptz(3)
+  createdById String
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  accounts    CreatorAccount[]
+
+  @@index([createdAt])
+}
+
+/// A person who designs on their own account. Not a User: a User always belongs to a club. Never hard-deleted: a deletion
+/// scrubs the account to a tombstone, so nothing that names it is left naming nothing.
+model CreatorAccount {
+  id                    String                 @id @default(uuid())
+  /// Lower case. A deleted account keeps a tombstone address (deleted+<id>@invalid), never the person's.
+  email                 String                 @unique
+  passwordHash          String?
+  displayName           String?
+  locale                String                 @default("en-GB")
+  status                CreatorStatus          @default(ACTIVE)
+  /// Raised to end every session at once (password change, suspension, deletion).
+  tokenVersion          Int                    @default(0)
+  emailVerifiedAt       DateTime?              @db.Timestamptz(3)
+  /// The person confirmed they are at least `ageConfirmedMinimum` years old; no date of birth is kept.
+  ageConfirmedAt        DateTime               @db.Timestamptz(3)
+  ageConfirmedMinimum   Int
+  inviteId              String?
+  invite                CreatorInvite?         @relation(fields: [inviteId], references: [id], onDelete: SetNull)
+  lastLoginAt           DateTime?              @db.Timestamptz(3)
+  createdAt             DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime               @default(now()) @updatedAt @db.Timestamptz(3)
+  deletedAt             DateTime?              @db.Timestamptz(3)
+  sessions              CreatorSession[]
+  emailTokens           CreatorEmailToken[]
+  manufacturingRequests ManufacturingRequest[]
+
+  @@index([status, createdAt])
+}
+
+/// One signed-in device: the hash of its opaque refresh token. Each refresh replaces the row within its family; a
+/// replaced token presented again revokes the whole family.
+model CreatorSession {
+  id        String         @id @default(uuid())
+  creatorId String
+  creator   CreatorAccount @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  familyId  String
+  tokenHash String         @unique
+  expiresAt DateTime       @db.Timestamptz(3)
+  revokedAt DateTime?      @db.Timestamptz(3)
+  createdAt DateTime       @default(now()) @db.Timestamptz(3)
+
+  @@index([creatorId])
+  @@index([familyId])
+}
+
+/// A one-time link sent by email (address verification, password reset). Only its hash is kept.
+model CreatorEmailToken {
+  id        String              @id @default(uuid())
+  creatorId String
+  creator   CreatorAccount      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  purpose   CreatorEmailPurpose
+  tokenHash String              @unique
+  expiresAt DateTime            @db.Timestamptz(3)
+  usedAt    DateTime?           @db.Timestamptz(3)
+  createdAt DateTime            @default(now()) @db.Timestamptz(3)
+
+  @@index([creatorId, purpose])
+}
+
+enum DesignShareRole {
+  VIEW
+  COMMENT
+}
+
+/// A creator's design shared with another creator (P4): to see it, or to comment on it too. Only ever revoked, never
+/// changed; one live share per design and grantee (a partial unique index in SQL). The owner alone edits and approves.
+model DesignShare {
+  id        String          @id @default(uuid())
+  projectId String
+  project   DesignProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// The design's owner; held to the project's own creator by a composite key in SQL.
+  creatorId String
+  /// The creator it is shared with (SQL foreign key onto CreatorAccount).
+  granteeId String
+  role      DesignShareRole
+  createdAt DateTime        @default(now()) @db.Timestamptz(3)
+  revokedAt DateTime?       @db.Timestamptz(3)
+
+  @@index([granteeId])
+  @@index([creatorId])
+}
+
+// ── Premium plans (P5) and the provider-independent billing foundation (P6) ─────────────────────────────────────────
+
+enum PlanAudience {
+  CREATOR
+  CLUB
+}
+
+enum PlanInterval {
+  MONTH
+  YEAR
+}
+
+enum CommercialSubscriptionStatus {
+  PENDING
+  ACTIVE
+  CANCELED
+  EXPIRED
+}
+
+enum CommercialSubscriptionSource {
+  SELF
+  OWNER_GRANT
+}
+
+enum CommercialInvoiceStatus {
+  OPEN
+  PAID
+  VOID
+}
+
+enum PaymentEventStatus {
+  SUCCEEDED
+  FAILED
+}
+
+/// A plan the Platform Owner configures: the Design Studio features it includes, its limits and, when it has one, the price
+/// it is offered at. A price is configuration, never charged here. One active default per audience (SQL partial index).
+model CommercialPlan {
+  id             String                   @id @default(uuid())
+  key            String                   @unique
+  audience       PlanAudience
+  name           String
+  description    String?
+  features       String[]                 @default([])
+  maxProjects    Int?
+  maxCollections Int?
+  maxShares      Int?
+  priceMinor     Int?
+  currency       String?
+  interval       PlanInterval?
+  isDefault      Boolean                  @default(false)
+  active         Boolean                  @default(true)
+  sortOrder      Int                      @default(0)
+  createdById    String
+  createdAt      DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime                 @default(now()) @updatedAt @db.Timestamptz(3)
+  subscriptions  CommercialSubscription[]
+
+  @@index([audience, active, sortOrder], map: "CommercialPlan_audience_active_idx")
+}
+
+/// A tenant's subscription to a plan: one club's or one creator's (exactly one, SQL check); one live per tenant.
+model CommercialSubscription {
+  id                 String                       @id @default(uuid())
+  clubId             String?
+  creatorId          String?
+  planId             String
+  plan               CommercialPlan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status             CommercialSubscriptionStatus
+  source             CommercialSubscriptionSource
+  currentPeriodStart DateTime?                    @db.Timestamptz(3)
+  currentPeriodEnd   DateTime?                    @db.Timestamptz(3)
+  cancelAtPeriodEnd  Boolean                      @default(false)
+  canceledAt         DateTime?                    @db.Timestamptz(3)
+  providerRef        String?
+  note               String?
+  createdById        String
+  createdAt          DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                     @default(now()) @updatedAt @db.Timestamptz(3)
+  invoices           CommercialInvoice[]
+
+  @@unique([id, clubId])
+  @@unique([id, creatorId])
+  @@index([status, currentPeriodEnd], map: "CommercialSubscription_status_idx")
+}
+
+/// An invoice for a subscription. Its amounts never change; it is PAID only after a recorded successful payment of its
+/// total (a trigger), and PAID and VOID are final.
+model CommercialInvoice {
+  id             String                  @id @default(uuid())
+  number         String                  @unique
+  subscriptionId String
+  subscription   CommercialSubscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  clubId         String?
+  creatorId      String?
+  status         CommercialInvoiceStatus @default(OPEN)
+  currency       String
+  subtotalMinor  Int
+  taxMinor       Int?
+  totalMinor     Int
+  lines          Json
+  periodStart    DateTime                @db.Timestamptz(3)
+  periodEnd      DateTime                @db.Timestamptz(3)
+  issuedAt       DateTime                @default(now()) @db.Timestamptz(3)
+  paidAt         DateTime?               @db.Timestamptz(3)
+  voidedAt       DateTime?               @db.Timestamptz(3)
+  createdAt      DateTime                @default(now()) @db.Timestamptz(3)
+  payments       PaymentEvent[]
+
+  @@unique([id, clubId])
+  @@unique([id, creatorId])
+  @@index([subscriptionId])
+  @@index([status, issuedAt], map: "CommercialInvoice_status_idx")
+}
+
+/// What a payment provider reported about an invoice, once per provider event; never changed or removed.
+model PaymentEvent {
+  id              String             @id @default(uuid())
+  invoiceId       String
+  invoice         CommercialInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  clubId          String?
+  creatorId       String?
+  provider        String
+  providerEventId String
+  status          PaymentEventStatus
+  amountMinor     Int
+  currency        String
+  occurredAt      DateTime           @db.Timestamptz(3)
+  receivedAt      DateTime           @default(now()) @db.Timestamptz(3)
+
+  @@unique([provider, providerEventId], map: "PaymentEvent_provider_event_key")
+  @@index([invoiceId])
 }

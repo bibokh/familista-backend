@@ -35,7 +35,7 @@ body.pd-studio-open .app { display: block !important; }
 body.pd-studio-open .main { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; }
 body.pd-studio-open { overflow: hidden; }
 
-#pg-product-design {
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) {
   background:
     radial-gradient(1100px 620px at 58% 34%, color-mix(in srgb, var(--fam-module-accent) 12%, transparent), transparent 70%),
     radial-gradient(900px 520px at 12% 92%, color-mix(in srgb, var(--fam-module-accent-2) 9%, transparent), transparent 70%),
@@ -45,20 +45,20 @@ body.pd-studio-open { overflow: hidden; }
   font-size: var(--fam-font-size-base);
   line-height: var(--fam-font-line-height-snug);
 }
-#pg-product-design *, #pg-product-design *::before, #pg-product-design *::after { box-sizing: border-box; }
-#pd-root:lang(ar) { font-family: var(--fam-font-family-arabic); }
-#pg-product-design [hidden] { display: none !important; }
-#pg-product-design button { font: inherit; color: inherit; }
-#pg-product-design h1, #pg-product-design h2, #pg-product-design p, #pg-product-design ul, #pg-product-design ol, #pg-product-design figure { margin: 0; }
-#pg-product-design ul, #pg-product-design ol { padding: 0; list-style: none; }
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) *, :is(#pg-product-design, #pg-club-design, #pg-creator-design) *::before, :is(#pg-product-design, #pg-club-design, #pg-creator-design) *::after { box-sizing: border-box; }
+:is(#pd-root, #pd-club-root, #pd-creator-root):lang(ar) { font-family: var(--fam-font-family-arabic); }
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) [hidden] { display: none !important; }
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) button { font: inherit; color: inherit; }
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) h1, :is(#pg-product-design, #pg-club-design, #pg-creator-design) h2, :is(#pg-product-design, #pg-club-design, #pg-creator-design) p, :is(#pg-product-design, #pg-club-design, #pg-creator-design) ul, :is(#pg-product-design, #pg-club-design, #pg-creator-design) ol, :is(#pg-product-design, #pg-club-design, #pg-creator-design) figure { margin: 0; }
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) ul, :is(#pg-product-design, #pg-club-design, #pg-creator-design) ol { padding: 0; list-style: none; }
 .pd-sr {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-#pg-product-design :is(button, input, select, [tabindex]):focus-visible {
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) :is(button, input, select, [tabindex]):focus-visible {
   outline: 2px solid var(--fam-focus-ring); outline-offset: 2px; box-shadow: var(--fam-glow-focus);
 }
-#pg-product-design [aria-disabled="true"] { cursor: not-allowed; }
+:is(#pg-product-design, #pg-club-design, #pg-creator-design) [aria-disabled="true"] { cursor: not-allowed; }
 
 /* ── the shell: R1 top, R2 side, main, the bottom cards ────────────────── */
 .pd-shell {
@@ -133,7 +133,7 @@ body.pd-studio-open { overflow: hidden; }
 .pd-main { grid-area: main; display: grid; grid-template-rows: 80px minmax(0, 1fr) 65px; gap: 10px; padding: 8px 12px 10px 5px; min-height: 0; min-width: 0; }
 [dir="rtl"] .pd-main { padding: 8px 5px 10px 12px; }
 
-.pd-panel, .pd-head, .pd-lib, .pd-tools, .pd-bar, .pd-insp, .pd-card-panel, .pd-actions, .pd-foot-card, .pd-patterns, .pd-dock {
+.pd-panel, .pd-head, .pd-lib, .pd-tools, .pd-bar, .pd-insp, .pd-card-panel, .pd-actions, .pd-foot-card, .pd-patterns, .pd-dock, .pd-team {
   background: var(--fam-surface-glass);
   border: var(--fam-border-width-hairline) solid var(--fam-border-default);
   border-radius: var(--fam-radius-panel);
@@ -184,12 +184,16 @@ body.pd-studio-open { overflow: hidden; }
   background: linear-gradient(135deg, color-mix(in srgb, var(--fam-module-accent) 50%, var(--fam-surface-canvas)), color-mix(in srgb, var(--fam-module-accent-2) 30%, var(--fam-surface-canvas)));
 }
 .pd-tab[aria-disabled="true"] { color: var(--fam-text-tertiary); }
+/* A filter (Active / Archived, Open / Resolved) is pressed, not selected: an edge and a whisper of the accent. */
+.pd-tab[aria-pressed="true"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-module-accent) 60%, transparent); background: color-mix(in srgb, var(--fam-module-accent) 14%, transparent); }
 .pd-chip {
   display: inline-flex; align-items: center; height: 18px; padding-inline: 6px; border-radius: var(--fam-radius-full);
   font-size: var(--fam-font-size-2xs); font-weight: var(--fam-font-weight-bold); letter-spacing: var(--fam-font-tracking-wide); text-transform: uppercase; white-space: nowrap;
   border: var(--fam-border-width-hairline) solid var(--fam-border-strong); color: var(--fam-text-secondary); background: var(--fam-surface-tile);
 }
 .pd-chip--muted { color: var(--fam-text-tertiary); border-color: var(--fam-border-default); }
+/* On a sunken row (a panel's current item) the tertiary tone falls below AA: a muted chip there reads in the secondary tone. */
+.pd-dock-current .pd-chip--muted { color: var(--fam-text-secondary); }
 .pd-icbtn {
   display: inline-flex; align-items: center; justify-content: center; width: var(--fam-size-control-md); height: var(--fam-size-control-md); flex: none;
   border: var(--fam-border-width-hairline) solid transparent; border-radius: var(--fam-radius-md); background: none; cursor: pointer; color: var(--fam-text-secondary);
@@ -221,6 +225,8 @@ body.pd-studio-open { overflow: hidden; }
 .pd-link { border: 0; background: none; padding: 0; cursor: pointer; color: color-mix(in srgb, var(--fam-module-accent) 55%, var(--fam-text-primary)); font-size: var(--fam-font-size-sm); font-weight: var(--fam-font-weight-bold); text-decoration: underline; text-underline-offset: 2px; }
 .pd-note { color: var(--fam-text-tertiary); font-size: var(--fam-font-size-sm); line-height: var(--fam-font-line-height-normal); }
 .pd-note--info { display: flex; gap: var(--fam-space-2); align-items: flex-start; color: var(--fam-text-secondary); }
+.pd-note--warn { display: flex; gap: var(--fam-space-2); align-items: flex-start; color: var(--fam-status-warning); }
+.pd-note--warn .pd-ic { color: var(--fam-status-warning); }
 .pd-note--info .pd-ic { flex: none; margin-top: 1px; }
 .pd-empty { color: var(--fam-text-tertiary); font-size: var(--fam-font-size-md); padding: var(--fam-space-2) 0; }
 .pd-h2 { display: flex; align-items: center; gap: var(--fam-space-2); font-size: var(--fam-font-size-lg); font-weight: var(--fam-font-weight-bold); }
@@ -238,6 +244,23 @@ body.pd-studio-open { overflow: hidden; }
 .pd-acc-chev { display: inline-flex; color: var(--fam-text-tertiary); transition: transform var(--fam-duration-base) var(--fam-easing-standard); }
 .pd-acc[aria-expanded="true"] .pd-acc-chev { transform: rotate(180deg); }
 .pd-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+/* the brand kit (M2c; a creator's too, P3): the upload row, the logos as cards, and their archive control. Its own class:
+   sharing .pd-brand with the top bar's brand stacked the mark above the name and clipped it in the 62 px bar. */
+.pd-brandkit { display: flex; flex-direction: column; gap: var(--fam-space-2); }
+.pd-brand-up { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr); gap: 6px; }
+.pd-brand-up .pd-btn { grid-column: 1 / -1; justify-content: center; }
+.pd-brand-status:empty { display: none; }
+.pd-brand-grid { margin: 0; }
+.pd-brand-item { position: relative; }
+.pd-brand-card { margin: 0; gap: 4px; }
+.pd-brand-img { display: block; max-width: 100%; max-height: 52px; width: auto; height: auto; object-fit: contain; }
+.pd-brandkit .pd-brand-card .pd-chip { position: static; inset: auto; transform: none; align-self: center; }
+.pd-brandkit > .pd-btn { width: 100%; justify-content: center; white-space: normal; height: auto; min-height: 32px; padding-block: 6px; text-align: center; line-height: 1.25; }
+.pd-brand-archive { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; opacity: 0; transition: opacity 120ms ease; }
+.pd-brand-item:hover .pd-brand-archive, .pd-brand-archive:focus-visible { opacity: 1; }
+@media (hover: none) { .pd-brand-archive { opacity: 1; } }
+.pd-brand-place { width: 100%; justify-content: center; margin-block-start: 4px; min-height: 26px; padding-block: 2px; font-size: var(--fam-font-size-xs, 12px); }
+.pd-card--skeleton { display: block; height: 96px; background: color-mix(in srgb, var(--fam-text-primary) 6%, transparent); }
 .pd-card {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 4px; width: 100%; height: 96px; padding: 6px 4px;
   border: var(--fam-border-width-hairline) solid var(--fam-border-default); border-radius: var(--fam-radius-lg); background: var(--fam-surface-sunken); cursor: pointer;
@@ -281,7 +304,7 @@ body.pd-studio-open { overflow: hidden; }
 .pd-tool[aria-pressed="true"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-module-accent) 60%, transparent); background: color-mix(in srgb, var(--fam-module-accent) 24%, transparent); }
 .pd-tool[aria-disabled="true"] { color: var(--fam-text-disabled); background: none; }
 
-.pd-stage { grid-area: stage; display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 8px; min-height: 0; min-width: 0; }
+.pd-stage { grid-area: stage; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 8px; min-height: 0; min-width: 0; }
 .pd-canvas {
   position: relative; min-height: 0; min-width: 0; overflow: hidden; border-radius: var(--fam-radius-panel); touch-action: none; cursor: default;
   border: var(--fam-border-width-hairline) solid var(--fam-border-default);
@@ -484,6 +507,9 @@ body.pd-studio-open { overflow: hidden; }
 .pd-flow-label { font-size: var(--fam-font-size-xs); font-weight: var(--fam-font-weight-semibold); line-height: var(--fam-font-line-height-tight); max-width: 100%; overflow-wrap: anywhere; hyphens: auto; }
 .pd-flow-state { font-size: var(--fam-font-size-2xs); font-weight: var(--fam-font-weight-bold); letter-spacing: var(--fam-font-tracking-wide); text-transform: uppercase; color: var(--fam-text-tertiary); }
 .pd-flow-step[data-state="available"] .pd-flow-state { color: var(--fam-text-primary); }
+/* Through Familista (M4): done by the Platform Owner on the club's behalf, not automated: an edge, not a fill. */
+.pd-flow-step[data-state="brokered"] { border-color: color-mix(in srgb, var(--fam-module-accent) 45%, var(--fam-border-default)); }
+.pd-flow-step[data-state="brokered"] .pd-flow-ic, .pd-flow-step[data-state="brokered"] .pd-flow-state { color: var(--fam-text-secondary); }
 .pd-flow-arrow { display: flex; align-items: center; color: var(--fam-text-tertiary); font-size: var(--fam-font-size-lg); }
 .pd-integ-list { display: flex; flex-direction: column; gap: 3px; }
 .pd-integ { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 6px; font-size: var(--fam-font-size-xs); line-height: var(--fam-font-line-height-tight); color: var(--fam-text-secondary); }
@@ -521,7 +547,8 @@ body.pd-studio-open { overflow: hidden; }
 .pd-dock-current { display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-3); padding: var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-sunken); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
 .pd-dock-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pd-dock-kicker { color: var(--fam-text-secondary); font-size: var(--fam-font-size-xs); font-weight: var(--fam-font-weight-bold); }
-.pd-dock .pd-note { color: var(--fam-text-secondary); }
+/* Every floating panel's notes read at secondary contrast: they sit on its sunken rows and alerts, where tertiary fails AA. */
+.pd-dock .pd-note, .pd-team .pd-note { color: var(--fam-text-secondary); }
 .pd-dock-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fam-font-size-md); font-weight: var(--fam-font-weight-semibold); }
 .pd-dock-btns { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--fam-space-2); flex: none; }
 .pd-dock-bar-row { display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-2); }
@@ -544,6 +571,105 @@ body.pd-studio-open { overflow: hidden; }
 .pd-dock-state { display: flex; flex-direction: column; align-items: flex-start; gap: var(--fam-space-2); }
 .pd-btn--accent { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-module-accent) 60%, var(--fam-border-strong)); }
 .pd-chip--accent { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-module-accent) 60%, transparent); }
+
+/* ── the Team panel (M3): a club's rosters; floating, so opening it moves nothing ── */
+/* As wide as the inspector's column at the reference size, so the garment and its views stay in sight beside it while a
+   row is previewed; a wider table scrolls inside it. */
+.pd-team {
+  position: fixed; inset-block-start: 158px; inset-inline-end: 24px; z-index: 43;
+  width: min(620px, calc(100vw - 48px)); max-height: calc(100vh - 182px); min-height: 0;
+  display: flex; flex-direction: column;
+  opacity: 0; visibility: hidden; transform: translateY(-8px);
+  transition: opacity var(--fam-duration-base) var(--fam-easing-standard), transform var(--fam-duration-base) var(--fam-easing-standard), visibility 0s linear var(--fam-duration-base);
+}
+.pd-team[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.pd-team-head .pd-h2 { margin-inline-end: auto; }
+.pd-team-status { flex: none; margin: 0; padding: var(--fam-space-2) var(--fam-space-3) var(--fam-space-3); border-top: var(--fam-border-width-hairline) solid var(--fam-border-subtle); min-height: calc(var(--fam-font-size-sm) * 1.6 + var(--fam-space-3)); color: var(--fam-text-secondary); }
+.pd-team-field { display: flex; flex-direction: column; gap: 4px; }
+.pd-team-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pd-team-delim { width: auto; max-width: 280px; }
+.pd-team-scroll {
+  /* flex: none: in the panel's column a box that scrolls would otherwise be the one to shrink, to nothing, when the
+     panel's content is taller than the panel; it keeps its height and the panel's body scrolls instead. */
+  flex: none; overflow: auto; max-height: 46vh; scrollbar-gutter: stable; border-radius: var(--fam-radius-md);
+  border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); background: var(--fam-surface-sunken);
+}
+.pd-team-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fam-font-size-sm); }
+.pd-team-table :is(th, td) { padding: 4px; text-align: start; vertical-align: middle; border-bottom: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
+.pd-team-table thead th { position: sticky; inset-block-start: 0; z-index: 1; background: var(--fam-surface-raised); color: var(--fam-text-secondary); font-weight: var(--fam-font-weight-semibold); white-space: nowrap; }
+.pd-team-n { width: 2em; text-align: center; color: var(--fam-text-tertiary); font-variant-numeric: tabular-nums; font-weight: var(--fam-font-weight-regular); }
+.pd-team-table td:nth-child(2) { min-width: 128px; }
+.pd-team-in { width: 100%; min-width: 0; height: 32px; }
+.pd-team-table select.pd-team-in { min-width: 70px; padding-inline: 6px; }
+.pd-team-table select[data-pd-team-col="socks"] { min-width: 84px; }
+.pd-team-num { width: 3.4em; text-align: center; font-variant-numeric: tabular-nums; }
+.pd-team-in[aria-invalid="true"] { border-color: var(--fam-status-critical); }
+.pd-team-acts { white-space: nowrap; width: 1%; }
+/* The row on the garment: an edge, not a filled block. */
+.pd-team-table tr.is-preview > th { box-shadow: inset 3px 0 0 var(--fam-module-accent); color: var(--fam-text-primary); }
+[dir="rtl"] .pd-team-table tr.is-preview > th { box-shadow: inset -3px 0 0 var(--fam-module-accent); }
+.pd-team-table [aria-pressed="true"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-module-accent) 60%, transparent); }
+.pd-team-checks { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--fam-font-size-sm); color: var(--fam-text-secondary); }
+.pd-team-checks li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px; align-items: start; padding: 6px var(--fam-space-2); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border-inline-start: 2px solid var(--fam-status-warning); }
+.pd-team-checks li.is-error { border-inline-start-color: var(--fam-status-critical); }
+.pd-team-checks li .pd-ic { margin-top: 1px; color: var(--fam-status-warning); }
+.pd-team-checks li.is-error .pd-ic { color: var(--fam-status-critical); }
+.pd-team-problems { margin: 0; padding-inline-start: 1.2em; font-size: var(--fam-font-size-sm); color: var(--fam-text-secondary); }
+.pd-team-sum dl { display: grid; gap: 4px; margin: 0; }
+.pd-team-sum-row { display: grid; grid-template-columns: 6em minmax(0, 1fr); gap: var(--fam-space-2); font-size: var(--fam-font-size-sm); }
+.pd-team-sum dt { color: var(--fam-text-secondary); }
+.pd-team-sum dd { margin: 0; font-variant-numeric: tabular-nums; text-align: start; }
+.pd-team-save { justify-content: space-between; }
+/* Collections (M3b): a kit's designs, and the order sheet a roster makes of it. */
+.pd-team-tabs { flex: none; }
+.pd-col-fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--fam-space-2); }
+.pd-col-roster { grid-column: 1 / -1; }
+.pd-col-item .pd-dock-btns { flex-wrap: nowrap; }
+.pd-col-role { width: auto; min-width: 112px; height: 32px; }
+.pd-col-sheet-block { display: flex; flex-direction: column; gap: var(--fam-space-2); }
+.pd-col-sheet th[scope="row"] { font-weight: var(--fam-font-weight-semibold); white-space: normal; }
+.pd-col-sheet td { font-variant-numeric: tabular-nums; }
+.pd-col-unsized { color: var(--fam-status-warning); }
+
+/* Manufacturing (M4): requests, quotations, their history; the Owner's console shares the Team panel's surface. */
+.pd-mfg { z-index: 44; }
+.pd-req-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--fam-space-2); }
+.pd-req-amount { font-size: var(--fam-font-size-xl); font-weight: var(--fam-font-weight-bold); font-variant-numeric: tabular-nums; }
+.pd-req-quote { align-items: flex-start; }
+.pd-req-note { color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pd-req-history { display: flex; flex-direction: column; gap: var(--fam-space-2); margin: 0; padding: 0; list-style: none; }
+.pd-req-history li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: var(--fam-space-2); align-items: start; }
+.pd-req-dot { width: 8px; height: 8px; margin-top: 6px; border-radius: var(--fam-radius-full); border: 2px solid color-mix(in srgb, var(--fam-module-accent) 70%, transparent); }
+.pd-req-event { font-weight: var(--fam-font-weight-semibold); }
+.pd-col-ask textarea, .pd-mfg textarea, .pd-rv-compose textarea, .pd-rv-ask textarea { resize: vertical; min-height: 64px; }
+/* M7b — a design's review: a decision is a result, so approved is the one green; changes requested is a warning. */
+.pd-rv-chip[data-decision="APPROVED"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-success) 60%, transparent); }
+/* No decision is information too: muted in weight, never below the contrast of secondary text (it sits on table rows). */
+.pd-rv-chip[data-decision="none"] { color: var(--fam-text-secondary); }
+.pd-rv-chip[data-decision="CHANGES_REQUESTED"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-warning) 60%, transparent); }
+.pd-rv-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.pd-rv-cell { display: inline-flex; margin-inline-start: 6px; vertical-align: middle; }
+.pd-rv-compose { display: flex; flex-direction: column; gap: var(--fam-space-2); padding: var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-sunken); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
+.pd-rv-surface { width: auto; min-width: 160px; align-self: flex-start; height: 32px; }
+.pd-rv-decide { justify-content: flex-start; }
+.pd-rv-list { gap: var(--fam-space-2); }
+.pd-rv-comment { display: flex; flex-direction: column; gap: 6px; padding: var(--fam-space-2) var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
+.pd-rv-comment.is-resolved { opacity: .72; }
+.pd-rv-comment .pd-dock-btns { justify-content: flex-start; }
+.pd-rv-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.pd-rv-older { font-style: italic; }
+.pd-mfg-checks { display: flex; flex-wrap: wrap; gap: var(--fam-space-2) var(--fam-space-3); }
+.pd-mfg-check { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fam-font-size-sm); }
+
+/* What the garment shows while a roster row is previewed: over the canvas, so it moves nothing. */
+.pd-preview-tag {
+  position: absolute; inset-block-start: var(--fam-space-2); inset-inline-start: var(--fam-space-2); z-index: 3;
+  display: flex; align-items: center; gap: var(--fam-space-2); max-width: calc(100% - 2 * var(--fam-space-2));
+  padding-block: 4px; padding-inline: var(--fam-space-3) 4px; border-radius: var(--fam-radius-full); font-size: var(--fam-font-size-sm);
+  background: var(--fam-surface-glass); border: var(--fam-border-width-hairline) solid color-mix(in srgb, var(--fam-module-accent) 55%, var(--fam-border-default));
+}
+.pd-preview-tag[hidden] { display: none; }
+.pd-preview-tag strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 1599px) {
   .pd-shell { grid-template-columns: 64px minmax(0, 1fr); }
@@ -622,6 +748,11 @@ body.pd-studio-open { overflow: hidden; }
   .pd-shell:not([data-panel=""]) .pd-scrim { display: block; position: fixed; inset: 0; z-index: 39; background: color-mix(in srgb, var(--fam-surface-canvas) 60%, transparent); }
   :is(.pd-lib, .pd-insp, .pd-prod) .pd-sheet-head { display: flex; align-items: center; justify-content: space-between; padding: var(--fam-space-3) var(--fam-space-3) 0; }
   .pd-dock { inset-inline: 0; inset-block-start: auto; inset-block-end: 56px; width: auto; max-height: 72vh; border-radius: var(--fam-radius-panel) var(--fam-radius-panel) 0 0; transform: translateY(16px); }
+  .pd-team { inset-inline: 0; inset-block-start: auto; inset-block-end: 56px; width: auto; max-height: 80vh; border-radius: var(--fam-radius-panel) var(--fam-radius-panel) 0 0; transform: translateY(16px); }
+  .pd-team-scroll { max-height: 40vh; }
+  .pd-col-fields { grid-template-columns: minmax(0, 1fr); }
+  .pd-col-item { flex-wrap: wrap; }
+  .pd-col-item .pd-dock-btns { flex-wrap: wrap; }
   .pd-actions { display: flex; flex-wrap: wrap; gap: var(--fam-space-3); padding: var(--fam-space-3); margin: 0; }
   .pd-actions-mid { order: -1; width: 100%; }
   .pd-cost { display: grid; text-align: start; }
@@ -639,6 +770,215 @@ body.pd-studio-open { overflow: hidden; }
   .pd-tabbar-btn[aria-expanded="true"] { color: var(--fam-text-primary); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  #pg-product-design *, #pg-product-design *::before, #pg-product-design *::after { transition: none !important; scroll-behavior: auto !important; }
+/* M8a — club releases: one row per key, its three choices as native radios, what it amounts to beside its name. */
+.pd-rel-row { display: flex; flex-direction: column; gap: var(--fam-space-2); padding: var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-sunken); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
+.pd-rel-row.is-part { margin-inline-start: var(--fam-space-4); }
+.pd-rel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-2); }
+.pd-rel-opts { display: flex; flex-wrap: wrap; gap: var(--fam-space-2); }
+.pd-rel-opt { display: inline-flex; align-items: center; gap: 6px; padding: 4px var(--fam-space-2); border-radius: var(--fam-radius-md); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle); cursor: pointer; font-size: var(--fam-font-size-sm); }
+.pd-rel-opt:has(input:checked) { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-module-accent) 60%, transparent); background: color-mix(in srgb, var(--fam-module-accent) 14%, transparent); }
+.pd-rel-opt input { accent-color: var(--fam-module-accent); margin: 0; }
+.pd-rel-chip[data-included="true"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-success) 60%, transparent); }
+.pd-rel-chip[data-included="false"] { color: var(--fam-text-secondary); }
+
+/* P1 — privacy: the roster's minors setting, a name's erasure, the Owner's retention rules. */
+.pd-team-check { display: flex; align-items: flex-start; gap: var(--fam-space-2); font-size: var(--fam-font-size-sm); cursor: pointer; }
+.pd-team-check input { margin-block-start: 3px; accent-color: var(--fam-module-accent); }
+.pd-team-minors, .pd-col-minors { display: flex; flex-direction: column; gap: var(--fam-space-2); }
+.pd-team-erase { display: flex; flex-direction: column; gap: var(--fam-space-2); }
+.pd-ret-set { justify-content: flex-start; align-items: flex-end; }
+.pd-ret-days { width: 120px; }
+.pd-ret-result { margin: 0; padding-inline-start: var(--fam-space-4); color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); }
+
+/* M7d — supplier fit: a met criterion is plain, an unmet one is a result (red), one not recorded is secondary. */
+.pd-fit-table td[data-met="false"] { color: var(--fam-status-critical); }
+.pd-fit-table td[data-met="null"] { color: var(--fam-text-secondary); }
+.pd-fit-chip[data-fit="fits"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-success) 60%, transparent); }
+.pd-fit-chip[data-fit="does-not-fit"] { color: var(--fam-text-primary); border-color: color-mix(in srgb, var(--fam-status-critical) 60%, transparent); }
+.pd-fit-chip[data-fit="incomplete"] { color: var(--fam-text-secondary); }
+
+/* M7c — colourways: the design recoloured, three to a row in the inspector, each a button with its home view. */
+.pd-cways { display: flex; flex-direction: column; gap: var(--fam-space-2); }
+.pd-cways-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--fam-space-2); }
+.pd-cway {
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-width: 0; padding: 6px; cursor: pointer; color: var(--fam-text-primary);
+  border-radius: var(--fam-radius-md); background: var(--fam-surface-sunken); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle);
 }
+.pd-cway:hover { border-color: color-mix(in srgb, var(--fam-module-accent) 55%, transparent); }
+.pd-cway:focus-visible { outline: 2px solid var(--fam-module-accent); outline-offset: 2px; }
+.pd-cway svg { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; }
+.pd-cway-cap { display: flex; flex-direction: column; gap: 1px; min-width: 0; text-align: start; }
+.pd-cway-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fam-font-size-xs); font-weight: var(--fam-font-weight-semibold); }
+.pd-cway-ratio { color: var(--fam-text-secondary); font-size: var(--fam-font-size-2xs); font-variant-numeric: tabular-nums; }
+
+/* M7b-2 — a collection's presentation sheet: a floating sheet over the room (fixed; opacity and transform only), its
+   body scrolling inside itself. Printed exactly as shown (the room's surfaces, not a paper theme), on its own A4
+   landscape pages; everything else on the page is hidden from print while it is open. */
+.pd-present {
+  position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; gap: var(--fam-space-3); padding: var(--fam-space-4);
+  background: color-mix(in srgb, var(--fam-surface-canvas) 84%, transparent); backdrop-filter: blur(var(--fam-blur-md));
+  opacity: 0; visibility: hidden; transform: translateY(8px);
+  transition: opacity var(--fam-duration-base) var(--fam-easing-standard), transform var(--fam-duration-base) var(--fam-easing-standard), visibility 0s linear var(--fam-duration-base);
+}
+.pd-present[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.pd-present-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-3); flex: none; max-width: 1280px; width: 100%; margin-inline: auto;
+  padding: var(--fam-space-2) var(--fam-space-3); border-radius: var(--fam-radius-lg); background: var(--fam-surface-panel); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle);
+}
+.pd-present-bar .pd-note { flex: 1 1 auto; min-width: 0; color: var(--fam-text-secondary); }
+.pd-present-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+.pd-present-sheet {
+  page: pd-present; max-width: 1280px; margin-inline: auto; display: flex; flex-direction: column; gap: var(--fam-space-5); padding: var(--fam-space-6);
+  border-radius: var(--fam-radius-xl); background: var(--fam-surface-panel); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle);
+  print-color-adjust: exact; -webkit-print-color-adjust: exact;
+}
+.pd-present-head { display: flex; flex-direction: column; gap: 4px; padding-block-end: var(--fam-space-3); border-block-end: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
+.pd-present-kicker { margin: 0; color: var(--fam-module-accent); font-size: var(--fam-font-size-sm); font-weight: var(--fam-font-weight-bold); letter-spacing: var(--fam-font-tracking-wide); text-transform: uppercase; }
+.pd-present-title { margin: 0; font-size: var(--fam-font-size-3xl); font-weight: var(--fam-font-weight-bold); color: var(--fam-text-primary); overflow-wrap: anywhere; }
+.pd-present-meta { margin: 0; color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); }
+.pd-present-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: var(--fam-space-4); }
+.pd-present-card {
+  display: flex; flex-direction: column; gap: var(--fam-space-3); padding: var(--fam-space-4); break-inside: avoid;
+  border-radius: var(--fam-radius-lg); background: var(--fam-surface-sunken); border: var(--fam-border-width-hairline) solid var(--fam-border-subtle);
+}
+/* Every garment's views take the same box, whatever its shape: a sock is scaled into it, never stretching its card. */
+.pd-present-views { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr); gap: var(--fam-space-3); aspect-ratio: 2 / 1.15; min-height: 0; }
+.pd-present-views.is-missing { display: flex; align-items: center; justify-content: center; }
+.pd-present-fig { margin: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; gap: 6px; min-width: 0; min-height: 0; }
+.pd-present-fig svg { width: 100%; height: 100%; min-height: 0; }
+.pd-present-fig figcaption { color: var(--fam-text-secondary); font-size: var(--fam-font-size-xs); }
+.pd-present-ghost { display: block; border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); }
+.pd-present-cap { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.pd-present-name { margin: 0; font-size: var(--fam-font-size-lg); font-weight: var(--fam-font-weight-semibold); color: var(--fam-text-primary); overflow-wrap: anywhere; }
+.pd-present-h { margin: 0; font-size: var(--fam-font-size-md); font-weight: var(--fam-font-weight-bold); color: var(--fam-text-secondary); }
+.pd-present-sizes { display: flex; flex-direction: column; gap: var(--fam-space-2); break-inside: avoid; }
+.pd-present-table { width: 100%; border-collapse: collapse; font-size: var(--fam-font-size-sm); }
+.pd-present-table th, .pd-present-table td { padding: 6px var(--fam-space-2); text-align: start; border-block-end: var(--fam-border-width-hairline) solid var(--fam-border-subtle); }
+.pd-present-table td { font-variant-numeric: tabular-nums; }
+.pd-present-foot { display: flex; justify-content: space-between; gap: var(--fam-space-3); flex-wrap: wrap; color: var(--fam-text-tertiary); font-size: var(--fam-font-size-xs); }
+@page pd-present { size: A4 landscape; margin: 0; }
+@media print {
+  /* Only the sheet prints: every ancestor of it flows as a plain block (the room is a fixed, clipped workspace on screen),
+     and everything that is not on the way to it is removed, so no blank page is laid out before or after it. */
+  html:has(body.pd-presenting), body.pd-presenting { height: auto !important; overflow: visible !important; background: var(--fam-surface-canvas) !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  body.pd-presenting :has(.pd-present[data-open="true"]) {
+    display: block !important; position: static !important; inset: auto !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important;
+    margin: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; transform: none !important; backdrop-filter: none !important;
+  }
+  body.pd-presenting :has(.pd-present[data-open="true"]) > :not(:has(.pd-present[data-open="true"])):not(.pd-present), body.pd-presenting > :not(:has(.pd-present[data-open="true"])) { display: none !important; }
+  body.pd-presenting .pd-present { position: static; display: block; padding: 0; background: none; backdrop-filter: none; transform: none; transition: none; }
+  body.pd-presenting .pd-present-bar { display: none; }
+  body.pd-presenting .pd-present-scroll { overflow: visible; }
+  body.pd-presenting .pd-present-sheet { max-width: none; min-height: 100vh; border: 0; border-radius: 0; padding: 12mm; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  body.pd-presenting .pd-present-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(#pg-product-design, #pg-club-design, #pg-creator-design) *, :is(#pg-product-design, #pg-club-design, #pg-creator-design) *::before, :is(#pg-product-design, #pg-club-design, #pg-creator-design) *::after { transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* ── P3: the Creator Studio's own page (public/creator/index.html): the studio is the whole document there, so the page
+   takes the room's canvas, and the paging arrow takes its direction (app.css gives it in the platform's workspace). */
+html:has(#pg-creator-design), html:has(#pg-creator-design) body { margin: 0; padding: 0; background: var(--fam-surface-canvas); }
+#pg-creator-design { min-height: 100vh; min-height: 100dvh; }
+#pg-creator-design .fam-dir-ic { display: inline-block; }
+#pg-creator-design .fam-dir-ic:dir(rtl) { transform: scaleX(-1); }
+
+/* ── P3: the Creator Studio's way in, and its account panel ───────────────
+   The gate is one card on the room's own canvas: sign in, open an account, reset a password. Switching between them
+   repaints the card alone; the aside beside it never moves. Under 980 px wide the two stack and the page scrolls. */
+.pd-gate { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-rows: 62px minmax(0, 1fr); }
+.pd-gate-top {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--fam-space-4);
+  padding-inline: var(--fam-space-5); border-block-end: 1px solid var(--fam-border-subtle);
+  background: color-mix(in srgb, var(--fam-surface-raised) 72%, transparent); backdrop-filter: blur(14px);
+}
+.pd-gate-main {
+  /* Anchored at the top, not centred: a message appearing below the form grows the card downwards and moves nothing. */
+  display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 360px); justify-content: center; align-content: start; align-items: start;
+  gap: var(--fam-space-6); padding: clamp(24px, 8vh, 96px) var(--fam-space-5) var(--fam-space-6);
+}
+.pd-gate-card, .pd-gate-aside {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--fam-surface-raised) 92%, transparent), color-mix(in srgb, var(--fam-surface-panel) 96%, transparent));
+  border: 1px solid var(--fam-border-subtle); border-radius: var(--fam-radius-lg); backdrop-filter: blur(14px);
+  padding: var(--fam-space-5); display: flex; flex-direction: column; gap: var(--fam-space-3);
+}
+.pd-gate-card { min-height: 560px; }
+.pd-gate-title { font-size: var(--fam-font-size-xl); font-weight: var(--fam-font-weight-bold); line-height: var(--fam-font-line-height-tight); }
+.pd-gate-tabs { margin-block-end: var(--fam-space-1); }
+.pd-gate-form { display: flex; flex-direction: column; gap: var(--fam-space-3); }
+.pd-gate-label { font-size: var(--fam-font-size-sm); color: var(--fam-text-secondary); font-weight: var(--fam-font-weight-medium); }
+.pd-gate-form .pd-input { width: 100%; min-height: 40px; }
+.pd-gate-submit { justify-content: center; min-height: 42px; }
+.pd-gate-error { color: var(--fam-status-critical); min-height: 1.4em; }
+.pd-gate-error:empty, .pd-gate-status:empty { visibility: hidden; }
+.pd-gate-status { color: var(--fam-text-secondary); min-height: 1.4em; }
+.pd-gate-list { display: flex; flex-direction: column; gap: var(--fam-space-3); }
+.pd-gate-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--fam-space-2); align-items: start; }
+.pd-gate-list li > .pd-ic { color: var(--fam-module-accent); margin-block-start: 2px; }
+.pd-gate-list li > span { display: flex; flex-direction: column; gap: 2px; }
+.pd-gate-list strong { font-weight: var(--fam-font-weight-semibold); }
+.pd-gate-list li > span > span { color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); }
+@media (max-width: 980px) {
+  .pd-gate-main { grid-template-columns: minmax(0, 1fr); align-content: start; }
+  .pd-gate-card { min-height: 0; }
+}
+.pd-acct { z-index: 45; }
+.pd-acct-card { padding: var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: 1px solid var(--fam-border-subtle); display: flex; flex-direction: column; gap: 4px; }
+.pd-acct-name { font-size: var(--fam-font-size-lg); font-weight: var(--fam-font-weight-semibold); }
+.pd-acct-mail { color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); overflow-wrap: anywhere; }
+.pd-acct-block { display: flex; flex-direction: column; gap: var(--fam-space-2); padding-block: var(--fam-space-3); border-block-start: 1px solid var(--fam-border-subtle); }
+.pd-acct-block:first-child { border-block-start: 0; }
+.pd-acct .pd-team-field .pd-input, .pd-acct select.pd-input { width: 100%; }
+
+/* P4: a design shared with this creator, drawn as its owner last saved it: its views side by side, each with its name. */
+.pd-shared { z-index: 45; }
+.pd-shared-views { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--fam-space-2); }
+.pd-shared-view { margin: 0; display: flex; flex-direction: column; gap: 4px; align-items: center; padding: var(--fam-space-2); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: 1px solid var(--fam-border-subtle); }
+.pd-shared-view svg { width: 100%; height: auto; max-height: 220px; }
+.pd-rv-share { display: flex; flex-direction: column; gap: var(--fam-space-2); padding-block: var(--fam-space-2); border-block-end: 1px solid var(--fam-border-subtle); }
+.pd-rv-share-add { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; align-items: center; }
+.pd-rv-share-add .pd-input { min-width: 0; }
+
+/* P5/P6: the workspace's plan and invoices, the Owner's plans and billing. The panels are the Team panel's; a current
+   plan is marked by an edge, never a filled block; the price is plain text with tabular figures. */
+.pd-plan, .pd-billing { z-index: 45; }
+.pd-plan .pd-acct-block > .pd-btn, .pd-billing .pd-acct-block > .pd-btn, .pd-billing .pd-team-body > .pd-btn { align-self: flex-start; }
+.pd-plan .pd-team-field .pd-input, .pd-billing .pd-team-field .pd-input, .pd-billing select.pd-input { width: 100%; }
+.pd-plan-features { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: var(--fam-font-size-sm); }
+.pd-plan-feature { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: start; color: var(--fam-text-primary); }
+.pd-plan-feature[data-included="false"] { color: var(--fam-text-secondary); }
+.pd-plan-feature .pd-ic { margin-top: 2px; }
+.pd-plan-limits { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--fam-space-2); margin: 0; }
+.pd-plan-limit { padding: var(--fam-space-2); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: 1px solid var(--fam-border-subtle); }
+.pd-plan-limit dt { color: var(--fam-text-secondary); font-size: var(--fam-font-size-sm); }
+.pd-plan-limit dd { margin: 2px 0 0; font-weight: var(--fam-font-weight-semibold); font-variant-numeric: tabular-nums; }
+.pd-plan-offers { display: flex; flex-direction: column; gap: var(--fam-space-2); margin: 0; padding: 0; list-style: none; }
+.pd-plan-offer { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: 1px solid var(--fam-border-subtle); }
+.pd-plan-offer.is-current { border-inline-start: 2px solid color-mix(in srgb, var(--fam-module-accent) 70%, var(--fam-text-primary)); }
+.pd-plan-offer-head { display: flex; flex-wrap: wrap; gap: 4px var(--fam-space-2); align-items: baseline; justify-content: space-between; width: 100%; }
+.pd-plan-price { font-variant-numeric: tabular-nums; color: var(--fam-text-secondary); }
+.pd-plan-confirm { display: flex; flex-direction: column; gap: var(--fam-space-2); width: 100%; }
+.pd-billing .pd-dock-row { flex-wrap: wrap; }
+.pd-billing .pd-dock-row > .pd-plan-confirm { flex-basis: 100%; }
+.pd-plan-form .pd-note { margin: 0; }
+.pd-plan-fieldset { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: var(--fam-space-2); border: 1px solid var(--fam-border-subtle); border-radius: var(--fam-radius-md); }
+.pd-plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--fam-space-2); }
+.pd-pp-tool .pd-h3 { display: flex; align-items: center; gap: 6px; }
+.pd-pp-tool[data-included="false"] .pd-note { color: var(--fam-text-secondary); }
+.pd-start { z-index: 45; }
+.pd-start-steps { display: flex; flex-direction: column; gap: var(--fam-space-2); margin: 0; padding: 0; list-style: none; }
+.pd-start-step { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--fam-space-2); align-items: start; padding: var(--fam-space-2) var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: 1px solid var(--fam-border-subtle); }
+.pd-start-step[data-pd-step-done="true"] { border-inline-start: 2px solid color-mix(in srgb, var(--fam-module-accent) 70%, var(--fam-text-primary)); }
+.pd-start-step[data-pd-step-done="true"] .pd-start-text strong { color: var(--fam-text-secondary); }
+.pd-start-mark { margin-top: 2px; color: var(--fam-text-secondary); }
+.pd-start-step[data-pd-step-done="true"] .pd-start-mark { color: color-mix(in srgb, var(--fam-module-accent) 70%, var(--fam-text-primary)); }
+.pd-start-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pd-ready-row .pd-note { margin: 0; }
+/* P8: the Creator Studio's sign-in page: the plans on offer and what works today, below what the studio does. */
+.pd-gate-sub { margin: var(--fam-space-2) 0 0; }
+.pd-gate-plans { display: flex; flex-direction: column; gap: var(--fam-space-2); margin: 0; padding: 0; list-style: none; }
+.pd-gate-plan { display: flex; flex-direction: column; gap: 2px; padding: var(--fam-space-2) var(--fam-space-3); border-radius: var(--fam-radius-md); background: var(--fam-surface-tile); border: 1px solid var(--fam-border-subtle); }
+.pd-gate-plan-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px var(--fam-space-2); align-items: baseline; }
+.pd-gate-plan-price { color: var(--fam-text-secondary); font-variant-numeric: tabular-nums; }
+.pd-gate-services li[data-ready="false"] > .pd-ic { color: var(--fam-text-secondary); }

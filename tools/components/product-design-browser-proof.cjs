@@ -31,6 +31,10 @@
 // refused where the owner is served, and a design moved off the printable area is reported where the starting one is not.
 // It also writes the screenshots and a side-by-side review sheet against the approved reference to <output-dir>.
 process.env.NODE_ENV = 'production';
+// As production runs (docs/security/row-level-security.md, Stage 3 and 4): the application sends its database context on
+// every protected-table query. The Design Studio's tables are under row-level security (20261122200000), so without it
+// the room would read no design at all.
+process.env.DB_RLS_CONTEXT = 'on';
 process.env.PORT = '47934';
 process.env.JWT_ACCESS_SECRET = 'a'.repeat(48);
 process.env.JWT_REFRESH_SECRET = 'b'.repeat(48);
@@ -48,12 +52,21 @@ fs.mkdirSync(OUT, { recursive: true });
 const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 const REGIONS = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/design-studio/reference-regions.json'), 'utf8'));
 const REFERENCE = path.join(ROOT, 'docs/design-studio', REGIONS.reference);
-// PROOF_ONLY=P16 runs only the DS-1c 3D sections (P16); unset, everything runs.
+// PROOF_ONLY=P16 runs only the DS-1c 3D sections (P16), PROOF_ONLY=P17 only the catalogue (M1), PROOF_ONLY=P18 only the Club Design
+// Studio (M2), PROOF_ONLY=P19 only the Team panel (M3), PROOF_ONLY=P20 only manufacturing (M4), PROOF_ONLY=P21 only a design's
+// review (M7b), PROOF_ONLY=P22 only a collection's presentation sheet (M7b-2),
+// PROOF_ONLY=P23 only colourways (M7c), PROOF_ONLY=P24 only the Owner's club releases (M8a), PROOF_ONLY=P25 only the
+// privacy foundation (P1), PROOF_ONLY=P26 only the Creator Studio (P3), PROOF_ONLY=P27 only sharing (P4), PROOF_ONLY=P28 only plans, billing and the professional tools (P5, P6), PROOF_ONLY=P29 only the commercial experience (P8); unset, everything runs.
 const want = (n) => !process.env.PROOF_ONLY || process.env.PROOF_ONLY.split(',').includes(n);
 const roomWord = (code, en) => JSON.parse(fs.readFileSync(path.join(ROOT, 'public/product-design/i18n', code + '.json'), 'utf8'))[en];
 
 const OWNER = { id: 'u-owner', email: 'owner@familista.test', role: 'SUPER_ADMIN' };
 const COACH = { id: 'u-coach', email: 'coach@familista.test', role: 'COACH' };
+// M2: the administrator of the entitled club, and of a club that is not entitled (P18).
+const CLUB_ADMIN = { id: 'u-cadmin', email: 'cadmin@familista.test', role: 'CLUB_ADMIN' };
+const OTHER_ADMIN = { id: 'u-admin2', email: 'admin2@familista.test', role: 'CLUB_ADMIN', clubId: 'club-2' };
+// M7b (P21): a manager of Home FC, who comments on a design and may not decide on it.
+const CLUB_MANAGER = { id: 'u-cmanager', email: 'cmanager@familista.test', role: 'MANAGER' };
 let CURRENT = OWNER; // eslint-disable-line no-unused-vars -- kept for open()'s signature; the database decides who is who
 
 // ── the database: real PostgreSQL, created for this run and dropped after it ──────────────────────────────────────────
@@ -65,7 +78,7 @@ const TAG = randomBytes(4).toString('hex');
 const DBROLE = `fam_pdp_${TAG}`, DBPASS = `pw_${randomBytes(12).toString('hex')}`, DBNAME = `fam_pdp_${TAG}`;
 function urlFor(name, user, pass) { const u = new URL(ADMIN_URL); u.pathname = '/' + name; if (user) { u.username = user; u.password = pass || ''; } return u.toString(); }
 const DB_URL = urlFor(DBNAME, DBROLE, DBPASS);
-let admin = null, db = null, signToken = null;
+let admin = null, db = null, dbBase = null, signToken = null;
 async function prepareDatabase() {
   const { PrismaClient } = require(path.join(ROOT, 'node_modules/@prisma/client'));
   admin = new PrismaClient({ datasources: { db: { url: ADMIN_URL } } });
@@ -73,11 +86,28 @@ async function prepareDatabase() {
   await admin.$executeRawUnsafe(`CREATE DATABASE "${DBNAME}" OWNER "${DBROLE}"`);
   const m = spawnSync('npx', ['prisma', 'migrate', 'deploy', '--schema=prisma/schema.prisma'], { cwd: ROOT, env: { ...process.env, DATABASE_URL: DB_URL, DIRECT_URL: DB_URL }, encoding: 'utf8', timeout: 240000 });
   if (m.status !== 0) throw new Error('prisma migrate deploy failed: ' + m.stderr);
-  db = new PrismaClient({ datasources: { db: { url: DB_URL } } });
-  await db.$transaction(async (tx) => {
+  dbBase = new PrismaClient({ datasources: { db: { url: DB_URL } } });
+  // The proof's own look at the database (counts, rows, the audit) runs on the named system path, as backups and the restore
+  // drill read it: the Design Studio's tables are under row-level security, and with no context the database shows nothing.
+  // The application under test is untouched by this: it sends its own request's context (DB_RLS_CONTEXT=on, above).
+  db = dbBase.$extends({ query: { async $allOperations({ args, query }) {
+    const [, result] = await dbBase.$transaction([dbBase.$executeRaw`SELECT set_config('familista.rls_mode', 'system', true)`, query(args)]);
+    return result;
+  } } });
+  await dbBase.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('familista.rls_mode', 'system', true)`;
     await tx.club.create({ data: { id: 'club-1', name: 'Home FC', city: 'X' } });
     for (const u of [OWNER, COACH]) await tx.user.create({ data: { id: u.id, clubId: 'club-1', email: u.email, passwordHash: 'x', firstName: u === OWNER ? 'Owner' : 'Coach', lastName: 'Proof', role: u.role } });
+    // M2 (P18): a second club; the Club Design Studio as shipped (off everywhere), released to Home FC by an override.
+    await tx.club.create({ data: { id: 'club-2', name: 'Away FC', city: 'Y' } });
+    for (const u of [CLUB_ADMIN, OTHER_ADMIN]) await tx.user.create({ data: { id: u.id, clubId: u.clubId || 'club-1', email: u.email, passwordHash: 'x', firstName: 'Admin', lastName: 'Proof', role: u.role } });
+    await tx.user.create({ data: { id: CLUB_MANAGER.id, clubId: 'club-1', email: CLUB_MANAGER.email, passwordHash: 'x', firstName: 'Manager', lastName: 'Proof', role: CLUB_MANAGER.role } });
+    await tx.featureFlag.create({ data: { key: 'club_design_studio', name: 'Club Design Studio', defaultEnabled: false, enabledForPlans: [] } });
+    await tx.organizationLimits.create({ data: { clubId: 'club-1', featuresEnabled: ['club_design_studio'] } });
+    // M3 (P19): Home FC's squad: three active players, one who has left, one whose surname cannot be printed; and Away FC's.
+    const player = (id, clubId, lastName, number, isActive) => ({ id, clubId, firstName: 'Proof', lastName, number, isActive, position: 'MC', nationality: 'X', flag: 'x', dateOfBirth: new Date('2008-04-01'), height: 170, weight: 60 });
+    for (const p of [player('pl-1', 'club-1', 'Smith', 9, true), player('pl-2', 'club-1', 'Okafor', 4, true), player('pl-3', 'club-1', 'Ødegaard', 8, true),
+      player('pl-4', 'club-1', 'Left', 3, false), player('pl-5', 'club-1', 'Silva 2', 11, true), player('pl-6', 'club-2', 'Away', 7, true)]) await tx.player.create({ data: p });
   });
   // The application reads its database URL when it is first required, so it is required only now.
   process.env.DATABASE_URL = DB_URL;
@@ -85,7 +115,7 @@ async function prepareDatabase() {
   signToken = require(path.join(ROOT, 'dist/security/jwt-tokens')).signToken;
 }
 async function dropDatabase() {
-  try { if (db) await db.$disconnect(); } catch (_) { /* already gone */ }
+  try { if (dbBase) await dbBase.$disconnect(); } catch (_) { /* already gone */ }
   try { await require(path.join(ROOT, 'dist/config/database')).prisma.$disconnect(); } catch (_) { /* never connected */ }
   if (!admin) return;
   try { await admin.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${DBNAME}" WITH (FORCE)`); await admin.$executeRawUnsafe(`DROP ROLE IF EXISTS "${DBROLE}"`); } catch (_) { /* reported by the server's own log */ }
@@ -116,7 +146,9 @@ const budget = (name, values, ok, detail) => {
   await new Promise((ok) => server.listen(47934, '127.0.0.1', ok));
   const BASE = 'http://127.0.0.1:47934';
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--no-sandbox'] });
-  const TOKENS = { owner: signToken('access', { sub: OWNER.id, role: OWNER.role }, { expiresIn: '60m' }), coach: signToken('access', { sub: COACH.id, role: COACH.role }, { expiresIn: '60m' }) };
+  const TOKENS = { owner: signToken('access', { sub: OWNER.id, role: OWNER.role }, { expiresIn: '60m' }), coach: signToken('access', { sub: COACH.id, role: COACH.role }, { expiresIn: '60m' }),
+    clubAdmin: signToken('access', { sub: CLUB_ADMIN.id, role: CLUB_ADMIN.role }, { expiresIn: '60m' }), otherAdmin: signToken('access', { sub: OTHER_ADMIN.id, role: OTHER_ADMIN.role }, { expiresIn: '60m' }),
+    clubManager: signToken('access', { sub: CLUB_MANAGER.id, role: CLUB_MANAGER.role }, { expiresIn: '60m' }) };
 
   async function open(viewport, locale, opts) {
     opts = opts || {};
@@ -149,6 +181,19 @@ const budget = (name, values, ok, detail) => {
   const draft = (pg) => pg.evaluate(() => localStorage.getItem('familista_product_design_draft_v1'));
   const live = (pg) => pg.evaluate(() => (document.querySelector('#pd-root .pd-sr[role="status"]') || {}).textContent || '');
   async function proof3d() { await require('./product-design-3d-proof.cjs')({ open, M, shot, live, boxOf, check, budget, pass, fail, OUT, ROOT, BASE, db, roomWord }); }
+  async function proofCatalogue() { await require('./product-design-catalogue-proof.cjs')({ open, M, check, fail, OUT, ROOT, db }); }
+  async function proofClub() { await require('./product-design-club-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofTeam() { await require('./product-design-team-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofManufacturing() { await require('./product-design-manufacturing-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofReview() { await require('./product-design-review-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofPresent() { await require('./product-design-present-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofColourways() { await require('./product-design-colourway-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofRollout() { await require('./product-design-rollout-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofPrivacy() { await require('./product-design-privacy-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofSharing() { await require('./product-design-sharing-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofPlans() { await require('./product-design-plans-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofCommercial() { await require('./product-design-commercial-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
+  async function proofCreator() { await require('./product-design-creator-proof.cjs')({ open, M, check, fail, OUT, ROOT, db, BASE, TOKENS }); }
   const boxOf = (pg, sel) => pg.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }, sel);
 
   try {
@@ -163,7 +208,7 @@ const budget = (name, values, ok, detail) => {
     const { ctx, page, log } = await open({ width: 1672, height: 941 }, 'en-GB');
     const readyMs = Date.now() - t0;
     const roomRequests = log.requests.filter((r) => /product-design/.test(r.path));
-    check('P1 the Platform Owner opens the Design Studio; it loads exactly its own seven static files (DS-1c: the garment and the 3D view, not the 3D engine), by GET, and calls no API', JSON.stringify(roomRequests.map((r) => r.method + ' ' + r.path).sort()) === JSON.stringify(['GET /product-design/pd-3d.js', 'GET /product-design/pd-core.js', 'GET /product-design/pd-garment.js', 'GET /product-design/pd-server.js', 'GET /product-design/product-design.css', 'GET /product-design/product-design.js', 'GET /product-design/templates/football-jersey.json']), roomRequests.map((r) => r.path));
+    check('P1 the Platform Owner opens the Design Studio; it loads exactly its own eleven static files (M1a: the garment registry and the open garment’s template; M4: the roster core and the manufacturing console; P5: the plans console; not the 3D engine), by GET, and calls no API', JSON.stringify(roomRequests.map((r) => r.method + ' ' + r.path).sort()) === JSON.stringify(['GET /product-design/pd-3d.js', 'GET /product-design/pd-core.js', 'GET /product-design/pd-garment.js', 'GET /product-design/pd-manufacturing.js', 'GET /product-design/pd-plan.js', 'GET /product-design/pd-roster.js', 'GET /product-design/pd-server.js', 'GET /product-design/product-design.css', 'GET /product-design/product-design.js', 'GET /product-design/templates/football-jersey.json', 'GET /product-design/templates/index.json']), roomRequests.map((r) => r.path));
     await page.waitForTimeout(3500);
     const csp = await page.evaluate(() => window.__csp);
     const inRoom = csp.filter((c) => c.inRoom || /product-design/.test(c.src + c.uri));
@@ -452,9 +497,14 @@ const budget = (name, values, ok, detail) => {
       await p9.evaluate(() => { location.hash = '#product-design'; });
       await p9.waitForFunction(() => window.__familistaProductDesignMetrics && window.__familistaProductDesignMetrics(), null, { timeout: 30000 });
       await p9.click('#pd-root [data-pd-act="save"]');
+      // Read once the save has landed, so what is kept is read whole: the draft and the record of the saved design it
+      // belongs to (pd-server.js, since DS-1b). Reading before it had landed raced the server.
+      await p9.waitForFunction(() => { const s = window.__familistaProductDesignMetrics().server; return s.state === 'saved' && s.linked && !s.busy; }, null, { timeout: 30000 });
       const after = await p9.evaluate(() => ({ is: localStorage.getItem('familista_design_studio_document'), keys: Object.keys(localStorage).filter((k) => /design/.test(k)).sort() }));
-      const allowed = ['familista_design_studio_document', 'familista_design_studio_document_unreadable', 'familista_product_design_draft_v1', 'familista_product_design_draft_v1_unreadable'];
-      check('P14 each studio keeps its own draft: the Design Studio writes its own key and leaves the Interface Studio’s byte for byte', after.is === isBefore && after.keys.includes('familista_product_design_draft_v1') && after.keys.every((k) => allowed.includes(k)), after.keys);
+      const allowed = ['familista_design_studio_document', 'familista_design_studio_document_unreadable', 'familista_product_design_draft_v1', 'familista_product_design_draft_v1_unreadable',
+        'familista_product_design_link_v1'];
+      check('P14 each studio keeps its own draft: the Design Studio writes its own keys (its draft, and once saved its link) and leaves the Interface Studio’s byte for byte',
+        after.is === isBefore && after.keys.includes('familista_product_design_draft_v1') && after.keys.includes('familista_product_design_link_v1') && after.keys.every((k) => allowed.includes(k)), after.keys);
       await c9.close();
     }
 
@@ -672,6 +722,19 @@ const budget = (name, values, ok, detail) => {
     }
     } // ds1
     if (want('P16')) await proof3d();
+    if (want('P17')) await proofCatalogue();
+    if (want('P18')) await proofClub();
+    if (want('P19')) await proofTeam();
+    if (want('P20')) await proofManufacturing();
+    if (want('P21')) await proofReview();
+    if (want('P22')) await proofPresent();
+    if (want('P23')) await proofColourways();
+    if (want('P24')) await proofRollout();
+    if (want('P25')) await proofPrivacy();
+    if (want('P26')) await proofCreator();
+    if (want('P27')) await proofSharing();
+    if (want('P28')) await proofPlans();
+    if (want('P29')) await proofCommercial();
   } catch (e) {
     fail('proof crashed', String(e && e.stack || e).slice(0, 1200));
   } finally {

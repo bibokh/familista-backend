@@ -66,7 +66,7 @@ const handMade = (over: { header?: object; payload?: object; secret?: string } =
 };
 
 describe('signing: HS256, a key id, an issuer and an audience on every token', () => {
-  it.each(['access', 'refresh', 'device', 'ws-ticket'] as TokenKind[])('a %s token round-trips and names its key', (kind) => {
+  it.each(['access', 'refresh', 'device', 'ws-ticket', 'creator'] as TokenKind[])('a %s token round-trips and names its key', (kind) => {
     const t = signToken(kind, { sub: 'u-1' }, { expiresIn: 60 });
     const d = jwt.decode(t, { complete: true }) as jwt.Jwt;
     expect(d.header.alg).toBe('HS256');
@@ -243,5 +243,20 @@ describe('the React client keeps nothing in browser storage', () => {
     expect(client).toMatch(/\$\{BASE\}\/auth\/refresh/);
     expect(client).toMatch(/credentials: 'include'/);
     expect(client).not.toMatch(/refreshToken/);
+  });
+});
+
+describe('a creator token is its own kind (Creator Studio, P2)', () => {
+  it('a club session is never a creator session, nor a creator session a club one', () => {
+    const creator = signToken('creator', { sub: 'k-1', tv: 0 }, { expiresIn: 60 });
+    const access = signToken('access', { sub: 'u-1' }, { expiresIn: 60 });
+    expect(outcome('creator', creator)).toBe('accepted');
+    expect(outcome('access', creator)).toBe('invalid');
+    expect(outcome('creator', access)).toBe('invalid');
+    expect(['invalid', 'unknown-key']).toContain(outcome('creator', signToken('refresh', { sub: 'k-1' }, { expiresIn: 60 })));
+  });
+  it('nothing minted before the cut-over is ever a creator token', () => {
+    const legacy = jwt.sign({ sub: 'k-1', iat: Math.floor((LEGACY_ISSUED_BEFORE - 3600_000) / 1000) }, ACCESS, { algorithm: 'HS256' });
+    expect(outcome('creator', legacy, LEGACY_ISSUED_BEFORE - 1000)).toBe('invalid');
   });
 });

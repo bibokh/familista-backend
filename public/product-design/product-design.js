@@ -38,15 +38,122 @@
 
   var C = window.FamilistaProductDesignCore;
   var LIMITS = C.LIMITS;
-  var VERSION = '20261112-product-design-1c';
-  var TEMPLATE_URL = '/product-design/templates/football-jersey.json?v=' + VERSION;
+  var VERSION = '20261124-product-design-m7b';
+  // The released garments: templates/index.json names each one's reviewed template file; the server reads the same index.
+  var TEMPLATE_DIR = '/product-design/templates/';
+  var INDEX_URL = TEMPLATE_DIR + 'index.json?v=' + VERSION;
+  var JERSEY_KEY = 'football-jersey.classic-v';
   var STORE_KEY = 'familista_product_design_draft_v1';
   var STORE_UNREADABLE = 'familista_product_design_draft_v1_unreadable';
+  var STORE_BASE = STORE_KEY;
+  /**
+   * The workspace the room is open in (M2b): the platform's own, or a club's — { kind: 'CLUB', clubId, clubName, role },
+   * as app.js passes it from the session. Set once at mount, before anything reads it. A club keeps its draft and its
+   * saved-design record under keys of its own, so one browser used for two workspaces never mixes them; the club only
+   * names what this browser keeps: the server serves the session's own club, whatever the page says.
+   */
+  var WS = { kind: 'PLATFORM' };
+  function clubWorkspace() { return WS.kind === 'CLUB'; }
+  /** P3: a creator's own workspace (the Creator Studio): a tenant like a club, with the creator as its only member. */
+  function personal() { return WS.kind === 'PERSONAL'; }
+  /** A club's or a creator's workspace: one that keeps its own designs, brand kit, rosters, collections and requests. */
+  function tenantWorkspace() { return WS.kind === 'CLUB' || WS.kind === 'PERSONAL'; }
+  /** Whether the workspace's plan includes a part of the studio (M7a): teamKit, brandKit, manufacturing or reviews (M7b). */
+  function part(name) { return tenantWorkspace() && !!WS.parts && WS.parts[name] === true; }
+  function workspaceOf(opts) {
+    var w = opts && opts.workspace;
+    if (!w) return { kind: 'PLATFORM' };
+    if (w.kind === 'CLUB' && typeof w.clubId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(w.clubId)) {
+      // M7a: what the club's plan includes, as the session says (the server enforces it; this only offers it). Missing is
+      // taken as included, so an older shell never hides a part the server would serve.
+      var p = w.parts && typeof w.parts === 'object' ? w.parts : {};
+      return Object.freeze({ kind: 'CLUB', clubId: w.clubId, clubName: typeof w.clubName === 'string' ? w.clubName.slice(0, 120) : '',
+        role: w.role === 'MANAGER' || w.role === 'CLUB_ADMIN' ? w.role : '',
+        parts: Object.freeze({ teamKit: p.teamKit !== false, brandKit: p.brandKit !== false, manufacturing: p.manufacturing !== false, reviews: p.reviews !== false }) });
+    }
+    // P3: a creator's workspace. Who the creator is comes from the server once signed in (identify), never from the page.
+    if (w.kind === 'PERSONAL') return { kind: 'PERSONAL', creatorId: '', displayName: '', email: '', emailVerified: false, locale: 'en-GB', role: 'CREATOR',
+      parts: Object.freeze({ teamKit: true, brandKit: true, manufacturing: true, reviews: true, collaboration: false, proExport: false, mfgPrep: false }) };
+    return null;
+  }
+  /**
+   * P5: what the workspace's plan includes, as the server answered (GET /plan). A creator's parts are its plan's; a club's
+   * core parts stay the session's (M7a) and its plan adds the professional tools. The server enforces every one; this
+   * only decides what the room offers.
+   */
+  var ENT = null;
+  function applyEntitlements(e) {
+    if (!e || !Array.isArray(e.features) || !tenantWorkspace()) return;
+    ENT = e;
+    var f = function (x) { return e.features.indexOf(x) !== -1; }, p = WS.parts || {};
+    var parts = personal()
+      ? { teamKit: f('team_kit'), brandKit: f('brand_studio'), manufacturing: f('manufacturing'), reviews: f('reviews'), collaboration: f('collaboration') }
+      : { teamKit: p.teamKit, brandKit: p.brandKit, manufacturing: p.manufacturing, reviews: p.reviews, collaboration: false };
+    parts.proExport = f('pro_export'); parts.mfgPrep = f('manufacturing_prep');
+    WS = Object.freeze(Object.assign({}, WS, { parts: Object.freeze(parts) }));
+  }
+  function loadEntitlements() {
+    if (!tenantWorkspace() || !P || !P.api.plan) return Promise.resolve(null);
+    return P.api.plan().then(function (r) { if (r.ok && r.data) applyEntitlements(r.data.entitlements); return null; }, function () { return null; });
+  }
+  /** P3: the signed-in creator, as the server answered: the workspace takes its id, name and address state. */
+  function identify(c) {
+    if (!c || typeof c.id !== 'string') return false;
+    WS = Object.freeze({ kind: 'PERSONAL', creatorId: c.id, displayName: String(c.displayName || '').slice(0, 60), email: String(c.email || ''),
+      emailVerified: c.emailVerified === true, locale: String(c.locale || 'en-GB'), role: 'CREATOR', parts: WS.parts });
+    return true;
+  }
   var SVG = 'http://www.w3.org/2000/svg';
   var DRAG_THRESHOLD = 3;
 
   /** A label written in a constant table: returned as it is, translated where it is drawn. */
   function L(s) { return s; }
+  /**
+   * P3: what a club's words become in a creator's own workspace. The panels are the club's own; a creator never reads
+   * "the club" about their own designs. One table, applied where every word is translated (T), so no panel forks.
+   */
+  var PERSONAL_WORDS = {
+    'No logos yet. Upload the club’s crest or a sponsor’s logo: PNG or JPEG, at least 16 px a side.': L('No logos yet. Upload your crest or a sponsor’s logo: PNG or JPEG, at least 16 px a side.'),
+    'Club colours': L('Brand colours'),
+    'No club colours yet. Save this design’s palette as the club’s colours.': L('No brand colours yet. Save this design’s palette as your brand colours.'),
+    'Save this design’s palette as the club’s colours': L('Save this design’s palette as your brand colours'),
+    'Club colours saved.': L('Brand colours saved.'),
+    'The club colours could not be saved.': L('The brand colours could not be saved.'),
+    'Reading the club colours…': L('Reading the brand colours…'),
+    'Number placeholder. The numbers come from the club’s team rosters: open Team to preview one on the garment. The design keeps no player data.':
+      L('Number placeholder. The numbers come from your team rosters: open Team to preview one on the garment. The design keeps no player data.'),
+    'Name placeholder. The names come from the club’s team rosters: open Team to preview one on the garment. The design keeps no player data.':
+      L('Name placeholder. The names come from your team rosters: open Team to preview one on the garment. The design keeps no player data.'),
+    'A club keeps at most %d rosters: archive one first.': L('A workspace keeps at most %d rosters: archive one first.'),
+    'No team rosters yet. A roster holds the names, numbers and sizes a kit is made for: start one, import a spreadsheet or begin from the squad.':
+      L('No team rosters yet. A roster holds the names, numbers and sizes a kit is made for: start one or import a spreadsheet.'),
+    'Rosters hold names of people: only this club’s administrators and managers see them, and a design never keeps them.':
+      L('Rosters hold names of people: only you see them, and a design never keeps them.'),
+    'No entries yet. Add a row, import a spreadsheet or start from the squad.': L('No entries yet. Add a row or import a spreadsheet.'),
+    'A design in the collection is not one of this club’s saved designs. Remove it and save again.': L('A design in the collection is not one of your saved designs. Remove it and save again.'),
+    'The roster chosen is not one of this club’s. Choose another.': L('The roster chosen is not one of yours. Choose another.'),
+    'A club keeps at most %d collections: archive one first.': L('A workspace keeps at most %d collections: archive one first.'),
+    'No collections yet. A collection gathers the club’s saved designs as one kit, a season’s home kit for instance, and counts a roster’s sizes for each.':
+      L('No collections yet. A collection gathers your saved designs as one kit, a season’s home kit for instance, and counts a roster’s sizes for each.'),
+    'No designs yet. Add the club’s saved designs below: the shirt, the shorts and the socks of one kit.': L('No designs yet. Add your saved designs below: the shirt, the shorts and the socks of one kit.'),
+    'The club has too many open requests: close one first.': L('You have too many open requests: close one first.'),
+    'Cancelled by the club': L('Cancelled by you'),
+    'Your club': L('You'),
+    'Not included in your club’s plan. The platform owner decides what each plan includes.': L('Not included in your plan. The platform owner decides what each plan includes.'),
+    '%d of %d designs are approved by a club administrator. You can still ask for a quotation; approve them in Review first if they should be final.':
+      L('%d of %d designs are approved. You can still ask for a quotation; approve them in Review first if they should be final.'),
+    'The club’s review of this version': L('Your review of this version'),
+    'Design reviews are not included in your club’s plan.': L('Design reviews are not included in your plan.'),
+    'A club administrator approves a version or asks for changes to it. Comments help them decide.': L('Approve a version, or note the changes it needs. Comments help you decide.'),
+    'Away and third strips from this design: its colours exchanged, or one replaced by a club colour.': L('Away and third strips from this design: its colours exchanged, or one replaced by a brand colour.'),
+    'No colourway keeps every name, number and mark readable with these colours. Add a lighter or darker colour to the palette or to the club colours.':
+      L('No colourway keeps every name, number and mark readable with these colours. Add a lighter or darker colour to the palette or to the brand colours.'),
+    'Their names go with a quotation request only if a club administrator confirms a parent or guardian consented; otherwise numbers and sizes go without names.':
+      L('Their names go with a quotation request only if you confirm a parent or guardian consented; otherwise numbers and sizes go without names.'),
+    'This roster includes players under 18. Without a guardian’s consent their names stay with the club: the request carries numbers and sizes only.':
+      L('This roster includes players under 18. Without a guardian’s consent their names stay with you: the request carries numbers and sizes only.'),
+    'Includes players under 18: a club administrator confirmed a guardian’s consent.': L('Includes players under 18: you confirmed a guardian’s consent.'),
+  };
 
   // ── language ──────────────────────────────────────────────────────────────
 
@@ -82,6 +189,7 @@
   /** One string. A missing key falls through to English, never to a key path. */
   function T(text) {
     var s = String(text == null ? '' : text);
+    if (WS.kind === 'PERSONAL' && Object.prototype.hasOwnProperty.call(PERSONAL_WORDS, s)) s = PERSONAL_WORDS[s];
     if (!s || LANG === 'en') return s;
     return Object.prototype.hasOwnProperty.call(DICT, s) ? DICT[s] : s;
   }
@@ -133,6 +241,7 @@
     shield: 'M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z',
     shirt: 'M8 3l-5 3 2 5 3-1v11h8V10l3 1 2-5-5-3c-.5 1.6-2 2.6-4 2.6S8.5 4.6 8 3z',
     store: 'M4 9l1.5-5h13L20 9M4 9v11h16V9M4 9h16M9 20v-6h6v6',
+    comment: 'M4 5h16v11H10l-5 4v-4H4zM8 9h8M8 12h5',
     box: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',
     factory: 'M3 21V10l5 3V10l5 3V7l8 4v10zM3 21h18M8 17h2M13 17h2',
     card: 'M3 6h18v12H3zM3 10h18M7 15h3',
@@ -166,6 +275,7 @@
     export: 'M12 3v12M7 10l5 5 5-5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4',
     cart: 'M3 4h2l2.4 11h10.2l2-8H6.2M10 20h.01M17 20h.01',
     check: 'M5 12.5l4.5 4.5L19 7.5',
+    minus: 'M6 12h12',
     info: 'M12 8h.01M11 12h1v5h1M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
     alert: 'M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
     crown: 'M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z',
@@ -215,8 +325,8 @@
   // is pressed — never a handler that pretends.
 
   var REASON = {
-    'context-club': L('Club Design Studio is planned (DS-3): club designs, branding approval and team orders.'),
-    'context-creator': L('Creator Studio is planned (DS-4) and needs personal accounts first (DS-ID).'),
+    'context-club': L('The Club Design Studio opens in a club’s own workspace, for the clubs the platform owner has enabled.'),
+    'context-creator': L('The Creator Studio is a personal workspace of its own: it opens at /creator, with a creator account the Platform Owner invited.'),
     templates: L('More templates arrive with the product catalogue (DS-2).'),
     product: L('This product arrives with the product catalogue (DS-2).'),
     image: L('Uploading artwork waits for protected media storage with verified backups (planned).'),
@@ -228,16 +338,15 @@
     method: L('Production methods come from a connected supplier (DS-5). This is the template’s reference.'),
     fabric: L('Fabrics come from a connected supplier (DS-5). This is the template’s reference.'),
     store: L('The Global Store is planned (DS-7).'),
-    orders: L('Orders are planned (DS-6).'),
-    suppliers: L('Supplier administration is planned (DS-5).'),
-    payments: L('Payments are planned (DS-6), after business and legal approval.'),
+    'suppliers-club': L('Quotations come through Familista, only from suppliers it has verified: ask for one from a collection’s order sheet.'),
+    'not-in-plan': L('Not included in your club’s plan. The platform owner decides what each plan includes.'),
   };
 
   // ── state ─────────────────────────────────────────────────────────────────
 
   var S = null;
   var TEMPLATE = null;
-  var TEMPLATE_LOADING = null;
+  var INDEX = null, INDEX_LOADING = null, TEMPLATES = {}, TEMPLATE_LOADS = {};
 
   function fresh(host) {
     return {
@@ -247,6 +356,16 @@
       drag: null, space: false, merge: null, el: {}, nodes: {}, findings: [], announced: 0,
       metrics: { mounts: 0, commits: 0, renders: 0, layerPaints: 0, renderMs: [], editMs: [], lastSaveBytes: 0 },
       srv: serverFresh(), v3: fresh3d(),
+      // M2c: the club's brand kit, loaded when its tab first opens. `urls` holds each logo's image as a blob: URL.
+      brand: { state: 'idle', kit: null, urls: {}, busy: false, note: '' },
+      // M2c-2: the logos image layers show, by brand asset id: { state: loading | ready | missing, data: data: URL }.
+      images: {},
+      // M3: the Team panel, made once per opening of the room, and the roster entry the garment previews ({ name, number }).
+      team: null, review: null, present: null, preview: null,
+      // M7c: the colourway suggestions, once asked for; kept while the palette and its use stay the same.
+      cways: { open: false, key: '', list: [] },
+      // M4: the Platform Owner's manufacturing console, in the platform's room only.
+      mfg: null,
     };
   }
   function listen(target, type, fn, opts) {
@@ -291,8 +410,8 @@
   }
   function newDocument() {
     var names = {};
-    ['Pattern', 'Brand mark', 'Club crest', 'Sponsor', 'Player name', 'Player number', 'Navy', 'Royal blue', 'Gold', 'White'].forEach(function (k) { names[k] = T(k); });
-    return C.createDocument(TEMPLATE, T('Home kit design'), names);
+    ['Pattern', 'Brand mark', 'Club crest', 'Sponsor', 'Player name', 'Player number', 'Band', 'Navy', 'Royal blue', 'Gold', 'White', 'Green', 'Black', 'Sky blue'].forEach(function (k) { names[k] = T(k); });
+    return C.createDocument(TEMPLATE, TEMPLATE.key === JERSEY_KEY ? T('Home kit design') : T(TEMPLATE.name), names);
   }
   /** The local draft's state: saved, pending, unavailable or too-large. What the screen says combines it with the server's. */
   function setSaveState(state) {
@@ -339,7 +458,8 @@
   // refused, and this room asks what to do. pd-server.js is the only file that
   // talks to the server.
 
-  var P = window.FamilistaProductDesignServer;
+  var SERVER = window.FamilistaProductDesignServer;
+  var P = SERVER;
 
   function serverFresh() {
     return {
@@ -354,6 +474,8 @@
     if (link) P.writeLink(link); else P.clearLink();
     if (S.v3.compare && (!link || link.projectId !== S.v3.compare.projectId)) compareWith(0, true);
     if (S.el.bar3d) sync3d();
+    // M7b: a review belongs to one saved design and version; when that changes, what the Review tab showed is stale.
+    if (S.review) { S.review.invalidate(); if (S.srv.open && S.srv.tab === 'review') Promise.resolve().then(function () { if (S && S.review && S.srv.open && S.srv.tab === 'review') S.review.load(); }); }
   }
   /** True when the editor holds something the server does not: changes since the linked revision, or an unsaved design that is not blank. */
   function isUnsaved() {
@@ -469,10 +591,14 @@
       if (S !== mine) return;
       sv.busy = false;
       if (r.ok && r.data && r.data.project && r.data.revision) {
-        if (loadServerDoc(r.data.project, r.data.revision)) {
+        var opened = function () {
+          if (!loadServerDoc(r.data.project, r.data.revision)) return false;
           say(tf('Opened %s, version %d.', r.data.project.name, r.data.revision.number));
           closeDock();
-        }
+          return true;
+        };
+        var key = r.data.revision.document && r.data.revision.document.template && r.data.revision.document.template.key;
+        if (typeof key === 'string' && key !== TEMPLATE.key && entryFor(key)) switchTemplate(key, opened); else opened();
         return;
       }
       sv.listError = serverProblem(r);
@@ -573,6 +699,10 @@
   function openDock(tab, trigger) {
     var sv = S.srv, d = S.el.dock;
     if (!d) return;
+    if (S.team && S.team.isOpen()) S.team.close();
+    if (S.mfg && S.mfg.isOpen()) S.mfg.close();
+    if (S.plan && S.plan.isOpen()) S.plan.close();
+    if (S.billing && S.billing.isOpen()) S.billing.close();
     if (tab) sv.tab = tab;
     // Focus goes back where it came from: the button pressed, or, when the room opened the panel itself (a conflict), its own button.
     if (trigger) sv.trigger = trigger;
@@ -600,7 +730,7 @@
     var bs = S.host.querySelectorAll('[data-pd-dock]');
     for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', S.srv.open && bs[i].getAttribute('data-pd-dock') === S.srv.tab ? 'true' : 'false');
   }
-  function loadDockTab() { if (S.srv.tab === 'projects') loadProjects(); else loadVersions(); }
+  function loadDockTab() { if (S.srv.tab === 'projects') loadProjects(); else if (S.srv.tab === 'review' && S.review) S.review.load(); else if (S.srv.tab === 'production') renderDock(); else loadVersions(); }
   function loadProjects() {
     var mine = S, sv = S.srv, seq = ++sv.seq;
     sv.listState = 'loading'; sv.listError = '';
@@ -698,10 +828,10 @@
               h('span', { class: 'pd-note', text: tf('Version %d · %s', p.headRevision, when(p.updatedAt)) }),
             ]),
             h('div', { class: 'pd-dock-btns' }, [
-              here ? chip(T('In the editor'), 'accent') : sv.filter === 'active' ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'open-project', 'data-pd-id': p.id, 'aria-label': tf('Open %s', p.name) }, [h('span', { text: T('Open') })]) : null,
+              here ? chip(T('In the editor'), 'accent') : sv.filter === 'active' ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'open-project', 'data-pd-id': p.id }, [h('span', { text: T('Open') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + p.name })]) : null,
               sv.filter === 'archived'
-                ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'unarchive', 'data-pd-id': p.id, 'aria-label': tf('Return %s to the list', p.name) }, [h('span', { text: T('Return to list') })])
-                : btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'archive', 'data-pd-id': p.id, 'aria-label': tf('Archive %s', p.name) }, [h('span', { text: T('Archive') })]),
+                ? btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'unarchive', 'data-pd-id': p.id }, [h('span', { text: T('Return to list') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + p.name })])
+                : btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'archive', 'data-pd-id': p.id }, [h('span', { text: T('Archive') }), h('span', { class: 'pd-sr', 'data-user-content': '', text: ' ' + p.name })]),
             ]),
           ]));
         });
@@ -752,12 +882,12 @@
     var scroll = keep ? keep.scrollTop : 0;
     clear(d);
     var tabs = h('div', { class: 'pd-tabs', role: 'tablist', 'aria-label': T('Saved designs') });
-    [['projects', L('Projects')], ['versions', L('Versions')]].forEach(function (t) {
+    [['projects', L('Projects')], ['versions', L('Versions')]].concat(S.review ? [['review', L('Review')]] : [], S.pp ? [['production', L('Production')]] : []).forEach(function (t) {
       tabs.appendChild(btn({ class: 'pd-tab', role: 'tab', id: 'pd-docktab-' + t[0], 'data-pd-docktab': t[0], 'aria-controls': 'pd-dock-body', 'aria-selected': sv.tab === t[0] ? 'true' : 'false', tabindex: sv.tab === t[0] ? '0' : '-1', text: T(t[1]) }));
     });
     var notice = sv.notice ? h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: sv.notice })]) : null;
     var body = h('div', { class: 'pd-dock-body', id: 'pd-dock-body', role: 'tabpanel', 'aria-labelledby': 'pd-docktab-' + sv.tab, tabindex: '0' },
-      [conflictBlock(), confirmBlock(), notice].concat(sv.tab === 'projects' ? projectsBody() : versionsBody()));
+      [conflictBlock(), confirmBlock(), notice].concat(sv.tab === 'projects' ? projectsBody() : sv.tab === 'review' && S.review ? S.review.body() : sv.tab === 'production' && S.pp ? S.pp.body() : versionsBody()));
     append(d, [
       h('div', { class: 'pd-dock-head' }, [
         h('h2', { class: 'pd-h2', id: 'pd-dock-title' }, [icon('folder', 16), h('span', { text: T('Saved designs') })]),
@@ -770,7 +900,8 @@
   function onDockAction(act, t) {
     var sv = S.srv;
     switch (act) {
-      case 'projects': case 'versions':
+      case 'projects': case 'versions': case 'review': case 'production':
+        if ((act === 'review' && !S.review) || (act === 'production' && !S.pp)) return false;
         if (sv.open && sv.tab === act) closeDock(); else openDock(act, t);
         return true;
       case 'close-dock': closeDock(); return true;
@@ -786,8 +917,289 @@
       case 'confirm-cancel': sv.confirm = null; renderDock(); return true;
       case 'conflict-keep': if (sv.conflict) { var head = sv.conflict.head; sv.state = 'dirty'; serverSave(head); } return true;
       case 'conflict-open': if (sv.link) { var pid = sv.link.projectId; sv.state = 'dirty'; sv.conflict = null; openProject(pid); } return true;
-      default: return false;
+      default:
+        if (S.present && act.indexOf('present-') === 0) return S.present.onAction(act, t);
+        if (S.pp && act.indexOf('pp-') === 0) return S.pp.onAction(act, t);
+        return S.review && act.indexOf('rv-') === 0 ? S.review.onAction(act, t) : false;
     }
+  }
+
+  // ── the Team panel (M3): the club's rosters, and a row previewed on the garment ──
+
+  /** What the Team panel is handed: the room's own builders, words and server client. It fetches and styles nothing itself. */
+  function teamContext() {
+    return {
+      roster: window.FamilistaProductDesignRoster, collections: window.FamilistaProductDesignCollections || null,
+      requests: part('manufacturing') ? window.FamilistaProductDesignRequests || null : null, lang: function () { return LANG; }, api: P.api, host: S.host, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, dirArrow: dirArrow, date: when, percent: percent,
+      onPreview: setPreview, nameFit: nameFit, role: function () { return WS.role; },
+      // M7b: where the club's plan includes reviews, each design's decision beside it in collections and requests.
+      approvalChip: part('reviews') ? approvalChip : null,
+      // M7b-2: a saved collection's presentation sheet, over the room.
+      present: S.present ? function (kit, sheet, trigger) { S.present.open(kit, sheet, trigger); } : null,
+      // M3b: the saved design on screen, opening one (behind the unsaved-change guard), and a design's product name.
+      currentProject: function () { var l = S.srv.link; return l ? { id: l.projectId, name: S.doc.name, templateKey: S.doc.template.key } : null; },
+      openDesign: function (id) { replacing('open', id, function () { openProject(id); }); },
+      productLabel: productLabel,
+      onToggle: function () { syncTeamTriggers(); },
+    };
+  }
+  /** What the Review tab is handed (M7b): the room's builders and words, the saved design in the editor, and who is asking. */
+  function reviewContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, date: when, approvalChip: approvalChip,
+      host: function () { return S.host; }, render: function () { if (S.srv.open && S.srv.tab === 'review') renderDock(); },
+      link: function () { return S.srv.link; }, unsaved: isUnsaved, role: function () { return WS.role; },
+      // P5: sharing a design is a plan feature of a creator's workspace.
+      canShare: function () { return part('collaboration'); },
+      surfaceLabel: function (id) { var f = (TEMPLATE.surfaces || []).filter(function (x) { return x.id === id; })[0]; return f && f.label ? T(f.label) : id; },
+    };
+  }
+  /** P5/P6: what the Plan & billing panel is handed: the room's builders and words, and the workspace's client. */
+  function planContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, date: when, host: S.host, money: money,
+      audience: clubWorkspace() ? 'CLUB' : 'CREATOR', canChange: function () { return personal() || WS.role === 'CLUB_ADMIN'; },
+      onToggle: function () { syncPanelTriggers('plan', S.plan); },
+      onPlanChanged: function (e) { ENT = e; if (S.srv.open && S.srv.tab === 'production') renderDock(); },
+      reopen: function () { var host = S.host; mountRoom(host, null); },
+      go: function (url) { window.location.assign(url); },
+    };
+  }
+  /** P5: what the Production pack is handed: the saved design, the plan's features, and the room's print-sheet renderer. */
+  function productionContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, link: function () { return S.srv.link; }, unsaved: isUnsaved,
+      features: function () { return ENT ? ENT.features : []; }, name: function () { return S.doc.name; },
+      sheet: printSheet, download: download, render: function () { if (S.srv.open && S.srv.tab === 'production') renderDock(); },
+      fileName: function (name, revision, ext) {
+        var slug = String(name || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'design';
+        return slug + '-v' + Number(revision) + (ext === 'svg' ? '-print-sheet.svg' : '-tech-pack.' + ext);
+      },
+      openPlan: S.plan ? function (t) { closeDock(); openPlanPanel(t); } : null,
+    };
+  }
+  /** P8: what Getting started is handed: the workspace's client and kind, its parts, and where each step is done. */
+  function startContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, host: S.host, kind: function () { return WS.kind; }, part: part,
+      onToggle: function () { syncPanelTriggers('start', S.start); },
+      go: function (step, t) {
+        if (step === 'address' && S.acct) { closeFloating(S.acct); S.acct.open('profile', t); return; }
+        if (step === 'design') { var b = S.host.querySelector('.pd-actions [data-pd-act="save"]'); if (b) b.focus({ preventScroll: true }); serverSave(); return; }
+        if (step === 'brand' && part('brandKit')) {
+          S.libTab = 'brand'; var lib = buildLib(); S.el.lib.parentNode.replaceChild(lib, S.el.lib); S.el.lib = lib; renderThumbs();
+          setPanel(window.matchMedia && window.matchMedia('(max-width: 1279px)').matches ? 'library' : S.panel);
+          var tb = lib.querySelector('[data-pd-libtab="brand"]'); if (tb) tb.focus({ preventScroll: true });
+          return;
+        }
+        if (!S.team) return;
+        closeFloating(S.team);
+        if (step === 'roster') S.team.open(t);
+        else S.team.openTab(step === 'collection' ? 'collections' : 'requests', t);
+      },
+    };
+  }
+  /** P5/P6: what the Owner's Plans & billing console is handed: the platform's client. */
+  function billingContext() {
+    return { api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, date: when, host: S.host, money: money, digits: currencyDigits, onToggle: function () { syncPanelTriggers('bl', S.billing); } };
+  }
+  function syncPanelTriggers(act, panel) {
+    var bs = S.host.querySelectorAll('[data-pd-act="' + act + '"]');
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', panel && panel.isOpen() ? 'true' : 'false');
+  }
+  /** One floating panel at a time beside the dock: opening one closes the others. */
+  function closeFloating(except) {
+    if (S.srv.open) closeDock();
+    [S.team, S.mfg, S.acct, S.shared, S.plan, S.billing, S.start].forEach(function (x) { if (x && x !== except && x.isOpen()) x.close(); });
+  }
+  function openPlanPanel(t) { closeFloating(S.plan); S.plan.open(t); }
+  function onPlanAction(act, t) {
+    if (S.plan && act.indexOf('plan') === 0) { if (act === 'plan' && !S.plan.isOpen()) { openPlanPanel(t); return true; } return S.plan.onAction(act, t); }
+    if (S.billing && act.indexOf('bl') === 0 && /^bl(-|$)/.test(act)) { if (act === 'bl' && !S.billing.isOpen()) closeFloating(S.billing); return S.billing.onAction(act, t); }
+    if (S.start && /^start(-|$)/.test(act)) { if (act === 'start' && !S.start.isOpen()) closeFloating(S.start); return S.start.onAction(act, t); }
+    return false;
+  }
+  function download(blob, name) {
+    var url = URL.createObjectURL(blob), a = h('a', { href: url, download: name });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+  }
+  /**
+   * P5: the print sheet of an exported version: every view of its template side by side on a white sheet, with the design's
+   * name, its version, the product and the date — one SVG file, drawn by the same renderer as the editor.
+   */
+  function printSheet(x) {
+    var tpl0;
+    try { tpl0 = x.document.template.key; } catch (_) { return Promise.resolve(null); }
+    return templateFor(tpl0).then(function (tpl) {
+      var doc; try { doc = C.validateDocument(x.document, tpl); } catch (_) { return null; }
+      var CELL_W = 560, CELL_H = 640, PAD = 40, HEAD = 120, views = tpl.views || [];
+      var W = PAD * 2 + views.length * CELL_W + (views.length - 1) * 24, H = HEAD + CELL_H + 80;
+      var sheet = s('svg', { xmlns: SVG, width: String(W), height: String(H), viewBox: '0 0 ' + W + ' ' + H, 'font-family': 'Inter, Arial, sans-serif' }, [
+        s('style', null), s('rect', { x: 0, y: 0, width: W, height: H, fill: '#ffffff' }),
+      ]);
+      sheet.firstChild.textContent = '.pd-seam{stroke:#8b909c;stroke-width:1.2;fill:none}';
+      var title = s('text', { x: PAD, y: 56, 'font-size': '28', 'font-weight': '700', fill: '#14161c' }); title.textContent = doc.name;
+      var meta = s('text', { x: PAD, y: 90, 'font-size': '16', fill: '#4a4f5c' });
+      meta.textContent = [tf('Version %d', x.revision), productLabel(tpl.key), when(x.at), 'Familista Design Studio'].join(' · ');
+      append(sheet, [title, meta]);
+      views.forEach(function (v, i) {
+        var art = drawDesign(doc, tpl, v.id, 'pps' + i), cx = PAD + i * (CELL_W + 24);
+        art.removeAttribute('class');
+        art.setAttribute('x', String(cx)); art.setAttribute('y', String(HEAD)); art.setAttribute('width', String(CELL_W)); art.setAttribute('height', String(CELL_H));
+        var label = s('text', { x: cx + CELL_W / 2, y: HEAD + CELL_H + 40, 'font-size': '16', 'text-anchor': 'middle', fill: '#4a4f5c' }); label.textContent = T(v.label);
+        append(sheet, [art, label]);
+      });
+      return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(sheet);
+    }, function () { return null; });
+  }
+  /** What the presentation sheet is handed (M7b-2): the room's builders and words, its renderer and its templates. */
+  function presentContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say, date: when, productLabel: productLabel,
+      approvalChip: part('reviews') ? approvalChip : null, clubName: function () { return WS.clubName || ''; },
+      host: function () { return S.host; }, onToggle: function () {},
+      draw: drawDesign, template: templateFor,
+      validate: function (raw, tpl) { try { return C.validateDocument(raw, tpl); } catch (_) { return null; } },
+    };
+  }
+  /**
+   * One view of a saved design that is not the one in the editor, drawn by the editor's own renderer: the design and its
+   * template stand in for the editor's while it draws, synchronously, and are put back before anything else can run.
+   */
+  function drawDesign(doc, tpl, viewId, prefix) {
+    var d = S.doc, t = TEMPLATE, p = S.preview;
+    S.doc = doc; TEMPLATE = tpl; S.preview = null;
+    try { return garment(viewId, { prefix: prefix, shaded: true, cls: 'pd-present-svg' }); } finally { S.doc = d; TEMPLATE = t; S.preview = p; }
+  }
+  /** P5: how many digits a currency's minor unit has (EUR 2, JPY 0), and an amount in minor units in the room's language. */
+  function currencyDigits(currency) {
+    try { return new Intl.NumberFormat('en', { style: 'currency', currency: currency }).resolvedOptions().maximumFractionDigits; } catch (_) { return 2; }
+  }
+  function money(minor, currency) {
+    if (typeof minor !== 'number' || !currency) return '—';
+    var d = currencyDigits(currency), v = minor / Math.pow(10, d);
+    try { return new Intl.NumberFormat(LANG, { style: 'currency', currency: currency, minimumFractionDigits: d, maximumFractionDigits: d }).format(v); } catch (_) { return v.toFixed(d) + ' ' + currency; }
+  }
+  function percent(f) {
+    try { return new Intl.NumberFormat(LANG, { style: 'percent', maximumFractionDigits: 0 }).format(f); } catch (_) { return Math.round(f * 100) + '%'; }
+  }
+  /** The catalogue's name for the product a template makes, in the room's language. */
+  function productLabel(key) {
+    var e = INDEX && INDEX.filter(function (x) { return x.key === key; })[0], label = null;
+    if (e) CATALOGUE.forEach(function (g) { g.items.forEach(function (it) { if (it.id === e.product) label = it.label; }); });
+    return label ? T(label) : T('A garment no longer offered');
+  }
+  /** What the manufacturing console is handed: the room's builders and words, and the Owner's manufacturing client. */
+  function mfgContext() {
+    return {
+      roster: window.FamilistaProductDesignRoster, api: SERVER.manufacturing(), host: S.host, h: h, btn: btn, icon: icon, T: T, tf: tf, say: say,
+      dirArrow: dirArrow, date: when, lang: function () { return LANG; }, onToggle: function () { syncMfgTriggers(); }, approvalChip: approvalChip,
+      // M8a: the Owner's rollout control, on the platform's own client.
+      rollout: P.api.rollout ? P.api : null,
+    };
+  }
+  function syncMfgTriggers() {
+    var bs = S.host.querySelectorAll('[data-pd-act="mfg"]'), m = S.mfg && S.mfg.isOpen() ? S.mfg.metrics() : null;
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', m && bs[i].getAttribute('data-pd-tab') === m.tab ? 'true' : 'false');
+  }
+  function onMfgAction(act, t) {
+    if (!S.mfg) return false;
+    if (act === 'mfg') {
+      if (S.mfg.isOpen() && t.getAttribute('aria-expanded') === 'true') { S.mfg.close(); return true; }
+      closeFloating(S.mfg);
+      S.mfg.open(t.getAttribute('data-pd-tab') || 'requests', t);
+      return true;
+    }
+    return S.mfg.onAction(act, t);
+  }
+  /** P3: what the account panel is handed: the room's builders and words, the creator's client, and the account. */
+  function acctContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, dirArrow: dirArrow, date: when, host: S.host,
+      me: function () { return { displayName: WS.displayName, email: WS.email, emailVerified: WS.emailVerified, locale: WS.locale }; },
+      setMe: function (c) {
+        identify({ id: WS.creatorId, displayName: c.displayName, email: c.email, emailVerified: c.emailVerified, locale: c.locale });
+        var o = S.el.shell && S.el.shell.querySelector('.pd-owner-club'); if (o) o.textContent = WS.displayName;
+        var k = S.el.shell && S.el.shell.querySelector('.pd-ctxcard-text strong'); if (k) k.textContent = WS.displayName;
+      },
+      languages: LOCALES,
+      signOut: function () { creatorSignOut(false); },
+      onDeleted: function () { creatorSignOut(true); },
+      onToggle: function () { syncAcctTriggers(); },
+    };
+  }
+  function syncAcctTriggers() {
+    var bs = S.host.querySelectorAll('[data-pd-act="acct"]');
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', S.acct && S.acct.isOpen() ? 'true' : 'false');
+  }
+  function onAcctAction(act, t) {
+    if (!S.acct || act.indexOf('acct') !== 0) return false;
+    if (act === 'acct' && !S.acct.isOpen()) closeFloating(S.acct);
+    return S.acct.onAction(act, t);
+  }
+  /** P4: what the Shared with me panel is handed: the room's builders, words and renderer, and the creator's client. */
+  function sharedContext() {
+    return {
+      api: P.api, h: h, btn: btn, icon: icon, T: T, tf: tf, dirArrow: dirArrow, date: when, host: S.host,
+      draw: drawDesign, template: templateFor, productLabel: productLabel, approvalChip: approvalChip,
+      validate: function (raw, tpl) { try { return C.validateDocument(raw, tpl); } catch (_) { return null; } },
+      onToggle: function () { var bs = S.host.querySelectorAll('[data-pd-act="shared"]'); for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', S.shared && S.shared.isOpen() ? 'true' : 'false'); },
+    };
+  }
+  function onSharedAction(act, t) {
+    if (!S.shared || act.indexOf('shared') !== 0) return false;
+    if (act === 'shared' && !S.shared.isOpen()) closeFloating(S.shared);
+    return S.shared.onAction(act, t);
+  }
+  function syncTeamTriggers() {
+    var bs = S.host.querySelectorAll('[data-pd-act="team"]');
+    for (var i = 0; i < bs.length; i++) bs[i].setAttribute('aria-expanded', S.team && S.team.isOpen() ? 'true' : 'false');
+  }
+  function onTeamAction(act, t) {
+    if (!S.team) return false;
+    if (act === 'team') {
+      if (S.team.isOpen()) S.team.close();
+      else { closeFloating(S.team); S.team.open(t); }
+      return true;
+    }
+    if (act === 'team-stop-preview') { S.team.stopPreview(); return true; }
+    if (act === 'team-requests') { if (S.srv.open) closeDock(); S.team.openTab('requests', t); return true; }
+    return S.team.onAction(act, t);
+  }
+  /** Show a roster row's name and number on the garment, or the placeholders again: the canvas, the views and 3D alike. */
+  function setPreview(entry) {
+    var was = S.preview;
+    S.preview = entry ? { name: String(entry.name || ''), number: entry.number === null || entry.number === undefined ? null : Number(entry.number) } : null;
+    if (JSON.stringify(was) === JSON.stringify(S.preview)) return;
+    renderCanvas();
+    scheduleThumbs();
+    if (S.v3.ctl) S.v3.ctl.invalidate();
+    syncPreviewTag();
+    if (!was !== !S.preview) say(S.preview ? T('Previewing a roster row on the garment. The design itself is unchanged.') : T('Preview stopped: the garment shows the placeholders again.'));
+  }
+  function syncPreviewTag() {
+    var E = S.el, p = S.preview;
+    if (!E.previewTag) return;
+    if (!p) { E.previewTag.setAttribute('hidden', ''); return; }
+    E.previewText.textContent = [p.name, p.number === null ? '' : String(p.number)].filter(Boolean).join(' · ') || T('A row with no name or number');
+    E.previewTag.removeAttribute('hidden');
+  }
+  /**
+   * How far a name is condensed to fit the design's name boxes, as kit lettering is: the narrowest box's width over the
+   * name's natural width (1 when it fits). Null when the design has no visible name box.
+   */
+  function nameFit(name) {
+    var worst = null;
+    S.doc.surfaces.forEach(function (surf) {
+      surf.layers.forEach(function (n) {
+        if (n.type !== 'roster' || n.field !== 'name' || !n.visible) return;
+        var f = FONT[n.font] || FONT['sans-black'], natural = textWidth(name, f, n.h * 0.82);
+        var r = natural > 0 ? Math.min(1, n.w / natural) : 1;
+        if (worst === null || r < worst) worst = r;
+      });
+    });
+    return worst;
   }
 
   // ── changing the document ─────────────────────────────────────────────────
@@ -964,6 +1376,32 @@
   }
 
   /** One layer, drawn in its surface's millimetres. `sample` words a roster placeholder. */
+  /**
+   * A logo's PNG as a data: URL for the layers that show it, fetched once from the club's brand kit (the bytes the
+   * server re-encoded); null until it has loaded, or when this workspace has no brand kit or the logo is not its club's.
+   */
+  function imageData(assetId) {
+    var im = S.images[assetId];
+    if (im) return im.state === 'ready' ? im.data : null;
+    S.images[assetId] = { state: 'loading', data: null };
+    if (!P.api.brandAssetImage) { S.images[assetId].state = 'missing'; return null; }
+    var mine = S;
+    P.api.brandAssetImage(assetId).then(function (r) {
+      if (S !== mine) return;
+      if (!r.ok || !r.blob) { S.images[assetId].state = 'missing'; return; }
+      var fr = new FileReader();
+      fr.onload = function () {
+        if (S !== mine) return;
+        S.images[assetId] = { state: 'ready', data: String(fr.result) };
+        renderCanvas(); scheduleThumbs();
+        if (S.v3.ctl) S.v3.ctl.invalidate();
+        if (S.present) S.present.repaint();
+      };
+      fr.onerror = function () { if (S === mine) S.images[assetId].state = 'missing'; };
+      fr.readAsDataURL(r.blob);
+    });
+    return null;
+  }
   function layerNode(defs, prefix, n, bounds) {
     var g = s('g', { 'data-pd-node': n.id });
     if (!n.visible) g.setAttribute('visibility', 'hidden');
@@ -979,12 +1417,20 @@
       return g;
     }
     g.setAttribute('transform', 'translate(' + n.x + ' ' + n.y + ') rotate(' + n.r + ')');
+    if (n.type === 'image') {
+      // A logo: its PNG as a data: URL, the one form that also survives into the 3D view's texture. Until it has loaded,
+      // or where it cannot be shown (another workspace's file), its place is drawn as a dashed outline.
+      var src = imageData(n.asset);
+      if (src) g.appendChild(s('image', { href: src, x: -n.w / 2, y: -n.h / 2, width: n.w, height: n.h, preserveAspectRatio: 'xMidYMid meet' }));
+      else g.appendChild(s('rect', { x: -n.w / 2, y: -n.h / 2, width: n.w, height: n.h, fill: 'none', stroke: '#9aa4b2', 'stroke-width': Math.max(1, Math.min(n.w, n.h) * 0.02), 'stroke-dasharray': '6 4', 'data-pd-image-pending': n.asset }));
+      return g;
+    }
     if (n.type === 'shape') {
       var sw = Math.max(1, Math.min(n.w, n.h) * 0.05);
       g.appendChild(s('path', { d: shapePath(n.shape, n.w, n.h), fill: colour(n.color), stroke: n.outline ? colour(n.outline) : null, 'stroke-width': n.outline ? sw : null, 'stroke-linejoin': 'round' }));
       return g;
     }
-    var text = n.type === 'roster' ? (n.field === 'number' ? '10' : T('NAME')) : n.text;
+    var text = n.type === 'roster' ? rosterText(n) : n.text;
     var f = FONT[n.font] || FONT['sans-black'], size = n.h * 0.82;
     // Lettering is fitted into its box the way kit lettering is: condensed, never overflowing.
     var fit = textWidth(text, f, size) > n.w;
@@ -995,6 +1441,16 @@
     t.textContent = text;
     g.appendChild(t);
     return g;
+  }
+
+  /**
+   * What a roster layer shows: the placeholder, or, while a roster row is previewed (M3), that row's name and number as
+   * they would print, an empty field printing nothing. The design keeps the placeholder either way.
+   */
+  function rosterText(n) {
+    var p = S && S.preview;
+    if (n.field === 'number') return p ? (p.number === null ? '' : String(p.number)) : '10';
+    return p ? p.name : T('NAME');
   }
 
   /** A darker step of a design colour, for the inside of the collar. */
@@ -1048,6 +1504,7 @@
       body.appendChild(node);
     });
     if (view.cuff) body.appendChild(s('line', { x1: view.cuff[0][0], y1: view.cuff[0][1], x2: view.cuff[1][0], y2: view.cuff[1][1], stroke: colour(S.doc.parts.cuffs), 'stroke-width': '28' }));
+    patches(body, view);
     root.appendChild(body);
     if (view.inner) root.appendChild(s('path', { d: C.outlinePath(view.inner), fill: shade(colour(surf.base), 0.45) }));
     if (view.collar) {
@@ -1060,6 +1517,11 @@
     svg.appendChild(root);
     if (o.guides) svg.appendChild(guides(ts));
     return svg;
+  }
+
+  /** A view's patches, the areas printed in a trim colour (a waistband, leg hems, a sock's top band, heel and toe), over the artwork. */
+  function patches(g, view) {
+    (view.patches || []).forEach(function (q) { g.appendChild(s('path', { d: C.outlinePath(q.outline), fill: colour(S.doc.parts[q.part]), 'data-pd-patch': q.part })); });
   }
 
   /** The 2.5D shading: light across the cloth, the folds a shirt makes, and its edges turning away. */
@@ -1217,7 +1679,7 @@
     if (S.el.bar3d) sync3d();
     if (announce) {
       var n = selectedLayer();
-      say(n ? tf('Selected %s.', n.name) : sel && sel.kind === 'base' ? T('Selected the shirt base colour.') : T('Nothing selected.'));
+      say(n ? tf('Selected %s.', n.name) : sel && sel.kind === 'base' ? T('Selected the base colour.') : T('Nothing selected.'));
     }
   }
   function setView(id) {
@@ -1442,9 +1904,18 @@
   function typing(t) { return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable); }
   function onKeyDown(ev) {
     var mod = ev.ctrlKey || ev.metaKey, k = ev.key;
+    // M7b-2: the presentation is modal while it is open: Escape and Tab are its own, and the editor's shortcuts wait.
+    if (S.present && S.present.isOpen()) { S.present.onKey(ev); return; }
     if (mod && (k === 'z' || k === 'Z') && !typing(ev.target)) { ev.preventDefault(); undoRedo(ev.shiftKey ? 'redo' : 'undo'); return; }
     if (mod && (k === 'y' || k === 'Y') && !typing(ev.target)) { ev.preventDefault(); undoRedo('redo'); return; }
-    if (mod && (k === 's' || k === 'S')) { ev.preventDefault(); serverSave(); return; }
+    if (mod && (k === 's' || k === 'S')) { ev.preventDefault(); if (S.team && S.team.onSaveKey(ev)) return; serverSave(); return; }
+    if (k === 'Escape' && S.team && S.team.isOpen()) { ev.preventDefault(); S.team.close(); return; }
+    if (k === 'Escape' && S.mfg && S.mfg.isOpen()) { ev.preventDefault(); S.mfg.close(); return; }
+    if (k === 'Escape' && S.acct && S.acct.isOpen()) { ev.preventDefault(); S.acct.close(); return; }
+    if (k === 'Escape' && S.shared && S.shared.isOpen()) { ev.preventDefault(); S.shared.close(); return; }
+    if (k === 'Escape' && S.plan && S.plan.isOpen()) { ev.preventDefault(); S.plan.close(); return; }
+    if (k === 'Escape' && S.billing && S.billing.isOpen()) { ev.preventDefault(); S.billing.close(); return; }
+    if (k === 'Escape' && S.start && S.start.isOpen()) { ev.preventDefault(); S.start.close(); return; }
     if (k === 'Escape' && S.srv.open) { ev.preventDefault(); closeDock(); return; }
     if (k === 'Escape' && S.panel) { setPanel(null); return; }
     if (ev.target !== S.el.canvas) return;
@@ -1584,6 +2055,7 @@
       TEMPLATE.views.forEach(function (v) {
         if (v.surface !== surfaceId) return;
         if (v.cuff) body.appendChild(s('line', { x1: v.cuff[0][0], y1: v.cuff[0][1], x2: v.cuff[1][0], y2: v.cuff[1][1], stroke: colour(S.doc.parts.cuffs), 'stroke-width': '28' }));
+        patches(body, v);
         if (v.collar) body.appendChild(s('path', { d: C.outlinePath(v.collar).replace(/ Z$/, ''), fill: 'none', stroke: colour(S.doc.parts.collar), 'stroke-width': '16', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
       });
     }
@@ -1928,25 +2400,45 @@
     return el;
   }
   function chip(text, kind) { return h('span', { class: 'pd-chip' + (kind ? ' pd-chip--' + kind : ''), text: text }); }
+  /**
+   * M7b: a design version's review, as one chip wherever a version is shown (the Review tab, a collection, a request, the
+   * Owner's console). Green is a result (approved); changes requested is a warning; no decision is muted.
+   */
+  var APPROVAL = { APPROVED: L('Approved'), CHANGES_REQUESTED: L('Changes requested') };
+  function approvalChip(a) {
+    return a && APPROVAL[a.decision] ? h('span', { class: 'pd-chip pd-rv-chip', 'data-decision': a.decision, text: T(APPROVAL[a.decision]) })
+      : h('span', { class: 'pd-chip pd-chip--muted pd-rv-chip', 'data-decision': 'none', text: T('Not reviewed') });
+  }
 
+  /** The brand, as the top bar draws it: the mark, Familista, and the studio's name beneath. */
+  function brandMark(subtitle) {
+    return h('div', { class: 'pd-brand' }, [
+      h('img', { class: 'pd-brand-mark', src: '/familista-icon.svg', alt: '', width: '34', height: '34', decoding: 'async' }),
+      h('span', { class: 'pd-brand-text' }, [h('strong', { text: 'Familista' }), h('span', { text: subtitle })]),
+    ]);
+  }
   function buildTop() {
     var langs = h('div', { class: 'pd-langs', role: 'group', 'aria-label': T('Language') });
     LOCALES.forEach(function (l) {
       langs.appendChild(btn({ class: 'pd-lang', 'data-pd-lang': l[0], lang: l[0], 'aria-pressed': l[0] === LANG ? 'true' : 'false', title: l[1], text: l[0].toUpperCase() }));
     });
-    var nav = h('nav', { class: 'pd-ownernav', 'aria-label': T('Platform owner') });
-    // The shared Platform Owner navigation: built and escaped by app.js for every owner room.
-    if (typeof window.famOwnerNav === 'function') nav.innerHTML = window.famOwnerNav('product-design', T, 'pd-ownernav');
+    // The shared Platform Owner navigation: built and escaped by app.js for every owner room. In a club there is none.
+    var nav = tenantWorkspace() ? h('div', { class: 'pd-ownernav', 'aria-hidden': 'true' }) : h('nav', { class: 'pd-ownernav', 'aria-label': T('Platform owner') });
+    if (!tenantWorkspace() && typeof window.famOwnerNav === 'function') nav.innerHTML = window.famOwnerNav('product-design', T, 'pd-ownernav');
+    // Who is designing: the platform owner, or the club (its name is the club's own, never translated) and the role.
+    var who = personal()
+      ? h('span', { class: 'pd-owner' }, [h('span', { class: 'pd-owner-av', 'aria-hidden': 'true' }, [icon('people', 14)]),
+        h('span', { class: 'pd-owner-club', 'data-user-content': '', dir: 'auto', text: WS.displayName }),
+        h('span', { class: 'pd-owner-role', text: T('Creator') })])
+      : clubWorkspace()
+      ? h('span', { class: 'pd-owner' }, [h('span', { class: 'pd-owner-av', 'aria-hidden': 'true' }, [icon('shield', 14)]),
+        h('span', { class: 'pd-owner-club', 'data-user-content': '', text: WS.clubName }),
+        h('span', { class: 'pd-owner-role', text: WS.role === 'MANAGER' ? T('Club manager') : T('Club administrator') })])
+      : h('span', { class: 'pd-owner' }, [h('span', { class: 'pd-owner-av', 'aria-hidden': 'true' }, [icon('crown', 14)]), h('span', { text: T('Platform Owner') })]);
     return h('header', { class: 'pd-top', 'data-ds-region': 'R1' }, [
-      h('div', { class: 'pd-brand' }, [
-        h('img', { class: 'pd-brand-mark', src: '/familista-icon.svg', alt: '', width: '34', height: '34', decoding: 'async' }),
-        h('span', { class: 'pd-brand-text' }, [h('strong', { text: 'Familista' }), h('span', { text: T('Design Studio') })]),
-      ]),
+      brandMark(T('Design Studio')),
       nav,
-      h('div', { class: 'pd-top-end' }, [
-        langs,
-        h('span', { class: 'pd-owner' }, [h('span', { class: 'pd-owner-av', 'aria-hidden': 'true' }, [icon('crown', 14)]), h('span', { text: T('Platform Owner') })]),
-      ]),
+      h('div', { class: 'pd-top-end' }, [langs, who]),
     ]);
   }
 
@@ -1956,23 +2448,56 @@
     { page: 'agents-room', icon: 'agents', label: L('AI Agents Operations Room') },
     { page: 'clubs', icon: 'shield', label: L('Clubs') },
     { page: 'product-design', icon: 'shirt', label: L('Design Studio'), current: true },
+    // M4, owner-brokered: the manufacturing console, as a floating panel over the room.
+    { act: 'mfg', tab: 'requests', icon: 'box', label: L('Orders') },
+    { act: 'mfg', tab: 'suppliers', icon: 'factory', label: L('Factories & suppliers') },
+    // M8a: which clubs the Club Design Studio, and each of its parts, is released to.
+    { act: 'mfg', tab: 'releases', icon: 'shield', label: L('Club releases') },
+    // P5/P6: the plans the Owner offers, and every workspace's subscription and invoices.
+    { act: 'bl', tab: 'plans', icon: 'card', label: L('Plans & billing') },
     { reason: 'store', icon: 'store', label: L('Global Store') },
-    { reason: 'orders', icon: 'box', label: L('Orders') },
-    { reason: 'suppliers', icon: 'factory', label: L('Factories & suppliers') },
-    { reason: 'payments', icon: 'card', label: L('Payments') },
+  ];
+  /** In a club: back to the club's home, and the studio; commerce stays planned, as on the platform. */
+  var SIDE_CLUB = [
+    { page: 'club-home', icon: 'home', label: L('Club home') },
+    { page: 'club-design', icon: 'shirt', label: L('Design Studio'), current: true },
+    // P8: the workspace's first steps, each from its own records.
+    { act: 'start', icon: 'check', label: L('Getting started') },
+    // M4: the club's requests for quotation, in the Team panel.
+    { act: 'team-requests', icon: 'box', label: L('Orders') },
+    { reason: 'store', icon: 'store', label: L('Global Store') },
+    { act: 'plan', icon: 'card', label: L('Plan & billing') },
+    { reason: 'store', icon: 'store', label: L('Global Store') },
+    { reason: 'suppliers-club', icon: 'factory', label: L('Factories & suppliers') },
+  ];
+  /** P3: in a creator's workspace: the studio, the creator's requests and account; commerce stays planned. */
+  var SIDE_PERSONAL = [
+    { page: 'creator', icon: 'shirt', label: L('Design Studio'), current: true },
+    { act: 'start', icon: 'check', label: L('Getting started') },
+    { act: 'team-requests', icon: 'box', label: L('Orders') },
+    // P4: the designs other creators shared with this one.
+    { act: 'shared', icon: 'link', label: L('Shared with me') },
+    { act: 'acct', icon: 'people', label: L('Account') },
+    // P5/P6: the creator's plan, what it includes, and its invoices.
+    { act: 'plan', icon: 'card', label: L('Plan & billing') },
+    { reason: 'store', icon: 'store', label: L('Global Store') },
   ];
   function buildSide() {
     var list = h('ul', { class: 'pd-side-list', role: 'list' });
     var plannedShown = false;
-    SIDE.forEach(function (it) {
+    (personal() ? SIDE_PERSONAL : clubWorkspace() ? SIDE_CLUB : SIDE).forEach(function (it) {
       if (it.reason && !plannedShown) { plannedShown = true; list.appendChild(h('li', { class: 'pd-side-group', text: T('Planned') })); }
       var b = it.current ? btn({ class: 'pd-side-btn is-current', 'aria-current': 'page' })
+        : it.act === 'team-requests' && !(part('teamKit') && part('manufacturing')) ? planned(btn({ class: 'pd-side-btn is-planned' }), 'not-in-plan')
+        : (it.act === 'plan' && !S.plan) || (it.act === 'bl' && !S.billing) || (it.act === 'start' && !S.start) ? null
+        : it.act ? btn({ class: 'pd-side-btn', 'data-pd-act': it.act, 'data-pd-tab': it.tab || null, 'aria-controls': it.act === 'mfg' ? 'pd-mfg' : it.act === 'acct' ? 'pd-acct' : it.act === 'shared' ? 'pd-shared' : it.act === 'plan' ? 'pd-plan' : it.act === 'bl' ? 'pd-billing' : it.act === 'start' ? 'pd-start' : 'pd-team', 'aria-expanded': 'false' })
         : it.reason ? planned(btn({ class: 'pd-side-btn is-planned' }), it.reason)
         : btn({ class: 'pd-side-btn', 'data-action': 'navTo', 'data-page': it.page });
+      if (!b) return;
       append(b, [icon(it.icon, 18), h('span', { class: 'pd-side-label', text: T(it.label) })]);
       list.appendChild(h('li', null, [b]));
     });
-    return h('nav', { class: 'pd-side', 'data-ds-region': 'R2', 'aria-label': T('Owner navigation') }, [list]);
+    return h('nav', { class: 'pd-side', 'data-ds-region': 'R2', 'aria-label': personal() ? T('Creator navigation') : clubWorkspace() ? T('Club navigation') : T('Owner navigation') }, [list]);
   }
 
   function buildHead() {
@@ -1989,23 +2514,35 @@
         h('span', { class: 'pd-title-ic', 'aria-hidden': 'true' }, [icon('shirt', 30)]),
         h('div', null, [h('h1', { text: T('Design Studio') }), h('p', { text: T('Professional sportswear design, measured in millimetres') })]),
       ]),
-      h('div', { class: 'pd-ctxs', role: 'group', 'aria-label': T('Design context') }, [
+      // In a club, the club's studio is the one open and the platform's is not offered; the creator's stays planned.
+      // P3: a creator's studio is the creator's alone: no club is offered, and the platform's is the Owner's.
+      h('div', { class: 'pd-ctxs', role: 'group', 'aria-label': T('Design context') }, personal() ? [
+        ctx('context-creator', 'people', L('Individuals & public'), L('Creator Studio'), true),
+      ] : clubWorkspace() ? [
+        ctx('context-club', 'shield', L('Club'), L('Club Design Studio'), true),
+        ctx('context-creator', 'people', L('Individuals & public'), L('Creator Studio'), false),
+      ] : [
         ctx('context-club', 'shield', L('Club'), L('Club Design Studio'), false),
         ctx('context-creator', 'people', L('Individuals & public'), L('Creator Studio'), false),
         ctx('platform', 'crown', L('Platform'), L('Design Studio Control'), true),
       ]),
       h('div', { class: 'pd-ctxcard' }, [
         h('img', { class: 'pd-ctxcard-mark', src: '/familista-icon.svg', alt: '', width: '40', height: '40', decoding: 'async' }),
-        h('span', { class: 'pd-ctxcard-text' }, [h('strong', { text: T('Familista Platform') }), h('span', { text: T('Platform drafts, in this browser') })]),
+        h('span', { class: 'pd-ctxcard-text' }, personal()
+          ? [h('strong', { 'data-user-content': '', dir: 'auto', text: WS.displayName }), h('span', { text: T('Your designs, saved in your personal workspace') })]
+          : clubWorkspace()
+          ? [h('strong', { 'data-user-content': '', text: WS.clubName }), h('span', { text: T('Club designs, saved in the club’s workspace') })]
+          : [h('strong', { text: T('Familista Platform') }), h('span', { text: T('Platform drafts, in this browser') })]),
       ]),
     ]);
   }
 
   var CATALOGUE = [
     { id: 'match-kits', label: L('Match kits'), icon: 'shirt', items: [
-      { id: 'match-shirt', label: L('Match shirt'), icon: 'shirt', live: true },
+      { id: 'match-shirt', label: L('Match shirt'), icon: 'shirt' },
       { id: 'gk-shirt', label: L('Goalkeeper shirt'), icon: 'gkShirt' },
       { id: 'shorts', label: L('Shorts'), icon: 'shorts' },
+      { id: 'gk-shorts', label: L('Goalkeeper shorts'), icon: 'shorts' },
       { id: 'socks', label: L('Socks'), icon: 'socks' },
       { id: 'training-top', label: L('Training top'), icon: 'gkShirt' },
       { id: 'jacket', label: L('Jacket'), icon: 'jacket' },
@@ -2022,13 +2559,18 @@
   ];
   function buildLib() {
     var tabs = h('div', { class: 'pd-tabs', role: 'tablist', 'aria-label': T('Library') });
-    [['products', L('Products')], ['templates', L('Templates')], ['elements', L('Elements')]].forEach(function (t) {
+    // In a club the library also holds the club's brand kit (M2c); templates stay the platform's, planned.
+    (tenantWorkspace() ? [['products', L('Products')], ['elements', L('Elements')], ['brand', L('Brand')]]
+      : [['products', L('Products')], ['templates', L('Templates')], ['elements', L('Elements')]]).forEach(function (t) {
       var b = btn({ class: 'pd-tab', role: 'tab', 'data-pd-libtab': t[0], 'aria-selected': S.libTab === t[0] ? 'true' : 'false', text: T(t[1]) });
       if (t[0] === 'templates') planned(b, 'templates');
+      if (t[0] === 'brand' && !part('brandKit')) planned(b, 'not-in-plan');
       tabs.appendChild(b);
     });
     var body = h('div', { class: 'pd-lib-body', role: 'tabpanel' });
-    if (S.libTab === 'elements') {
+    if (S.libTab === 'brand' && part('brandKit')) {
+      body.appendChild(brandPanel());
+    } else if (S.libTab === 'elements') {
       var grid = h('div', { class: 'pd-elements' });
       ELEMENTS.forEach(function (e) { grid.appendChild(btn({ class: 'pd-element', 'data-pd-add': e.kind }, [icon(e.icon, 20), h('span', { text: T(e.label) })])); });
       append(body, [h('p', { class: 'pd-note', text: T('Adds the element to the surface on screen.') }), grid]);
@@ -2041,22 +2583,190 @@
         var panel = h('div', { class: 'pd-acc-panel', hidden: !open });
         var cards = h('ul', { class: 'pd-cards', role: 'list' });
         group.items.forEach(function (it) {
-          var b = btn({ class: 'pd-card' + (it.live ? ' is-current' : ''), 'aria-current': it.live ? 'true' : null }, [
-            h('span', { class: 'pd-card-art' }, it.live ? [h('span', { class: 'pd-card-thumb', 'data-pd-thumb': 'front' })] : [icon(it.icon, 34)]),
+          var e = entryForProduct(it.id), current = !!e && e.key === TEMPLATE.key;
+          var b = btn({ class: 'pd-card' + (current ? ' is-current' : ''), 'aria-current': current ? 'true' : null, 'data-pd-tile': it.id, 'data-pd-product': e && !current ? it.id : null }, [
+            h('span', { class: 'pd-card-art' }, current ? [h('span', { class: 'pd-card-thumb', 'data-pd-thumb': homeView() })] : [icon(it.icon, 34)]),
             h('span', { class: 'pd-card-label', text: T(it.label) }),
           ]);
-          if (!it.live) { planned(b, 'product'); b.appendChild(chip(T('Planned'), 'muted')); }
+          if (!e) { planned(b, 'product'); b.appendChild(chip(T('Planned'), 'muted')); }
           cards.appendChild(h('li', null, [b]));
         });
         panel.appendChild(cards);
         append(body, [head, panel]);
       });
-      body.appendChild(h('p', { class: 'pd-note', text: T('One template is available in this phase. The full catalogue arrives in DS-2.') }));
+      body.appendChild(h('p', { class: 'pd-note', text: T('Products marked Planned are not available yet: they arrive when they can be designed and previewed in full.') }));
     }
     return h('section', { class: 'pd-lib', 'data-ds-region': 'R4', 'aria-label': T('Library') }, [
       h('div', { class: 'pd-sheet-head' }, [h('strong', { text: T('Library') }), btn({ class: 'pd-icbtn', 'data-pd-act': 'close-panel', 'aria-label': T('Close') }, [icon('close')])]),
       tabs, body,
     ]);
+  }
+
+  // ── the club's brand kit (M2c) ─────────────────────────────────────────────
+  //
+  // Its logos and its colours, in the club's own workspace. A logo is uploaded as the file's own bytes; the server keeps
+  // only the PNG it re-encodes from them, and this panel shows that PNG, fetched as bytes into a blob: URL. Nothing
+  // here decides what is accepted: the server does, and says why when it refuses.
+  var BRAND_KINDS = [['CREST', L('Crest')], ['SPONSOR', L('Sponsor')], ['MARK', L('Mark')]];
+  var BRAND_REFUSED = {
+    'unsupported-type': L('The image was refused: it is not a PNG or JPEG file.'),
+    'too-large': L('The image was refused: it is larger than 5 MB.'),
+    'too-small': L('The image was refused: it is too small to print (under 16 px a side).'),
+    'too-many-pixels': L('The image was refused: it is too large to decode (over 25 megapixels).'),
+    unreadable: L('The image was refused: it could not be read.'),
+    animated: L('The image was refused: animated images are not accepted.'),
+    empty: L('The image was refused: the file is empty.'),
+  };
+  function brandRefresh() {
+    if (!S || !S.el.lib || S.libTab !== 'brand') return;
+    var lib = buildLib(); S.el.lib.parentNode.replaceChild(lib, S.el.lib); S.el.lib = lib;
+  }
+  function loadBrand() {
+    var B = S.brand, mine = S;
+    if (!P.api.brandKit) return;
+    B.state = 'loading';
+    P.api.brandKit('active').then(function (r) {
+      if (S !== mine) return;
+      if (!r.ok) { B.state = 'error'; B.note = T('The brand kit could not be loaded. Check the connection and try again.'); brandRefresh(); cwaysRefresh(); return; }
+      B.kit = r.data; B.state = 'ready';
+      brandRefresh();
+      cwaysRefresh();
+      (r.data.assets || []).forEach(function (a) {
+        if (B.urls[a.id]) return;
+        P.api.brandAssetImage(a.id).then(function (img) {
+          if (S !== mine || !img.ok || !img.blob) return;
+          B.urls[a.id] = URL.createObjectURL(img.blob);
+          var el = S.host.querySelector('[data-pd-brand-img="' + a.id + '"]');
+          if (el) el.setAttribute('src', B.urls[a.id]);
+        });
+      });
+    });
+  }
+  function brandPanel() {
+    var B = S.brand, kit = B.kit;
+    if (B.state === 'idle') loadBrand();
+    var wrap = h('div', { class: 'pd-brandkit' });
+    // Upload: the kind and the name, then the file.
+    var kind = h('select', { class: 'pd-input', 'data-pd-brand-kind': '', 'aria-label': T('Kind') });
+    BRAND_KINDS.forEach(function (k) { kind.appendChild(h('option', { value: k[0], text: T(k[1]) })); });
+    var name = h('input', { class: 'pd-input', type: 'text', maxlength: '80', 'data-pd-brand-name': '', 'data-user-content': '', placeholder: T('Logo name'), 'aria-label': T('Logo name') });
+    var file = h('input', { type: 'file', accept: 'image/png,image/jpeg', class: 'pd-sr', tabindex: '-1', 'aria-hidden': 'true', 'data-pd-brand-file': '' });
+    var up = btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'brand-upload', 'aria-disabled': B.busy ? 'true' : null, 'data-pd-why': B.busy ? T('Uploading…') : null }, [icon('plus', 14), h('span', { text: B.busy ? T('Uploading…') : T('Upload logo') })]);
+    append(wrap, [
+      h('h3', { class: 'pd-prop-sub', text: T('Logos') }),
+      h('div', { class: 'pd-brand-up' }, [kind, name, up, file]),
+      h('p', { class: 'pd-note', text: T('Every logo is re-encoded by the server as a clean PNG: nothing else in the file is kept.') }),
+      h('p', { class: 'pd-note pd-brand-status', role: 'status', 'aria-live': 'polite', 'data-pd-brand-status': '', text: B.note }),
+    ]);
+    // The logos.
+    if (B.state === 'loading' || B.state === 'idle') {
+      wrap.appendChild(h('ul', { class: 'pd-cards pd-brand-grid', 'aria-busy': 'true' }, [0, 1, 2].map(function () { return h('li', null, [h('span', { class: 'pd-card pd-card--skeleton' })]); })));
+    } else if (B.state === 'ready') {
+      var assets = kit.assets || [];
+      wrap.appendChild(h('p', { class: 'pd-note', text: tf('%d of %d logos', assets.length, kit.limits.assets) }));
+      if (!assets.length) wrap.appendChild(h('p', { class: 'pd-empty', text: T('No logos yet. Upload the club’s crest or a sponsor’s logo: PNG or JPEG, at least 16 px a side.') }));
+      else {
+        var grid = h('ul', { class: 'pd-cards pd-brand-grid', role: 'list' });
+        assets.forEach(function (a) {
+          var label = BRAND_KINDS.filter(function (k) { return k[0] === a.kind; })[0];
+          grid.appendChild(h('li', { class: 'pd-brand-item' }, [
+            h('figure', { class: 'pd-card pd-brand-card' }, [
+              h('span', { class: 'pd-card-art' }, [h('img', { class: 'pd-brand-img', alt: '', 'data-pd-brand-img': a.id, src: B.urls[a.id] || null, width: String(Math.min(a.width, 64)), height: String(Math.min(a.height, 64)) })]),
+              h('figcaption', { class: 'pd-card-label', 'data-user-content': '', text: a.name }),
+              chip(T(label ? label[1] : 'Mark'), 'muted'),
+            ]),
+            btn({ class: 'pd-icbtn pd-brand-archive', 'data-pd-act': 'brand-archive', 'data-pd-asset': a.id, 'aria-label': tf('Archive %s', a.name), title: tf('Archive %s', a.name) }, [icon('trash', 14)]),
+            btn({ class: 'pd-btn pd-btn--ghost pd-brand-place', 'data-pd-act': 'brand-place', 'data-pd-asset': a.id, 'aria-label': tf('Place %s on the garment', a.name) }, [icon('plus', 12), h('span', { text: T('Place') })]),
+          ]));
+        });
+        wrap.appendChild(grid);
+      }
+      // The club's colours: added to this design's palette, or replaced by it.
+      wrap.appendChild(h('h3', { class: 'pd-prop-sub', text: T('Club colours') }));
+      var colours = kit.colours || [];
+      if (!colours.length) wrap.appendChild(h('p', { class: 'pd-empty', text: T('No club colours yet. Save this design’s palette as the club’s colours.') }));
+      else {
+        var sw = h('div', { class: 'pd-swatches', role: 'group', 'aria-label': T('Club colours') });
+        colours.forEach(function (c, i) {
+          var dot = s('svg', { viewBox: '0 0 20 20', width: '20', height: '20', 'aria-hidden': 'true', focusable: 'false' });
+          dot.appendChild(s('rect', { x: 1, y: 1, width: 18, height: 18, rx: 4, fill: c.srgb, class: 'pd-dot' }));
+          var inPalette = S.doc.palette.some(function (p) { return p.srgb === c.srgb; });
+          sw.appendChild(btn({ class: 'pd-sw', 'data-pd-act': 'brand-add-colour', 'data-pd-brand-colour': String(i), 'aria-disabled': inPalette ? 'true' : null,
+            'data-pd-why': inPalette ? tf('%s is already in the design palette', c.label) : null,
+            'aria-label': inPalette ? tf('%s is already in the design palette', c.label) : tf('Add %s to the design palette', c.label), title: c.label }, [dot]));
+        });
+        wrap.appendChild(sw);
+      }
+      wrap.appendChild(btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'brand-save-colours' }, [h('span', { text: T('Save this design’s palette as the club’s colours') })]));
+    } else {
+      wrap.appendChild(h('p', { class: 'pd-empty', text: T('The brand kit could not be loaded. Check the connection and try again.') }));
+    }
+    return wrap;
+  }
+  function brandSay(text) { S.brand.note = text; var el = S.host.querySelector('[data-pd-brand-status]'); if (el) el.textContent = text; }
+  function brandUpload(f) {
+    var B = S.brand, mine = S;
+    if (!f || B.busy || !P.api.uploadBrandAsset) return;
+    var kindEl = S.host.querySelector('[data-pd-brand-kind]'), nameEl = S.host.querySelector('[data-pd-brand-name]');
+    var name = ((nameEl && nameEl.value) || String(f.name || '').replace(/\.[^.]+$/, '') || T('Logo')).trim().slice(0, 80);
+    B.busy = true; brandSay(T('Uploading…'));
+    P.api.uploadBrandAsset(kindEl ? kindEl.value : 'CREST', name, f).then(function (r) {
+      if (S !== mine) return;
+      B.busy = false;
+      if (r.ok) { B.note = T('Logo added.'); B.state = 'idle'; brandRefresh(); return; }
+      B.note = r.code === 'BRAND_IMAGE_REFUSED' && BRAND_REFUSED[r.reason] ? T(BRAND_REFUSED[r.reason])
+        : r.code === 'BRAND_KIT_FULL' ? T('The brand kit is full: archive a logo first.')
+          : r.status === 0 ? T('Not uploaded: the server could not be reached.') : T('The logo could not be uploaded.');
+      brandRefresh();
+    });
+  }
+  function brandArchive(id) {
+    var B = S.brand, mine = S;
+    if (B.busy || !id) return;
+    B.busy = true;
+    P.api.archiveBrandAsset(id).then(function (r) {
+      if (S !== mine) return;
+      B.busy = false;
+      if (r.ok) { if (B.urls[id]) { URL.revokeObjectURL(B.urls[id]); delete B.urls[id]; } B.note = T('Logo archived.'); B.state = 'idle'; }
+      else B.note = T('The logo could not be archived.');
+      brandRefresh();
+    });
+  }
+  /** Place a logo on the surface on screen: centred in its safe zone, at most 80 mm wide and 100 mm tall, its proportions kept. */
+  function brandPlace(id) {
+    var a = S.brand.kit && S.brand.kit.assets.filter(function (x) { return x.id === id; })[0];
+    if (!a) return;
+    var surf = surfaceOfView(), ts = tSurface(surf.id), b = polygonBox(ts.safe), small = ts.width < 500 ? 0.45 : 1;
+    var w = 80 * small, hh = w * a.height / a.width;
+    if (hh > 100 * small) { hh = 100 * small; w = hh * a.width / a.height; }
+    w = C.mm(Math.max(LIMITS.minSize, w)); hh = C.mm(Math.max(LIMITS.minSize, hh));
+    var layer = { id: C.nextId(S.doc, 'l'), type: 'image', name: a.name.slice(0, LIMITS.name), visible: true, locked: false, asset: a.id, px: [a.width, a.height],
+      x: C.mm(b.x + b.w / 2), y: C.mm(b.y + b.h * (ts.width < 500 ? 0.5 : 0.36)), w: w, h: hh, r: 0, w0: w, h0: hh };
+    if (commitOp({ op: 'insert', surface: surf.id, index: surf.layers.length, layer: layer }, T('Add element'))) {
+      select({ kind: 'layer', id: layer.id });
+      say(tf('Added %s to the %s.', layer.name, T(ts.label)));
+    }
+  }
+  function brandAddColour(i) {
+    var c = S.brand.kit && S.brand.kit.colours[i];
+    if (!c || S.doc.palette.length >= LIMITS.palette || S.doc.palette.some(function (p) { return p.srgb === c.srgb; })) return;
+    var id = C.nextId(S.doc, 'c');
+    if (commitOp({ op: 'paletteInsert', index: S.doc.palette.length, swatch: { id: id, label: c.label.slice(0, LIMITS.label), srgb: c.srgb } }, T('Add colour'))) {
+      brandSay(tf('%s was added to the design palette.', c.label));
+      brandRefresh();
+    }
+  }
+  function brandSaveColours() {
+    var B = S.brand, mine = S;
+    if (B.busy) return;
+    B.busy = true;
+    var colours = S.doc.palette.map(function (p) { return { label: p.label, srgb: p.srgb }; });
+    P.api.saveBrandColours(colours).then(function (r) {
+      if (S !== mine) return;
+      B.busy = false;
+      if (r.ok) { B.kit.colours = r.data.colours; B.note = T('Club colours saved.'); } else B.note = T('The club colours could not be saved.');
+      brandRefresh();
+    });
   }
 
   var PATTERN_LABEL = {
@@ -2072,7 +2782,8 @@
       return btn({ class: 'pd-tool', 'data-pd-act': act, 'aria-label': T(label) + (key ? ' (' + key + ')' : ''), title: T(label) + (key ? ' (' + key + ')' : ''), 'aria-keyshortcuts': key || null }, [icon(ic, 20)]);
     }
     var image = tool('image', 'image', L('Image'));
-    planned(image, 'image');
+    if (!tenantWorkspace()) planned(image, 'image');
+    else if (!part('brandKit')) planned(image, 'not-in-plan');
     var tools = h('div', { class: 'pd-tools', 'data-ds-region': 'R5', role: 'toolbar', 'aria-orientation': 'vertical', 'aria-label': T('Tools') }, [
       tool('select', 'select', L('Select'), 'V'), tool('add-text', 'text', L('Text'), 'T'), image, tool('add-shape', 'shape', L('Shape'), 'S'),
       tool('patterns', 'pattern', L('Patterns'), 'P'), tool('layers', 'layers', L('Layers'), 'L'), tool('elements', 'components', L('Elements')),
@@ -2105,14 +2816,7 @@
     E.canvasNote = h('p', { class: 'pd-canvas-note' });
     E.canvas.appendChild(E.canvasNote);
     chrome3d(E);
-    var views = h('nav', { class: 'pd-views', 'data-ds-region': 'R8', 'aria-label': T('Views') });
-    TEMPLATE.views.forEach(function (v) {
-      views.appendChild(btn({ class: 'pd-view', 'data-pd-view': v.id, 'aria-pressed': v.id === S.view ? 'true' : 'false' }, [
-        h('span', { class: 'pd-view-thumb', 'data-pd-thumb': v.id }), h('span', { class: 'pd-view-label', text: T(v.label) }),
-      ]));
-    });
-    views.appendChild(live3d(btn({ class: 'pd-view pd-view--360', 'data-pd-act': 'turntable', 'aria-pressed': 'false', title: T('Turn the garment all the way round') }, [h('span', { class: 'pd-view-thumb' }, [icon('rotate', 26)]), h('span', { class: 'pd-view-label', text: '360°' })]), '360'));
-    E.views = views;
+    E.views = buildViews();
     var strip = h('div', { class: 'pd-strip', role: 'list' });
     C.PATTERNS.forEach(function (p) {
       strip.appendChild(h('div', { role: 'listitem' }, [btn({ class: 'pd-swatch', 'data-pd-pattern': p, title: T(PATTERN_LABEL[p]), 'aria-label': T(PATTERN_LABEL[p]) }, [patternSwatch(p)])]));
@@ -2123,7 +2827,12 @@
       strip,
       btn({ class: 'pd-icbtn pd-strip-nav', 'data-pd-act': 'strip-next', 'aria-label': T('Next patterns') }, [dirArrow('›')]),
     ]);
-    return h('div', { class: 'pd-editor' }, [bar, tools, h('div', { class: 'pd-stage' }, [E.canvas, views]), patterns, E.help]);
+    E.previewTag = h('div', { class: 'pd-preview-tag', role: 'status', hidden: true }, [
+      icon('people', 14), (E.previewText = h('strong', { 'data-user-content': '', dir: 'auto' })),
+      btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'team-stop-preview' }, [h('span', { text: T('Stop preview') })]),
+    ]);
+    // Beside the canvas, not in it: the canvas captures the pointer for dragging, and the tag's button must take a click.
+    return h('div', { class: 'pd-editor' }, [bar, tools, h('div', { class: 'pd-stage' }, [E.canvas, E.views, E.previewTag]), patterns, E.help]);
   }
   /** A small picture of a pattern, in the design's first two colours. */
   var SWATCH_N = 0;
@@ -2190,7 +2899,7 @@
     ul.appendChild(h('li', { class: 'pd-layer pd-layer--base' + (baseOn ? ' is-selected' : '') }, [
       h('span', { class: 'pd-layer-grip', 'aria-hidden': 'true' }),
       h('span', { class: 'pd-layer-thumb', 'aria-hidden': 'true' }, [colourDot(surf.base)]),
-      btn({ class: 'pd-layer-name', 'data-pd-select': ':base', 'aria-pressed': baseOn ? 'true' : 'false' }, [h('span', { text: T('Shirt base colour') })]),
+      btn({ class: 'pd-layer-name', 'data-pd-select': ':base', 'aria-pressed': baseOn ? 'true' : 'false' }, [h('span', { text: T('Base colour') })]),
     ]));
   }
   function colourDot(id) {
@@ -2200,6 +2909,7 @@
   }
   function layerThumb(n) {
     if (n.type === 'pattern') return patternSwatch(n.pattern);
+    if (n.type === 'image') return icon('image', 18);
     if (n.type === 'shape') {
       var svg = s('svg', { viewBox: '-12 -12 24 24', width: '20', height: '20', 'aria-hidden': 'true', focusable: 'false' });
       svg.appendChild(s('path', { d: shapePath(n.shape, 20, 20), fill: colour(n.color), stroke: n.outline ? colour(n.outline) : null, 'stroke-width': n.outline ? 1.5 : null }));
@@ -2223,7 +2933,7 @@
       append(box, [h('p', { class: 'pd-prop-title', text: tf('Base colour of the %s', T(tSurface(surf.id).label)) }), swatchPicker('base', surf.base, false)]);
       return;
     }
-    if (!n) { box.appendChild(h('p', { class: 'pd-empty', text: T('Select an element on the shirt or in the list.') })); return; }
+    if (!n) { box.appendChild(h('p', { class: 'pd-empty', text: T('Select an element on the garment or in the list.') })); return; }
     var nameIn = h('input', { class: 'pd-input pd-prop-name', type: 'text', maxlength: String(LIMITS.name), 'data-pd-field': 'name', 'aria-label': T('Element name'), 'data-user-content': '' });
     nameIn.value = n.name;
     box.appendChild(h('div', { class: 'pd-prop-head' }, [
@@ -2237,9 +2947,13 @@
       tIn.value = n.text;
       box.appendChild(row(T('Text'), tIn));
     }
-    if (n.type === 'roster') box.appendChild(h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: n.field === 'number'
-      ? T('Number placeholder. Real numbers come from a team roster (planned, DS-3); the design keeps no player data.')
-      : T('Name placeholder. Real names come from a team roster (planned, DS-3); the design keeps no player data.') })]));
+    if (n.type === 'roster') box.appendChild(h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: S.team
+      ? (n.field === 'number'
+        ? T('Number placeholder. The numbers come from the club’s team rosters: open Team to preview one on the garment. The design keeps no player data.')
+        : T('Name placeholder. The names come from the club’s team rosters: open Team to preview one on the garment. The design keeps no player data.'))
+      : (n.field === 'number'
+        ? T('Number placeholder. Real numbers come from a club’s team roster; the design keeps no player data.')
+        : T('Name placeholder. Real names come from a club’s team roster; the design keeps no player data.')) })]));
     if (n.type === 'shape') box.appendChild(row(T('Shape'), selectField('shape', C.SHAPES, SHAPE_LABEL, n.shape)));
     if (n.type === 'text' || n.type === 'roster') box.appendChild(row(T('Font'), selectField('font', C.FONTS, FONT_LABEL, n.font)));
     if (n.type === 'pattern') {
@@ -2248,11 +2962,21 @@
       box.appendChild(sliderRow('angle', T('Angle'), -179, 180, 1, '°'));
       box.appendChild(sliderRow('opacity', T('Opacity'), 5, 100, 1, '%'));
     }
-    box.appendChild(h('p', { class: 'pd-prop-sub', text: T('Colour') }));
-    box.appendChild(swatchPicker('color', n.color, false));
+    if (n.type === 'image') {
+      // A logo keeps its own colours; what the reader needs is whether it will print sharply at this size.
+      var dpi = C.imageDpi(n), low = dpi < C.MIN_PRINT_DPI;
+      box.appendChild(h('p', { class: 'pd-note' + (low ? ' pd-note--warn' : ' pd-note--info'), 'data-pd-dpi': String(dpi) }, [icon(low ? 'info' : 'check', 14),
+        h('span', { text: low ? tf('Printed at about %d dpi at this size: below %d dpi it may look soft. Make it smaller or upload a larger image.', dpi, C.MIN_PRINT_DPI)
+          : tf('Printed at about %d dpi at this size.', dpi) })]));
+    } else {
+      box.appendChild(h('p', { class: 'pd-prop-sub', text: T('Colour') }));
+      box.appendChild(swatchPicker('color', n.color, false));
+    }
     if (n.type !== 'pattern') {
-      box.appendChild(h('p', { class: 'pd-prop-sub', text: T('Outline') }));
-      box.appendChild(swatchPicker('outline', n.outline, true));
+      if (n.type !== 'image') {
+        box.appendChild(h('p', { class: 'pd-prop-sub', text: T('Outline') }));
+        box.appendChild(swatchPicker('outline', n.outline, true));
+      }
       box.appendChild(h('div', { class: 'pd-prop-tools', role: 'group', 'aria-label': T('Alignment') }, [
         btn({ class: 'pd-icbtn', 'data-pd-act': 'align-h', 'aria-label': T('Centre on the surface, left to right'), title: T('Centre on the surface, left to right') }, [icon('alignH')]),
         btn({ class: 'pd-icbtn', 'data-pd-act': 'align-v', 'aria-label': T('Centre in the safe zone, top to bottom'), title: T('Centre in the safe zone, top to bottom') }, [icon('alignV')]),
@@ -2333,15 +3057,85 @@
     if (S.doc.palette.length >= LIMITS.palette) { add.setAttribute('aria-disabled', 'true'); add.setAttribute('data-pd-why', tf('A design holds at most %d colours.', LIMITS.palette)); }
     append(wrap, [
       h('h2', { class: 'pd-h2', text: T('Design palette') }), list, add,
+      colourwaysBlock(),
       h('h2', { class: 'pd-h2', text: T('Trims') }),
-      h('p', { class: 'pd-prop-sub', text: T('Collar') }), partPicker('collar'),
-      h('p', { class: 'pd-prop-sub', text: T('Cuffs') }), partPicker('cuffs'),
+      h('p', { class: 'pd-prop-sub', text: partName('collar') }), partPicker('collar'),
+      h('p', { class: 'pd-prop-sub', text: partName('cuffs') }), partPicker('cuffs'),
       h('p', { class: 'pd-note pd-note--info' }, [icon('info', 14), h('span', { text: T('Colours on screen are sRGB previews. The printed colour depends on the fabric and the process; physical samples settle it.') })]),
     ]);
     return wrap;
   }
+  /**
+   * M7c: colourways, the design recoloured from its own colours and the club's. Computed only when asked for, and again
+   * only when the palette or what uses it changes; each drawn by the editor's own renderer, as the garment's home view.
+   */
+  function colourways() {
+    var extra = S.brand.kit && S.brand.kit.colours ? S.brand.kit.colours : [];
+    var key = JSON.stringify([S.doc.palette, S.doc.parts, S.doc.surfaces.map(function (x) { return [x.base, x.layers.map(function (n) { return [n.type, n.visible, n.color, n.outline, n.opacity]; })]; }), extra]);
+    if (S.cways.key !== key) { S.cways.key = key; S.cways.list = C.colourways(S.doc, extra, 6); }
+    return S.cways.list;
+  }
+  /** M7c: the club's colours arrived (or could not): colourways open in the Colour tab are drawn again with them. */
+  function cwaysRefresh() { if (S && S.cways.open && S.inspTab === 'colour' && S.el.inspBody) fillInsp(); }
+  function colourwaysBlock() {
+    var box = h('section', { class: 'pd-cways', 'aria-labelledby': 'pd-cways-h' }, [h('h2', { class: 'pd-h2', id: 'pd-cways-h', text: T('Colourways') })]);
+    if (!S.cways.open) {
+      box.appendChild(h('p', { class: 'pd-note', text: T('Away and third strips from this design: its colours exchanged, or one replaced by a club colour.') }));
+      box.appendChild(btn({ class: 'pd-btn pd-btn--ghost', 'data-pd-act': 'colourways' }, [icon('pattern', 14), h('span', { text: T('Suggest colourways') })]));
+      return box;
+    }
+    // In a club, its colours take part: read first, when nothing has read them yet.
+    var B = S.brand;
+    if (part('brandKit') && P.api.brandKit && (B.state === 'idle' || B.state === 'loading')) {
+      if (B.state === 'idle') loadBrand();
+      box.appendChild(h('p', { class: 'pd-note', role: 'status', text: T('Reading the club colours…') }));
+      return box;
+    }
+    var list = colourways();
+    if (!list.length) { box.appendChild(h('p', { class: 'pd-empty', text: T('No colourway keeps every name, number and mark readable with these colours. Add a lighter or darker colour to the palette or to the club colours.') })); return box; }
+    var grid = h('div', { class: 'pd-cways-grid', role: 'group', 'aria-label': T('Colourways') });
+    // Each is named by its base and its accent (the main surface's pattern, or its lettering), so no two read alike.
+    var main = S.doc.surfaces[0], mainBase = main.base;
+    var accentLayer = main.layers.filter(function (n) { return n.visible && n.type === 'pattern'; })[0] || main.layers.filter(function (n) { return n.visible && (n.type === 'text' || n.type === 'roster'); })[0];
+    var accentId = accentLayer ? accentLayer.color : null;
+    list.forEach(function (v, i) {
+      var next = C.clone(S.doc); next.palette = v.palette;
+      var base = v.palette.filter(function (x) { return x.id === mainBase; })[0];
+      var accent = accentId && accentId !== mainBase ? v.palette.filter(function (x) { return x.id === accentId; })[0] : null;
+      var ratio = v.lettering === null ? '' : tf('Lettering %s:1', fixed1(v.lettering));
+      // Named by what it shows, after what it does: the visible words are the name's own, in the same order.
+      append(grid, [btn({ class: 'pd-cway', 'data-pd-act': 'apply-colourway', 'data-pd-i': String(i) }, [
+        h('span', { class: 'pd-sr', text: tf('Apply colourway %d:', i + 1) }),
+        drawDesign(next, TEMPLATE, homeView(), 'pdcw' + i),
+        h('span', { class: 'pd-cway-cap' }, [h('span', { class: 'pd-cway-name', 'data-user-content': '', text: accent ? base.label + ' · ' + accent.label : base.label }), ratio ? h('span', { class: 'pd-cway-ratio', text: ratio }) : null]),
+      ])]);
+    });
+    box.appendChild(grid);
+    box.appendChild(h('p', { class: 'pd-note', text: T('Every colourway keeps names, numbers and marks at a contrast of 3:1 or more against what they sit on. Applying one is a single step to undo.') }));
+    return box;
+  }
+  function fixed1(n) { try { return new Intl.NumberFormat(LANG, { maximumFractionDigits: 1, minimumFractionDigits: 1 }).format(n); } catch (_) { return n.toFixed(1); } }
+  function applyColourway(i) {
+    var v = S.cways.list[i];
+    if (!v) return;
+    var ops = [];
+    v.palette.forEach(function (x) {
+      var cur = C.findSwatch(S.doc, x.id).swatch;
+      if (cur.srgb.toLowerCase() !== x.srgb) ops.push({ op: 'set', target: { kind: 'swatch', id: x.id }, key: 'srgb', value: x.srgb });
+      if (cur.label !== x.label) ops.push({ op: 'set', target: { kind: 'swatch', id: x.id }, key: 'label', value: x.label });
+    });
+    if (!ops.length) return;
+    if (commitOp({ op: 'batch', ops: ops }, T('Colourway'))) {
+      fillInsp();
+      var first = S.el.inspBody.querySelector('[data-pd-act="apply-colourway"]');
+      if (first) first.focus({ preventScroll: true });
+      say(T('Colourway applied. Undo brings the previous colours back.'));
+    }
+  }
+  /** What a trim colour is called on this garment: a top's collar and cuffs, shorts' waistband and leg hems. */
+  function partName(part) { var n = TEMPLATE.partNames; return n ? T(n[part]) : part === 'collar' ? T('Collar') : T('Cuffs'); }
   function partPicker(part) {
-    var wrap = h('div', { class: 'pd-swatches', role: 'group', 'aria-label': T(part === 'collar' ? 'Collar' : 'Cuffs') });
+    var wrap = h('div', { class: 'pd-swatches', role: 'group', 'aria-label': partName(part) });
     S.doc.palette.forEach(function (c) {
       wrap.appendChild(btn({ class: 'pd-sw', 'data-pd-part': part, 'data-pd-colour': c.id, 'aria-pressed': S.doc.parts[part] === c.id ? 'true' : 'false', 'aria-label': c.label, title: c.label }, [colourDot(c.id)]));
     });
@@ -2383,7 +3177,8 @@
   function findingText(f) {
     var l = C.findLayer(S.doc, f.layer), name = l ? l.layer.name : '', where = T(tSurface(f.surface).label);
     if (f.code === 'outside-print-area') return tf('%s is outside the printable area of the %s.', name, where);
-    if (f.code === 'crosses-safe-zone') return tf('%s crosses the safe zone of the %s: seams, collar or cuffs may cut it.', name, where);
+    if (f.code === 'crosses-safe-zone') return tf('%s crosses the safe zone of the %s: seams or trims may cut it.', name, where);
+    if (f.code === 'low-resolution') return tf('%s is printed at about %d dpi on the %s: below %d dpi it may look soft.', name, f.dpi, where, C.MIN_PRINT_DPI);
     return tf('%s is lower than the template’s %d mm minimum for lettering.', name, TEMPLATE.rules.minTextHeight);
   }
   function renderCheck() {
@@ -2424,7 +3219,7 @@
       sizes.appendChild(h('li', { class: 'pd-size' + (ref ? ' is-ref' : ''), title: ref ? T('The design’s reference size') : null, text: z }));
     });
     var out = h('div', { class: 'pd-sizes-panel' }, [tabs, sizes, h('p', { class: 'pd-note', text: full ? T('Reference sizes, not purchasable. Sizes and measurements come from a supplier’s product data (DS-5).') : T('Reference sizes, not purchasable') })]);
-    if (full) out.appendChild(h('p', { class: 'pd-note', text: tf('The design is placed on size %s. Grading to other sizes arrives with the catalogue (DS-2).', TEMPLATE.referenceSize) }));
+    if (full) out.appendChild(h('p', { class: 'pd-note', text: tf('The design is placed on size %s. Grading to other sizes is not available yet.', TEMPLATE.referenceSize) }));
     return out;
   }
 
@@ -2440,7 +3235,7 @@
         h('h2', { class: 'pd-h2' }, [icon('shirt', 16), h('span', { text: T('Kit preview') })]),
         h('div', { class: 'pd-kit' }, [
           h('figure', { class: 'pd-kit-item pd-kit-item--planned' }, [h('span', { class: 'pd-kit-art' }, [icon('shirt', 40)]), h('figcaption', { text: T('Away kit') }), chip(T('Planned'), 'muted')]),
-          h('figure', { class: 'pd-kit-item is-current' }, [h('span', { class: 'pd-kit-art', 'data-pd-thumb': 'front' }), h('figcaption', { class: 'pd-kit-name', 'data-user-content': '', 'data-pd-docname': '' })]),
+          h('figure', { class: 'pd-kit-item is-current' }, [h('span', { class: 'pd-kit-art', 'data-pd-thumb': homeView() }), h('figcaption', { class: 'pd-kit-name', 'data-user-content': '', 'data-pd-docname': '' })]),
           h('figure', { class: 'pd-kit-item pd-kit-item--planned' }, [h('span', { class: 'pd-kit-art' }, [icon('gkShirt', 40)]), h('figcaption', { text: T('Goalkeeper kit') }), chip(T('Planned'), 'muted')]),
         ]),
       ]),
@@ -2482,13 +3277,19 @@
     E.file = h('input', { class: 'pd-sr', type: 'file', accept: '.json,application/json', tabindex: '-1', 'aria-hidden': 'true' });
     var projects = btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'projects', 'data-pd-dock': 'projects', 'aria-controls': 'pd-dock', 'aria-expanded': 'false' }, [icon('folder', 16), h('span', { text: T('Projects') })]);
     var versions = btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'versions', 'data-pd-dock': 'versions', 'aria-controls': 'pd-dock', 'aria-expanded': 'false' }, [icon('versions', 16), h('span', { text: T('Versions') })]);
-    var proof = planned(btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'proof' }, [icon('eye', 16), h('span', { text: T('Production preview') })]), 'proof');
+    var review = S.review ? btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'review', 'data-pd-dock': 'review', 'aria-controls': 'pd-dock', 'aria-expanded': 'false' }, [icon('comment', 16), h('span', { text: T('Review') })]) : null;
+    var team = S.team ? btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'team', 'aria-controls': 'pd-team', 'aria-expanded': S.team.isOpen() ? 'true' : 'false' }, [icon('people', 16), h('span', { text: T('Team') })]) : null;
+    // P5: in a club's or a creator's workspace, the production pack its plan opens (print sheet, tech pack); elsewhere planned.
+    var proof = S.pp ? btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'production', 'data-pd-dock': 'production', 'aria-controls': 'pd-dock', 'aria-expanded': 'false' }, [icon('eye', 16), h('span', { text: T('Production pack') })])
+      : planned(btn({ class: 'pd-btn pd-btn--outline', 'data-pd-act': 'proof' }, [icon('eye', 16), h('span', { text: T('Production preview') })]), 'proof');
     var order = planned(btn({ class: 'pd-btn pd-btn--order', 'data-pd-act': 'order' }, [icon('cart', 18), h('span', { text: T('Continue to order') })]), 'order');
     var bar = h('footer', { class: 'pd-actions', 'data-ds-region': 'R12' }, [
       h('div', { class: 'pd-actions-start' }, [
         btn({ class: 'pd-btn pd-btn--primary', 'data-pd-act': 'save', 'aria-keyshortcuts': 'Control+S' }, [icon('save', 16), h('span', { text: T('Save design') })]),
         projects,
         versions,
+        review,
+        team,
         h('div', { class: 'pd-file', role: 'group', 'aria-label': T('File') }, [
           btn({ class: 'pd-icbtn', 'data-pd-act': 'import', 'aria-label': T('Import a design file'), title: T('Import a design file') }, [icon('import')]),
           btn({ class: 'pd-icbtn', 'data-pd-act': 'export', 'aria-label': T('Export the design file'), title: T('Export the design file') }, [icon('export')]),
@@ -2511,20 +3312,33 @@
 
   var FLOW = [
     { icon: 'shirt', label: L('Product design'), state: 'available' },
-    { icon: 'ruler', label: L('Sizes & quantity'), state: 'planned' },
-    { icon: 'calc', label: L('Price'), state: 'planned' },
+    // In a club, its team rosters hold the sizes and sets (M3); ordering them is still planned.
+    { icon: 'ruler', label: L('Sizes & quantity'), state: 'planned', club: 'available' },
+    // M4, owner-brokered: quotations from verified suppliers, the order, its production, shipping and delivery are
+    // recorded by Familista, not automated; payment is not processed online.
+    { icon: 'calc', label: L('Price'), state: 'brokered' },
     { icon: 'card', label: L('Secure payment'), state: 'planned' },
-    { icon: 'factory', label: L('Send to factory'), state: 'not-connected' },
-    { icon: 'gear', label: L('Manufacturing'), state: 'not-connected' },
-    { icon: 'truck', label: L('Shipping & tracking'), state: 'planned' },
-    { icon: 'delivered', label: L('Delivery'), state: 'planned' },
+    { icon: 'factory', label: L('Send to factory'), state: 'brokered' },
+    { icon: 'gear', label: L('Manufacturing'), state: 'brokered' },
+    { icon: 'truck', label: L('Shipping & tracking'), state: 'brokered' },
+    { icon: 'delivered', label: L('Delivery'), state: 'brokered' },
   ];
-  var STATE_LABEL = { available: L('Available'), planned: L('Planned'), 'not-connected': L('Not connected') };
+  var STATE_LABEL = { available: L('Available'), planned: L('Planned'), 'not-connected': L('Not connected'), brokered: L('Through Familista') };
   var INTEGRATION = [
     { ok: true, label: L('Part of Owner Control, in the Platform Owner navigation') },
     { ok: true, label: L('Holds no club or personal data: platform designs only') },
     { ok: false, label: L('Supervised by AI agents'), state: L('Planned, DS-8') },
     { ok: true, label: L('Visible in the Neural Digital Twin') },
+  ];
+  var INTEGRATION_CLUB = [
+    { ok: true, label: L('Part of your club’s workspace') },
+    { ok: true, label: L('Holds this club’s designs only: no other club can see them') },
+    { ok: false, label: L('Supervised by AI agents'), state: L('Planned, DS-8') },
+  ];
+  var INTEGRATION_PERSONAL = [
+    { ok: true, label: L('Your personal workspace, on your own account') },
+    { ok: true, label: L('Holds your designs only: no club and no other creator can see them') },
+    { ok: false, label: L('Supervised by AI agents'), state: L('Planned, DS-8') },
   ];
   var SUPPLIERS = [
     { name: 'Printful', state: L('Under evaluation') },
@@ -2537,14 +3351,15 @@
     var steps = h('ol', { class: 'pd-flow-steps', dir: 'ltr' });
     FLOW.forEach(function (f, i) {
       if (i) steps.appendChild(h('li', { class: 'pd-flow-arrow', 'aria-hidden': 'true', text: '→' }));
-      steps.appendChild(h('li', { class: 'pd-flow-step', 'data-state': f.state }, [
+      var fs = tenantWorkspace() && f.club ? f.club : f.state;
+      steps.appendChild(h('li', { class: 'pd-flow-step', 'data-state': fs }, [
         h('span', { class: 'pd-flow-ic' }, [icon(f.icon, 22)]),
         h('span', { class: 'pd-flow-label', dir: 'auto', text: T(f.label) }),
-        h('span', { class: 'pd-flow-state', dir: 'auto', text: T(STATE_LABEL[f.state]) }),
+        h('span', { class: 'pd-flow-state', dir: 'auto', text: T(STATE_LABEL[fs]) }),
       ]));
     });
     var integ = h('ul', { class: 'pd-integ-list', role: 'list' });
-    INTEGRATION.forEach(function (it) {
+    (personal() ? INTEGRATION_PERSONAL : clubWorkspace() ? INTEGRATION_CLUB : INTEGRATION).forEach(function (it) {
       integ.appendChild(h('li', { class: 'pd-integ', 'data-ok': it.ok ? 'true' : 'false' }, [
         h('span', { class: 'pd-integ-ic' }, [icon(it.ok ? 'check' : 'info', 15)]),
         h('span', null, [T(it.label), it.state ? ' ' : null, it.state ? chip(T(it.state), 'muted') : null]),
@@ -2590,6 +3405,29 @@
     host.setAttribute('lang', LANG);
     host.setAttribute('dir', DIR);
     E.live = h('div', { class: 'pd-sr', role: 'status', 'aria-live': 'polite' });
+    // M3: the Team panel, in a club's workspace only. Its two scripts are loaded by the club's room alone (app.js), and
+    // looked up here rather than when this file runs, so a room loaded without them simply has no Team panel.
+    // M7b-2: a collection's presentation sheet, made before the Team panel that offers it.
+    if (!S.present && part('teamKit') && P.api.openCollection && window.FamilistaProductDesignPresent) S.present = window.FamilistaProductDesignPresent.create(presentContext());
+    if (!S.team && part('teamKit') && P.api.listRosters && window.FamilistaProductDesignRoster && window.FamilistaProductDesignTeam) {
+      S.team = window.FamilistaProductDesignTeam.create(teamContext());
+    }
+    // M7b: a design's review, in a club's workspace when its plan includes reviews; its script is the club room's alone.
+    if (!S.review && part('reviews') && P.api.readReview && window.FamilistaProductDesignReview) S.review = window.FamilistaProductDesignReview.create(reviewContext());
+    // P3: a creator's account panel, in the creator's own workspace only.
+    if (!S.acct && personal() && P.api.me && window.FamilistaProductDesignCreator) S.acct = window.FamilistaProductDesignCreator.account(acctContext());
+    // P4: the designs shared with this creator, in the creator's own workspace only.
+    if (!S.shared && personal() && P.api.sharedWithMe && window.FamilistaProductDesignCreator) S.shared = window.FamilistaProductDesignCreator.shared(sharedContext());
+    // P5/P6: the workspace's plan and invoices, and the professional tools of its dock; the Owner's plans and billing.
+    var PLAN = window.FamilistaProductDesignPlan;
+    if (!S.plan && tenantWorkspace() && P.api.plan && PLAN) S.plan = PLAN.panel(planContext());
+    if (!S.pp && tenantWorkspace() && P.api.techPack && PLAN) S.pp = PLAN.production(productionContext());
+    if (!S.billing && !tenantWorkspace() && P.api.plans && PLAN) S.billing = PLAN.console(billingContext());
+    if (!S.start && tenantWorkspace() && P.api.gettingStarted && PLAN) S.start = PLAN.onboarding(startContext());
+    // M4: the manufacturing console, in the platform's room only; its scripts are loaded by the owner's room alone.
+    if (!S.mfg && !tenantWorkspace() && SERVER.manufacturing && window.FamilistaProductDesignManufacturing && window.FamilistaProductDesignRoster) {
+      S.mfg = window.FamilistaProductDesignManufacturing.create(mfgContext());
+    }
     E.lib = buildLib();
     var editor = buildEditor();
     E.insp = buildInsp();
@@ -2600,6 +3438,14 @@
       buildFoot(), buildTabbar(),
       h('div', { class: 'pd-scrim', 'data-pd-act': 'close-panel', 'aria-hidden': 'true' }),
       (E.dock = h('section', { class: 'pd-dock', id: 'pd-dock', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'pd-dock-title', 'data-open': S.srv.open ? 'true' : 'false' })),
+      S.team ? S.team.el : null,
+      S.mfg ? S.mfg.el : null,
+      S.acct ? S.acct.el : null,
+      S.shared ? S.shared.el : null,
+      S.plan ? S.plan.el : null,
+      S.billing ? S.billing.el : null,
+      S.start ? S.start.el : null,
+      S.present ? S.present.el : null,
       E.live,
     ]);
     host.appendChild(E.shell);
@@ -2614,6 +3460,11 @@
     syncServerState();
     renderDock();
     syncDockTriggers();
+    if (S.team) S.team.repaint();
+    if (S.mfg) S.mfg.repaint();
+    if (S.acct) S.acct.repaint();
+    if (S.shared) S.shared.repaint();
+    syncPreviewTag();
     renderThumbs();
     sync3d();
     if (S.mode === '3d') { if (can3d()) open3d(); else { S.mode = '2.5d'; syncModes(); renderCanvas(); } }
@@ -2677,9 +3528,15 @@
     if ((a = t.getAttribute('data-pd-docktab'))) { if (S.srv.tab !== a) { S.srv.tab = a; S.srv.confirm = null; syncDockTriggers(); renderDock(); loadDockTab(); } var tb = S.el.dock.querySelector('[data-pd-docktab="' + a + '"]'); if (tb) tb.focus(); return; }
     if ((a = t.getAttribute('data-pd-filter'))) { if (S.srv.filter !== a) { S.srv.filter = a; loadProjects(); } return; }
     if ((a = t.getAttribute('data-pd-act')) && onDockAction(a, t)) return;
+    if (a && onTeamAction(a, t)) return;
+    if (a && onMfgAction(a, t)) return;
+    if (a && onAcctAction(a, t)) return;
+    if (a && onSharedAction(a, t)) return;
+    if (a && onPlanAction(a, t)) return;
     if ((a = t.getAttribute('data-pd-lang'))) { chooseSetLocale(a).then(function () { if (S) build(); }); return; }
     if ((a = t.getAttribute('data-pd-view'))) { setView(a); return; }
     if ((a = t.getAttribute('data-pd-mode'))) { setMode(a); return; }
+    if ((a = t.getAttribute('data-pd-product'))) { selectProduct(a); return; }
     if ((a = t.getAttribute('data-pd-libtab'))) { S.libTab = a; var lib = buildLib(); S.el.lib.parentNode.replaceChild(lib, S.el.lib); S.el.lib = lib; renderThumbs(); lib.querySelector('[data-pd-libtab="' + a + '"]').focus(); return; }
     if ((a = t.getAttribute('data-pd-insptab'))) { S.inspTab = a; var tabs = S.el.insp.querySelectorAll('[data-pd-insptab]'); for (var j = 0; j < tabs.length; j++) tabs[j].setAttribute('aria-selected', tabs[j].getAttribute('data-pd-insptab') === a ? 'true' : 'false'); fillInsp(); renderCheck(); return; }
     if ((a = t.getAttribute('data-pd-acc'))) { S.open[a] = !S.open[a]; t.setAttribute('aria-expanded', S.open[a] ? 'true' : 'false'); var p = t.nextSibling; if (p) { if (S.open[a]) p.removeAttribute('hidden'); else p.setAttribute('hidden', ''); } return; }
@@ -2691,7 +3548,7 @@
     if ((a = t.getAttribute('data-pd-vis'))) { var f = C.findLayer(S.doc, a); if (f) { setLayer(a, 'visible', !f.layer.visible, f.layer.visible ? T('Hide') : T('Show')); say(f.layer.visible ? tf('%s shown.', f.layer.name) : tf('%s hidden: it is not printed.', f.layer.name)); } return; }
     if ((a = t.getAttribute('data-pd-lock'))) { var g = C.findLayer(S.doc, a); if (g) { setLayer(a, 'locked', !g.layer.locked, g.layer.locked ? T('Unlock') : T('Lock')); buildProps(); say(g.layer.locked ? tf('%s locked.', g.layer.name) : tf('%s unlocked.', g.layer.name)); } return; }
     if ((a = t.getAttribute('data-pd-goto'))) { setView(t.getAttribute('data-pd-goto-view')); select({ kind: 'layer', id: a }, true); S.el.canvas.focus({ preventScroll: true }); return; }
-    if ((a = t.getAttribute('data-pd-part'))) { commitOp({ op: 'set', target: { kind: 'part', id: a }, key: 'color', value: t.getAttribute('data-pd-colour') }, a === 'collar' ? T('Collar') : T('Cuffs')); return; }
+    if ((a = t.getAttribute('data-pd-part'))) { commitOp({ op: 'set', target: { kind: 'part', id: a }, key: 'color', value: t.getAttribute('data-pd-colour') }, partName(a)); return; }
     if ((a = t.getAttribute('data-pd-swatch-remove'))) { var sw = C.findSwatch(S.doc, a); if (commitOp({ op: 'paletteRemove', id: a }, T('Remove colour'))) say(tf('Removed %s.', sw.swatch.label)); return; }
     if ((a = t.getAttribute('data-pd-colour'))) { applyColour(t.getAttribute('data-pd-field'), a); return; }
     switch (t.getAttribute('data-pd-act')) {
@@ -2713,6 +3570,8 @@
       case 'patterns': { var first = S.el.strip.querySelector('button'); if (first) first.focus(); return; }
       case 'layers': if (S.inspTab !== 'design') { S.inspTab = 'design'; fillInsp(); } setPanel(window.matchMedia && window.matchMedia('(max-width: 980px)').matches ? 'inspector' : S.panel); var row1 = S.el.layers && S.el.layers.querySelector('button'); if (row1) row1.focus(); return;
       case 'elements': S.libTab = 'elements'; var lib2 = buildLib(); S.el.lib.parentNode.replaceChild(lib2, S.el.lib); S.el.lib = lib2; setPanel(window.matchMedia && window.matchMedia('(max-width: 1279px)').matches ? 'library' : S.panel); return;
+      // In a club, the image tool opens the club's logos (the Brand tab), where a logo is placed on the garment.
+      case 'image': if (!part('brandKit')) return; S.libTab = 'brand'; var lib4 = buildLib(); S.el.lib.parentNode.replaceChild(lib4, S.el.lib); S.el.lib = lib4; setPanel(window.matchMedia && window.matchMedia('(max-width: 1279px)').matches ? 'library' : S.panel); return;
       case 'strip-prev': S.el.strip.scrollBy({ left: (DIR === 'rtl' ? 1 : -1) * 140, behavior: 'smooth' }); return;
       case 'strip-next': S.el.strip.scrollBy({ left: (DIR === 'rtl' ? -1 : 1) * 140, behavior: 'smooth' }); return;
       case 'duplicate': duplicateSel(); return;
@@ -2723,6 +3582,13 @@
       case 'align-v': alignSel('v'); return;
       case 'reset-box': { var n = selectedLayer(); if (n && !n.locked) batch([['w', n.w0], ['h', n.h0], ['r', 0]].map(function (kv) { return { op: 'set', target: { kind: 'layer', id: n.id }, key: kv[0], value: kv[1] }; }), T('Reset')); return; }
       case 'add-colour': addColour(); return;
+      case 'colourways': S.cways.open = true; fillInsp(); var cw = S.el.inspBody.querySelector('[data-pd-act="apply-colourway"]') || S.el.inspBody.querySelector('#pd-cways-h'); if (cw && cw.focus) cw.focus({ preventScroll: false }); return;
+      case 'apply-colourway': applyColourway(Number(t.getAttribute('data-pd-i'))); return;
+      case 'brand-upload': if (!S.brand.busy) { var bf = S.host.querySelector('[data-pd-brand-file]'); if (bf) { bf.value = ''; bf.click(); } } return;
+      case 'brand-archive': brandArchive(t.getAttribute('data-pd-asset')); return;
+      case 'brand-place': brandPlace(t.getAttribute('data-pd-asset')); return;
+      case 'brand-add-colour': brandAddColour(Number(t.getAttribute('data-pd-brand-colour'))); return;
+      case 'brand-save-colours': brandSaveColours(); return;
       case 'save': serverSave(); return;
       case 'import': S.el.file.value = ''; S.el.file.click(); return;
       case 'export': exportFile(); return;
@@ -2760,6 +3626,12 @@
   /** A typed or dragged value: committed live, one undo step per field while the reader keeps editing it. */
   function onInput(ev) {
     var t = ev.target;
+    if (S.team && S.team.onInput(ev)) return;
+    if (S.mfg && S.mfg.onInput(ev)) return;
+    if (S.acct && S.acct.onInput(ev)) return;
+    if (S.shared && S.shared.onInput(ev)) return;
+    if (S.billing && S.billing.onInput(ev)) return;
+    if (S.review && S.review.onInput(ev)) return;
     if (t === S.el.docName) { if (t.value.trim()) commitOp({ op: 'set', target: { kind: 'doc' }, key: 'name', value: t.value.slice(0, LIMITS.name) }, T('Design name'), 'doc-name'); return; }
     var sid = t.getAttribute('data-pd-swatch');
     if (sid) { commitOp({ op: 'set', target: { kind: 'swatch', id: sid }, key: 'srgb', value: String(t.value).toLowerCase() }, T('Colour'), 'swatch-' + sid); refreshColourRow(t, sid); return; }
@@ -2779,6 +3651,13 @@
   }
   function onChange(ev) {
     var t = ev.target, field = t.getAttribute('data-pd-field');
+    if (S.team && S.team.onChange(ev)) return;
+    if (S.mfg && S.mfg.onChange(ev)) return;
+    if (S.acct && S.acct.onChange(ev)) return;
+    if (S.shared && S.shared.onChange(ev)) return;
+    if (S.billing && S.billing.onChange(ev)) return;
+    if (S.review && S.review.onInput(ev)) return;
+    if (t.hasAttribute('data-pd-brand-file')) { brandUpload(t.files && t.files[0]); return; }
     if (t.tagName === 'SELECT' && field) { var n = selectedLayer(); if (n) { setLayer(n.id, field, t.value, T(field === 'font' ? 'Font' : field === 'shape' ? 'Shape' : 'Pattern')); renderLayers(); } return; }
     if (field && (t.type === 'range' || t.type === 'number')) { fieldValue(t, field, false); S.merge = null; return; }
     if (t === S.el.docName || field === 'name' || field === 'text' || t.hasAttribute('data-pd-swatch') || t.hasAttribute('data-pd-swatch-label')) {
@@ -2860,47 +3739,152 @@
     var mine = S;
     file.text().then(function (text) {
       if (S !== mine) return;
-      try {
-        var doc = C.parseDocument(text, TEMPLATE);
-        S.doc = doc;
-        S.hist = C.createHistory();
-        S.sel = null;
-        S.merge = null;
-        setLink(null);
-        S.srv.state = 'local'; S.srv.conflict = null; S.srv.error = ''; S.srv.notice = ''; S.srv.origin = 'FILE_IMPORT'; S.srv.revs = null;
-        changed();
-        buildProps();
-        saveNow();
-        renderDock();
-        say(tf('Imported %s. The undo history starts again from here.', doc.name) + ' ' + T('Save design keeps it on the Familista server as a new design.'));
-      } catch (e) {
-        say(tf('Not imported: %s', problemText(e)));
-      }
+      var key = null;
+      try { var peek = JSON.parse(text); key = peek && peek.template && peek.template.key; } catch (_) { key = null; }
+      if (typeof key === 'string' && key !== TEMPLATE.key && entryFor(key)) { switchTemplate(key, function () { return importText(text); }); return; }
+      importText(text);
     }).catch(function () { if (S) say(tf('Not imported: %s', T('The file is not a design file.'))); });
+  }
+  /** Put an imported design file in the editor, on the current template. False when the file is refused. */
+  function importText(text) {
+    try {
+      var doc = C.parseDocument(text, TEMPLATE);
+      S.doc = doc;
+      S.hist = C.createHistory();
+      S.sel = null;
+      S.merge = null;
+      setLink(null);
+      S.srv.state = 'local'; S.srv.conflict = null; S.srv.error = ''; S.srv.notice = ''; S.srv.origin = 'FILE_IMPORT'; S.srv.revs = null;
+      changed();
+      buildProps();
+      saveNow();
+      renderDock();
+      say(tf('Imported %s. The undo history starts again from here.', doc.name) + ' ' + T('Save design keeps it on the Familista server as a new design.'));
+      return true;
+    } catch (e) {
+      say(tf('Not imported: %s', problemText(e)));
+      return false;
+    }
   }
 
   // ── entry points ──────────────────────────────────────────────────────────
 
-  function loadTemplate() {
-    if (TEMPLATE) return Promise.resolve(TEMPLATE);
-    if (!TEMPLATE_LOADING) {
-      TEMPLATE_LOADING = fetch(TEMPLATE_URL).then(function (r) { if (!r.ok) throw new Error('template'); return r.json(); })
-        .then(function (t) { TEMPLATE = C.validateTemplate(t); return TEMPLATE; })
-        .catch(function (e) { TEMPLATE_LOADING = null; throw e; });
+  /** The registry of released garments, fetched once. */
+  function loadIndex() {
+    if (INDEX) return Promise.resolve(INDEX);
+    if (!INDEX_LOADING) {
+      INDEX_LOADING = fetch(INDEX_URL).then(function (r) { if (!r.ok) throw new Error('index'); return r.json(); })
+        .then(function (x) {
+          if (!x || x.format !== 'familista.product-template-index' || !Array.isArray(x.templates)) throw new Error('index');
+          INDEX = x.templates.filter(function (e) { return e && typeof e.product === 'string' && typeof e.key === 'string' && /^[a-z0-9-]+\.json$/.test(e.file); });
+          if (!entryFor(JERSEY_KEY)) throw new Error('index');
+          return INDEX;
+        })
+        .catch(function (e) { INDEX_LOADING = null; throw e; });
     }
-    return TEMPLATE_LOADING;
+    return INDEX_LOADING;
+  }
+  function entryFor(key) { for (var i = 0; INDEX && i < INDEX.length; i++) if (INDEX[i].key === key) return INDEX[i]; return null; }
+  function entryForProduct(id) { for (var i = 0; INDEX && i < INDEX.length; i++) if (INDEX[i].product === id) return INDEX[i]; return null; }
+  /** A released garment's template, fetched and checked once; it must be the one the registry names. */
+  function templateFor(key) {
+    if (TEMPLATES[key]) return Promise.resolve(TEMPLATES[key]);
+    var e = entryFor(key);
+    if (!e) return Promise.reject(new Error('template'));
+    if (!TEMPLATE_LOADS[key]) {
+      TEMPLATE_LOADS[key] = fetch(TEMPLATE_DIR + e.file + '?v=' + VERSION).then(function (r) { if (!r.ok) throw new Error('template'); return r.json(); })
+        .then(function (t) { var v = C.validateTemplate(t); if (v.key !== key) throw new Error('template'); TEMPLATES[key] = v; return v; })
+        .catch(function (err) { TEMPLATE_LOADS[key] = null; throw err; });
+    }
+    return TEMPLATE_LOADS[key];
+  }
+  /** The garment the room opens on: the draft's, when this browser keeps one of a released garment; otherwise the match shirt. */
+  function draftTemplateKey() {
+    var raw = null;
+    try { raw = window.localStorage.getItem(STORE_KEY); } catch (_) { return JERSEY_KEY; }
+    try { var d = raw && JSON.parse(raw), k = d && d.template && d.template.key; if (typeof k === 'string' && entryFor(k)) return k; } catch (_) { /* not a draft this registry knows */ }
+    return JERSEY_KEY;
+  }
+  function loadTemplate() {
+    return loadIndex().then(function () { return templateFor(draftTemplateKey()); }).then(function (t) { TEMPLATE = t; return t; });
+  }
+  /** Start a new design on another released garment, behind the same unsaved-change guard as a new design. */
+  function selectProduct(id) {
+    var e = entryForProduct(id);
+    if (!e || !TEMPLATE || e.key === TEMPLATE.key) return;
+    if (isUnsaved()) openDock('projects');
+    replacing('product', id, function () { switchTemplate(e.key, startNew); });
+  }
+  /**
+   * Put the editor on another garment and run `then`, which puts a document of that garment in place and returns false
+   * when it could not (the editor then stays on the garment it was on). The 3D view is built for one garment, so it is
+   * closed and opened again; the panels that read the template are rebuilt, and nothing else moves.
+   */
+  function switchTemplate(key, then) {
+    var mine = S;
+    return templateFor(key).then(function (t) {
+      if (S !== mine) return;
+      var was3d = S.mode === '3d', prev = TEMPLATE, prevView = S.view;
+      if (was3d) close3d();
+      TEMPLATE = t;
+      S.view = homeView();
+      if (then() === false) { TEMPLATE = prev; S.view = prevView; }
+      rebuildTemplatePanels();
+      if (was3d) open3d();
+    }, function () { if (S === mine) say(T('The product template could not be loaded. Check the connection and open the Design Studio again.')); });
+  }
+  /** The garment's views, then the 360° turn: one button each. */
+  function buildViews() {
+    var views = h('nav', { class: 'pd-views', 'data-ds-region': 'R8', 'aria-label': T('Views') });
+    TEMPLATE.views.forEach(function (v) {
+      views.appendChild(btn({ class: 'pd-view', 'data-pd-view': v.id, 'aria-pressed': v.id === S.view ? 'true' : 'false' }, [
+        h('span', { class: 'pd-view-thumb', 'data-pd-thumb': v.id }), h('span', { class: 'pd-view-label', text: T(v.label) }),
+      ]));
+    });
+    views.appendChild(live3d(btn({ class: 'pd-view pd-view--360', 'data-pd-act': 'turntable', 'aria-pressed': 'false', title: T('Turn the garment all the way round') }, [h('span', { class: 'pd-view-thumb' }, [icon('rotate', 26)]), h('span', { class: 'pd-view-label', text: '360°' })]), '360'));
+    return views;
+  }
+  /** The view the garment opens on: its first. */
+  function homeView() { return TEMPLATE.views[0].id; }
+  function rebuildTemplatePanels() {
+    var E = S.el, hadFocus = E.lib && E.lib.contains(document.activeElement);
+    var lib = buildLib(); E.lib.parentNode.replaceChild(lib, E.lib); E.lib = lib;
+    var views = buildViews(); E.views.parentNode.replaceChild(views, E.views); E.views = views;
+    var prod = buildProduct(); E.prod.parentNode.replaceChild(prod, E.prod); E.prod = prod;
+    renderCanvas();
+    renderCheck();
+    syncViews();
+    renderThumbs();
+    if (hadFocus) { var cur = lib.querySelector('.pd-card.is-current'); if (cur) cur.focus({ preventScroll: true }); }
   }
 
-  window.renderFamilistaProductDesign = function (host) {
+  window.renderFamilistaProductDesign = function (host, opts) {
     if (!host) return;
     if (S) window.teardownFamilistaProductDesign();
+    GATE_SEQ++; GATE = null;
+    var ws = workspaceOf(opts);
+    // P3: a creator's workspace opens only once the server says who is signed in; before that, the gate.
+    if (ws && ws.kind === 'PERSONAL') { WS = ws; openPersonal(host, opts || {}); return; }
+    var client = ws && SERVER.forWorkspace(ws);
+    if (!ws || !client) { unopenable(host); return; }
+    WS = ws; P = client;
+    mountRoom(host, null);
+  };
+  function unopenable(host) {
+    clear(host);
+    host.appendChild(h('div', { class: 'pd-shell pd-shell--loading' }, [h('p', { class: 'pd-loading', role: 'alert', text: T('The Design Studio could not open this workspace.') })]));
+  }
+  function mountRoom(host, verification) {
+    STORE_KEY = WS.kind === 'CLUB' ? STORE_BASE + '_club_' + WS.clubId : WS.kind === 'PERSONAL' ? STORE_BASE + '_creator_' + WS.creatorId : STORE_BASE;
+    STORE_UNREADABLE = STORE_KEY + '_unreadable';
     S = fresh(host);
     var mine = S;
     host.setAttribute('aria-busy', 'true');
     clear(host);
     host.appendChild(h('div', { class: 'pd-shell pd-shell--loading' }, [h('div', { class: 'pd-loading', role: 'status', text: 'Familista Design Studio' })]));
-    Promise.all([setLocale(initialLocale()), loadTemplate()]).then(function () {
+    Promise.all([setLocale(initialLocale()), loadTemplate(), loadEntitlements()]).then(function () {
       if (S !== mine) return;
+      S.view = homeView();
       var stored = loadStored();
       S.doc = stored.doc;
       S.saveState = stored.note === 'unavailable' ? 'unavailable' : 'saved';
@@ -2911,7 +3895,10 @@
       build();
       checkLink();
       host.removeAttribute('aria-busy');
-      if (stored.note === 'restored') say(tf('Opened %s, saved in this browser.', S.doc.name));
+      // P3: a new creator's address: whether its confirmation link could be sent, said once, on arrival.
+      if (verification && verification.sent === false) say(verification.configured ? T('Your account is open. The confirmation email could not be sent: Account sends it again.') : T('Your account is open. This platform cannot send email yet, so your address is not confirmed.'));
+      else if (verification) say(T('Your account is open. A link to confirm your address is on its way.'));
+      else if (stored.note === 'restored') say(tf('Opened %s, saved in this browser.', S.doc.name));
       else if (stored.note === 'unreadable') say(T('The draft saved in this browser could not be read, so a new design was started. The unreadable copy was kept aside.'));
       else if (stored.note === 'unavailable') say(T('Not saved: this browser’s storage is unavailable'));
       else say(T('A new design was started. Save design keeps it on the Familista server.'));
@@ -2921,11 +3908,76 @@
       clear(host);
       host.appendChild(h('div', { class: 'pd-shell pd-shell--loading' }, [h('p', { class: 'pd-loading', role: 'alert', text: T('The product template could not be loaded. Check the connection and open the Design Studio again.') })]));
     });
-  };
+  }
+
+  // ── P3: the Creator Studio's way in ───────────────────────────────────────
+
+  var GATE = null, GATE_SEQ = 0;
+  /** Who is signed in, if anyone; the studio when someone is, the gate when nobody is (or a link from an email is open). */
+  function openPersonal(host, opts) {
+    var seq = ++GATE_SEQ, links = { verify: opts.links && opts.links.verify || null, reset: opts.links && opts.links.reset || null };
+    clear(host);
+    host.setAttribute('aria-busy', 'true');
+    host.appendChild(h('div', { class: 'pd-shell pd-shell--loading' }, [h('div', { class: 'pd-loading', role: 'status', text: 'Familista Creator Studio' })]));
+    setLocale(initialLocale()).then(function () {
+      if (seq !== GATE_SEQ) return null;
+      if (links.verify || links.reset) return { ok: false };
+      return SERVER.creatorMe();
+    }).then(function (r) {
+      if (seq !== GATE_SEQ || !r) return;
+      host.removeAttribute('aria-busy');
+      if (r.ok && r.data && identify(r.data.creator)) enterStudio(host, null);
+      else showGate(host, links, opts.deleted === true);
+    });
+  }
+  /** The gate's language switch: the room's own buttons; the gate hands a press back to onLang. */
+  function gateLangs() {
+    var langs = h('div', { class: 'pd-langs', role: 'group', 'aria-label': T('Language') });
+    LOCALES.forEach(function (l) {
+      langs.appendChild(btn({ class: 'pd-lang', 'data-pd-lang': l[0], lang: l[0], 'aria-pressed': l[0] === LANG ? 'true' : 'false', title: l[1], text: l[0].toUpperCase(), 'data-pd-gate-key': 'lang-' + l[0] }));
+    });
+    return langs;
+  }
+  function showGate(host, links, deleted) {
+    var mod = window.FamilistaProductDesignCreator;
+    if (!mod) { unopenable(host); return; }
+    clear(host);
+    host.setAttribute('lang', LANG);
+    host.setAttribute('dir', DIR);
+    GATE = mod.gate({
+      h: h, btn: btn, icon: icon, T: T, tf: tf, dirArrow: dirArrow, auth: SERVER.creator(), links: links, deleted: deleted, brand: brandMark, money: money,
+      langs: gateLangs,
+      onLang: function (code) { chooseSetLocale(code).then(function () { if (!GATE) return; host.setAttribute('lang', LANG); host.setAttribute('dir', DIR); GATE.repaint(); }); },
+      locale: function () { return localeOf(LANG)[3] || 'en-GB'; },
+      onSignedIn: function (c, verification) { if (identify(c)) { GATE = null; enterStudio(host, verification || null); } },
+    });
+    host.appendChild(GATE.el);
+    GATE.start();
+  }
+  function enterStudio(host, verification) {
+    P = SERVER.forWorkspace(WS);
+    if (!P) { unopenable(host); return; }
+    mountRoom(host, verification);
+  }
+  /** Sign out (or the account was just deleted): the studio closes, this browser forgets the account's draft, the gate opens. */
+  function creatorSignOut(deleted) {
+    var host = S.host, link = P;
+    SERVER.creator().logout().then(function () {
+      if (deleted) {
+        try { window.localStorage.removeItem(STORE_KEY); window.localStorage.removeItem(STORE_UNREADABLE); } catch (_) { /* storage unavailable: nothing kept */ }
+        if (link && link.clearLink) link.clearLink();
+      }
+      if (S) { clearTimeout(S.saveTimer); S.saveTimer = 0; }
+      window.teardownFamilistaProductDesign();
+      WS = workspaceOf({ workspace: { kind: 'PERSONAL' } });
+      showGate(host, {}, deleted);
+    });
+  }
 
   window.teardownFamilistaProductDesign = function () {
-    if (!S) return;
+    if (!S) { if (GATE) { var gh = GATE.el.parentNode; GATE_SEQ++; GATE = null; if (gh) clear(gh); } return; }
     if (S.doc && S.saveTimer) saveNow(false);
+    Object.keys(S.brand.urls).forEach(function (k) { try { URL.revokeObjectURL(S.brand.urls[k]); } catch (_) { /* already released */ } });
     close3d();
     unbind();
     clearTimeout(S.saveTimer);
@@ -2936,6 +3988,9 @@
   };
 
   /** Read-only figures for the browser proof: counts, timings and editor state. It changes nothing. */
+  /** P3: the Creator Studio's gate, for the browser proof: its view and state. It changes nothing. */
+  window.__familistaCreatorGateMetrics = function () { return GATE ? GATE.metrics() : null; };
+
   window.__familistaProductDesignMetrics = function () {
     if (!S || !S.doc) return null;
     var ms = S.metrics.renderMs.slice().sort(function (a, b) { return a - b; });
@@ -2944,7 +3999,8 @@
       mounts: S.metrics.mounts, commits: S.metrics.commits, renders: S.metrics.renders, layerPaints: S.metrics.layerPaints,
       renderMsMedian: ms.length ? ms[Math.floor(ms.length / 2)] : null, renderMsMax: ms.length ? ms[ms.length - 1] : null,
       edits: S.metrics.editMs.length, editMsMedian: ed.length ? ed[Math.floor(ed.length / 2)] : null, editMsP95: ed.length ? ed[Math.floor(ed.length * 0.95)] : null,
-      view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
+      template: TEMPLATE ? TEMPLATE.key : null, products: INDEX ? INDEX.map(function (e) { return e.product; }) : [],
+      workspace: WS.kind, acct: S.acct ? S.acct.metrics() : null, shared: S.shared ? S.shared.metrics() : null, team: S.team ? S.team.metrics() : null, mfg: S.mfg ? S.mfg.metrics() : null, review: S.review ? S.review.metrics() : null, present: S.present ? S.present.metrics() : null, plan: S.plan ? S.plan.metrics() : null, billing: S.billing ? S.billing.metrics() : null, start: S.start ? S.start.metrics() : null, production: S.pp ? S.pp.metrics() : null, parts: WS.parts || null, preview: S.preview, brand: { state: S.brand.state, assets: S.brand.kit ? S.brand.kit.assets.length : null, colours: S.brand.kit ? S.brand.kit.colours.length : null, busy: S.brand.busy }, view: S.view, mode: S.mode, selected: S.sel, undo: S.hist.past.length, redo: S.hist.future.length,
       layers: S.doc.surfaces.map(function (x) { return x.layers.length; }), findings: S.findings.length,
       saveState: S.saveState, lastSaveBytes: S.metrics.lastSaveBytes, announced: S.announced, lang: LANG, dir: DIR,
       server: { state: S.srv.state, busy: S.srv.busy, linked: !!S.srv.link, projectId: S.srv.link ? S.srv.link.projectId : null, revision: S.srv.link ? S.srv.link.revision : null,

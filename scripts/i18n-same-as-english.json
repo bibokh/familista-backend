@@ -487,7 +487,18 @@
       "Version %d",
       "Version %d · %s",
       "Mesh",
-      "Studio"
+      "Studio",
+      "Logo",
+      "Logos",
+      "Name",
+      "Team",
+      "Training",
+      "Familista",
+      "Sublimation",
+      "Designs",
+      "Website",
+      "Familista Design Studio",
+      "Creator"
     ],
     "product-design/fr": [
       "Chevron",
@@ -507,7 +518,20 @@
       "Versions",
       "Version %d",
       "Version %d · %s",
-      "Studio"
+      "Studio",
+      "Logo",
+      "Logos",
+      "Actions",
+      "Collection",
+      "Collections",
+      "Familista",
+      "version %d",
+      "Prospect",
+      "Sublimation",
+      "Designs",
+      "Familista Design Studio",
+      "Invitations",
+      "Production"
     ],
     "product-design/es": [
       "Club",
@@ -517,13 +541,19 @@
       "Design Studio Control",
       "Inspector",
       "Material",
-      "Owner Control"
+      "Owner Control",
+      "Familista",
+      "ref. %s",
+      "Familista Design Studio",
+      "Plan"
     ],
     "product-design/ar": [
       "Club Design Studio",
       "Creator Studio",
       "Design Studio",
-      "Design Studio Control"
+      "Design Studio Control",
+      "Familista",
+      "Familista Design Studio"
     ]
   },
   "catalogue": {

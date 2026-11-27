@@ -33,7 +33,7 @@ function load(opts: { token?: string; storage?: Row | null; fetch?: (url: string
     localStorage: storage,
     fetch: (url: string, init: Row) => {
       calls.push({ url, init });
-      return opts.fetch ? opts.fetch(url, init) : Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: true, data: { ok: 1 } }) });
+      return opts.fetch ? opts.fetch(url, init) : Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: true, data: { ok: 1 } }), blob: () => Promise.resolve('') });
     },
   };
   if (opts.token) win.State = { token: opts.token };
@@ -48,11 +48,19 @@ function load(opts: { token?: string; storage?: Row | null; fetch?: (url: string
 describe('what it may call', () => {
   it('has one fetch, to the API base plus the design routes, and no other transport', () => {
     expect((CODE.match(/fetch\(/g) || []).length).toBe(1);
-    expect(CODE).toContain("root.fetch(apiBase() + BASE + path, init)");
+    expect(CODE).toContain("root.fetch(apiBase() + base + path, init)");
     expect(CODE).toContain("var BASE = '/system/product-design';");
+    expect(CODE).toContain("var CLUB_BASE = '/club-design';");
     expect(CODE).not.toMatch(/XMLHttpRequest|WebSocket|EventSource|sendBeacon|\.submit\(|<form|document\.|innerHTML|eval\(/);
     const verbs = [...CODE.matchAll(/call\('([A-Z]+)'/g)].map((m) => m[1]);
-    expect([...new Set(verbs)].sort()).toEqual(['GET', 'POST']);
+    // PUT is a club's brand colours (M2c), a roster's save (M3a) and a collection's (M3b); DELETE erases a roster or a
+    // collection, and nothing else.
+    expect([...new Set(verbs)].sort()).toEqual(['DELETE', 'GET', 'PATCH', 'POST', 'PUT']);
+    // P3: PATCH is a creator's own profile, and nothing else.
+    expect([...CODE.matchAll(/call\('PATCH', '([^']+)'/g)].map((m) => m[1])).toEqual(['/me']);
+    // M4: the Platform Owner's console saves a supplier (PUT) and discards a draft quotation (DELETE); P5: and saves a plan.
+    expect([...CODE.matchAll(/call\('PUT', '([^']+)'/g)].map((m) => m[1])).toEqual(['/privacy/retention', '/plans/', '/rollout/', '/brand-kit/colours', '/rosters/', '/collections/', '/suppliers/']);
+    expect([...CODE.matchAll(/call\('DELETE', '([^']+)'/g)].map((m) => m[1])).toEqual(['/rosters/', '/collections/', '/requests/']);
   });
 
   it('sends JSON with the session as every owner room does, never cached', async () => {
@@ -70,13 +78,27 @@ describe('what it may call', () => {
   });
 
   it('every path it calls is a route the server has, with the verb the server has', async () => {
-    const served = [...ROUTES.matchAll(/router\.(get|post)\('([^']+)'/g)].map((m) => `${m[1].toUpperCase()} ${m[2]}`).sort();
+    const served = [...ROUTES.matchAll(/router\.(get|post|put)\('([^']+)'/g)].map((m) => `${m[1].toUpperCase()} ${m[2]}`).sort();
     const { P, calls } = load();
     const id = '11111111-1111-4111-8111-111111111111';
     await P.api.listProjects('active'); await P.api.createProject({}, 'EDITOR'); await P.api.openProject(id);
     await P.api.saveRevision(id, 1, {}); await P.api.listRevisions(id); await P.api.restoreRevision(id, 2, 5);
+    // M8a: the Owner's rollout control, on the platform's client alone; a club id that is not one is never sent.
+    await P.api.rollout(); await P.api.setRollout('club-1', { studio: 'on' });
+    // P1: the retention rules, none set by default.
+    await P.api.retention(); await P.api.setRetention('DesignReviewComment', 30); await P.api.applyRetention(true);
+    // P2: the Creator Studio's accounts and the invitations that are the only way in.
+    await P.api.creators(); await P.api.creatorInvites(); await P.api.createCreatorInvite({ email: 'a@example.com' }); await P.api.revokeCreatorInvite(id);
+    await P.api.verifyCreatorEmail(id, 'met in person'); await P.api.suspendCreator(id, 'abuse report'); await P.api.reinstateCreator(id, 'resolved');
+    // P5/P6: the plans and every tenant's billing, configured and overseen by the Owner alone.
+    await P.api.plans(); await P.api.createPlan({ key: 'free' }); await P.api.savePlan(id, { name: 'Free' }); await P.api.billing();
+    await P.api.grantPlan({ tenantKind: 'club', tenantId: 'club-x', planKey: 'pro', months: 3, note: 'pilot' }); await P.api.endSubscription(id, 'over');
+    await P.api.voidInvoice(id); await P.api.expireSubscriptions(true); await P.api.readiness();
+    expect(P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }).api.billing).toBeUndefined();
+    expect((await P.api.setRollout('../x', { studio: 'on' })).code).toBe('BAD_CLUB');
+    expect(P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }).api.rollout).toBeUndefined();
     await P.api.archive(id); await P.api.unarchive(id); await P.api.getRevision(id, 3);
-    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/product-design', '').replace(/\?.*$/, '').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/product-design', '').replace(/\?.*$/, '').replace('/rollout/club-1', '/rollout/:clubId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number').replace(/\/invites\/:id\//, '/invites/:inviteId/').replace(/\/creators\/:id\//, '/creators/:creatorId/').replace(/\/plans\/:id$/, '/plans/:planId').replace('/subscriptions/:id/', '/subscriptions/:subscriptionId/').replace('/invoices/:id/', '/invoices/:invoiceId/')}`).sort();
     // DS-1c: the room now calls every route, the single-version read included (the 3D comparison, read only).
     expect([...new Set(used)].sort()).toEqual(served);
     expect(calls[calls.length - 1].init).toMatchObject({ method: 'GET' });
@@ -88,7 +110,114 @@ describe('what it may call', () => {
     await P.api.createProject({}, 'BROWSER_DRAFT');
     await P.api.createProject({}, 'SOMETHING_ELSE');
     expect(calls.map((c) => JSON.parse(c.init.body).origin)).toEqual(['BROWSER_DRAFT', 'EDITOR']);
-    expect(ROUTES).toContain("origin: z.enum(['EDITOR', 'FILE_IMPORT', 'BROWSER_DRAFT'])");
+    // The schema is the handlers' own, shared by the platform's mount and a club's (src/platform/product-design/http.ts).
+    expect(fs.readFileSync(path.join(ROOT, 'src/platform/product-design/http.ts'), 'utf8')).toContain("origin: z.enum(['EDITOR', 'FILE_IMPORT', 'BROWSER_DRAFT'])");
+  });
+});
+
+describe('in a club (M2): the club’s own routes, and a record of its own', () => {
+  const CLUB_ROUTES = fs.readFileSync(path.join(ROOT, 'src/routes/club-design.routes.ts'), 'utf8');
+  const id = '11111111-1111-4111-8111-111111111111';
+
+  it('calls the club mount, every path a route it serves with its verb, and names no club in any request', async () => {
+    const served = [...CLUB_ROUTES.matchAll(/router\.(get|post|put|delete)\('([^']+)'/g)].map((m) => `${m[1].toUpperCase()} ${m[2]}`).sort();
+    const { P, calls } = load({ token: 'tkn' });
+    const C = P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' });
+    await C.api.listProjects('active'); await C.api.createProject({}, 'EDITOR'); await C.api.openProject(id);
+    await C.api.saveRevision(id, 1, {}); await C.api.listRevisions(id); await C.api.restoreRevision(id, 2, 5);
+    await C.api.archive(id); await C.api.unarchive(id); await C.api.getRevision(id, 3);
+    // M2c: the brand kit, every route of it.
+    await C.api.brandKit('active'); await C.api.saveBrandColours([]); await C.api.uploadBrandAsset('CREST', 'Home crest', { type: 'image/png' });
+    await C.api.brandAssetImage(id); await C.api.archiveBrandAsset(id); await C.api.unarchiveBrandAsset(id);
+    // M3: the team rosters and the squad's names, every route of them.
+    await C.api.listRosters('active'); await C.api.createRoster('First team', []); await C.api.openRoster(id);
+    await C.api.saveRoster(id, 3, 'First team', []); await C.api.archiveRoster(id); await C.api.unarchiveRoster(id);
+    await C.api.deleteRoster(id); await C.api.squadNames();
+    // P1: a club administrator erases a person's name (previewed unless confirmed).
+    await C.api.erasePerson('A Name', false);
+    // M3b: the collections and their order sheet, every route of them.
+    const kit = { name: 'Home kit', season: null, rosterId: null, items: [] };
+    await C.api.listCollections('active'); await C.api.createCollection(kit); await C.api.openCollection(id);
+    await C.api.saveCollection(id, 2, kit); await C.api.archiveCollection(id); await C.api.unarchiveCollection(id);
+    await C.api.deleteCollection(id); await C.api.orderSheet(id, id);
+    // M4: the club's requests for quotation, every route of them.
+    await C.api.submitRequest(id, { rosterId: null }); await C.api.listRequests(); await C.api.openRequest(id);
+    await C.api.cancelRequest(id); await C.api.declineQuotes(id); await C.api.confirmDelivery(id); await C.api.acceptQuote(id, id);
+    // M7b: a design's review, every route of it (the comment id is another id, so its place in the path is checked).
+    const cid = '22222222-2222-4222-8222-222222222222';
+    await C.api.readReview(id); await C.api.commentOnDesign(id, { revision: 1, surface: 'back', body: 'Taller' });
+    await C.api.resolveComment(id, cid); await C.api.reopenComment(id, cid); await C.api.decideOnDesign(id, { revision: 1, decision: 'APPROVED', note: null });
+    // P5/P6: the club's plan, its invoices, and the professional tools a club plan opens.
+    await C.api.plan(); await C.api.requestPlan('club-pro'); await C.api.cancelPlan(); await C.api.checkout(cid);
+    await C.api.techPack(id, 'json'); await C.api.techPack(id, 'csv'); await C.api.proExport(id); await C.api.gettingStarted();
+    expect(calls.find((c) => c.url.endsWith('format=csv'))?.init.headers.Accept).toBe('text/csv');
+    expect(calls.every((c) => c.url.startsWith('/api/v1/club-design/'))).toBe(true);
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/club-design', '').replace(/\?.*$/, '').replace(`/assets/${id}`, '/assets/:assetId').replace(`/rosters/${id}`, '/rosters/:rosterId').replace(`/collections/${id}`, '/collections/:collectionId').replace(`/requests/${id}/quotes/${id}`, '/requests/:requestId/quotes/:quoteId').replace(`/requests/${id}`, '/requests/:requestId').replace(`/comments/${cid}`, '/comments/:commentId').replace(`/invoices/${cid}`, '/invoices/:invoiceId').replace(id, ':id').replace(/\/revisions\/2\//, '/revisions/:number/').replace(/\/revisions\/3$/, '/revisions/:number')}`).sort();
+    expect([...new Set(used)].sort()).toEqual(served);
+    expect(calls.some((c) => c.url.includes('club-1') || String(c.init.body || '').includes('club-1'))).toBe(false);
+    expect(calls[0].init.headers).toMatchObject({ Authorization: 'Bearer tkn' });
+  });
+
+  it('the Platform Owner’s manufacturing console (M4) calls its own mount only, every path a route it serves with its verb', async () => {
+    const MFG_ROUTES = fs.readFileSync(path.join(ROOT, 'src/routes/manufacturing.routes.ts'), 'utf8');
+    const served = [...MFG_ROUTES.matchAll(/router\.(get|post|put|delete)\('([^']+)'/g)].map((m) => `${m[1].toUpperCase()} ${m[2]}`).sort();
+    const { P, calls } = load({ token: 'tkn' });
+    const M = P.manufacturing();
+    expect(P.manufacturing()).toBe(M); // made once
+    await M.listSuppliers(); await M.createSupplier({ name: 'X' }); await M.openSupplier(id); await M.saveSupplier(id, { version: 1 }); await M.setSupplierStatus(id, 'VERIFIED', 'checked it');
+    await M.listRequests(); await M.listRequests('QUOTED'); await M.openRequest(id);
+    for (const step of ['review', 'refuse', 'order', 'produce', 'ship', 'deliver']) await M.step(id, step, 'note');
+    expect(await M.step(id, 'pay', 'note')).toMatchObject({ ok: false, code: 'BAD_STEP' }); // a step the server has no route for is never sent
+    await M.recordQuote(id, {}); await M.publishQuote(id, id); await M.withdrawQuote(id, id, 'why'); await M.discardDraft(id, id); await M.specDesign(id, id); await M.requestFit(id);
+    await M.productionSheet(id); await M.eraseNames(id, 'closed');
+    // P7: a design's tech pack, as the request froze it, for the order's supplier
+    await M.techPack(id, id, 'csv'); await M.techPack(id, id, 'json');
+    expect(calls.every((c) => c.url.startsWith('/api/v1/system/manufacturing/'))).toBe(true);
+    const used = calls.map((c) => `${c.init.method} ${c.url.replace('/api/v1/system/manufacturing', '').replace(/\?.*$/, '')
+      .replace(`/quotes/${id}`, '/quotes/:quoteId').replace(`/designs/${id}`, '/designs/:projectId').replace(`/requests/${id}`, '/requests/:requestId').replace(`/suppliers/${id}`, '/suppliers/:supplierId')}`);
+    expect([...new Set(used)].sort()).toEqual(served);
+    // and the club's and the platform's design clients have none of it
+    expect(P.api.listSuppliers).toBeUndefined();
+    expect(P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }).api.recordQuote).toBeUndefined();
+  });
+
+  it('keeps each workspace’s record apart: the platform’s, this club’s and another club’s never overwrite each other', () => {
+    const { P } = load();
+    const A = P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' }), B = P.forWorkspace({ kind: 'CLUB', clubId: 'club-2' });
+    expect(new Set([P.LINK_KEY, A.LINK_KEY, B.LINK_KEY]).size).toBe(3);
+    expect(P.forWorkspace({ kind: 'PLATFORM' })).toBe(P.forWorkspace(null));
+    A.writeLink({ projectId: id, revision: 2, fp: '0123abcd' });
+    expect(A.readLink()).toEqual({ projectId: id, revision: 2, fp: '0123abcd' });
+    expect(B.readLink()).toBeNull();
+    expect(P.readLink()).toBeNull();
+    B.clearLink();
+    expect(A.readLink()).not.toBeNull();
+  });
+
+  it('sends a logo as its own bytes with its image type, reads an image as bytes, and offers the brand kit to clubs alone', async () => {
+    const { P, calls } = load({ token: 'tkn', fetch: (url: string) => Promise.resolve(url.endsWith('/image')
+      ? { ok: true, status: 200, blob: () => Promise.resolve('PNG-BYTES'), json: () => Promise.reject(new Error('not json')) }
+      : { ok: true, status: 201, json: () => Promise.resolve({ success: true, data: { asset: { id } } }) }) });
+    const C = P.forWorkspace({ kind: 'CLUB', clubId: 'club-1' });
+    const file = { type: 'image/jpeg', name: 'crest.jpg' };
+    await C.api.uploadBrandAsset('CREST', 'Home & Away / crest', file);
+    expect(calls[0].url).toBe('/api/v1/club-design/brand-kit/assets?kind=CREST&name=Home%20%26%20Away%20%2F%20crest');
+    expect(calls[0].init.body).toBe(file);
+    expect(calls[0].init.headers['Content-Type']).toBe('image/jpeg');
+    await C.api.uploadBrandAsset('CREST', 'x', { type: 'image/svg+xml' });
+    expect(calls[1].init.headers['Content-Type']).toBe('application/octet-stream'); // never an SVG type, whatever the file says
+    const img = await C.api.brandAssetImage(id);
+    expect(img).toMatchObject({ ok: true, blob: 'PNG-BYTES' });
+    expect(calls[2].init.headers.Accept).toBe('image/png');
+    expect(P.api.brandKit).toBeUndefined();
+    expect(P.api.uploadBrandAsset).toBeUndefined();
+  });
+
+  it('refuses a workspace it does not know, rather than guess one', () => {
+    const { P } = load();
+    for (const w of [{ kind: 'CLUB' }, { kind: 'CLUB', clubId: '' }, { kind: 'CLUB', clubId: '../system' }, { kind: 'CLUB', clubId: 'a b' }, { kind: 'PERSONAL', userId: 'u' }]) {
+      expect([w, P.forWorkspace(w)]).toEqual([w, null]);
+    }
   });
 });
 
@@ -96,7 +225,7 @@ describe('it never throws: a failure is an answer', () => {
   it('a conflict carries its code and the head it lost to', async () => {
     const { P } = load({ fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({ success: false, code: 'DESIGN_REVISION_CONFLICT', message: 'm', data: { headRevision: 7 } }) }) });
     const r = await P.api.saveRevision('11111111-1111-4111-8111-111111111111', 6, {});
-    expect(r).toEqual({ ok: false, status: 409, code: 'DESIGN_REVISION_CONFLICT', data: { headRevision: 7 }, message: 'm', errors: [] });
+    expect(r).toEqual({ ok: false, status: 409, code: 'DESIGN_REVISION_CONFLICT', data: { headRevision: 7 }, message: 'm', errors: [], reason: null });
   });
   it('an unreachable server answers status 0 and NETWORK', async () => {
     const { P } = load({ fetch: () => Promise.reject(new TypeError('Failed to fetch')) });

@@ -113,8 +113,10 @@ function callers(files, re, exceptPrefix) {
 //
 // `src/routes/index.ts` is the one place routers are mounted. A handler is
 // authenticated when its mount carries `authenticate`, when it is declared
-// after its router's `router.use(authenticate)`, or when `authenticate` is in
-// its own middleware list. Anything else is reachable without a session.
+// after its router's `router.use(authenticate)` (or, for the Creator Studio's
+// own routes, `router.use(authenticateCreator)`: a creator session, P2), or when
+// `authenticate` is in its own middleware list. Anything else is reachable
+// without a session.
 
 const INDEX = cite('src/routes/index.ts');
 const indexSrc = read(INDEX) || '';
@@ -139,7 +141,7 @@ for (const m of indexSrc.matchAll(/router\.use\(\s*'([^']+)'\s*,([^;]+?)\);/g)) 
   // Comments are blanked (same length, so offsets hold) before looking for the
   // gate: a comment that merely mentions router.use(authenticate) is not one.
   const code = src.replace(/\/\/[^\n]*/g, (c) => ' '.repeat(c.length));
-  const gate = code.search(/router\.use\(\s*authenticate\b/);
+  const gate = code.search(/router\.use\(\s*authenticate(?:Creator)?\b/);
   let handlers = 0;
   let open = 0;
   for (const r of src.matchAll(ROUTE_RE)) {
@@ -261,6 +263,8 @@ const tenancy = {
 //   roles:<…>       authorize(…) on the route or router-wide before it
 //   scoped:<…>      a require*/ensure* guard on the route (team access, club access…)
 //   member          any signed-in member of the caller's club, and nothing else
+//   creator         a signed-in creator (authenticateCreator, P2), on their own
+//                   account and records only — reviewed by name like member
 //
 // `member` is a legitimate answer — most reads are exactly that — but it is a
 // reviewed one: the set of member-level handlers is pinned in posture-policy
@@ -337,6 +341,7 @@ for (const m of indexSrc.matchAll(/router\.use\(\s*'([^']+)'\s*,([^;]+?)\);/g)) 
     .filter((g) => g[0].includes('requirePlatformAuthority') || OWNER_RE.test(code.slice(g.index, code.indexOf('\n});', g.index))))
     .map((g) => g.index);
   const roleGates = [...code.matchAll(/router\.use\(\s*authorize\(([^)]*)\)/g)].map((g) => ({ at: g.index, roles: g[1] }));
+  const creatorGate = code.search(/router\.use\(\s*authenticateCreator\b/);
   // Route files name guard bundles once (`const tradeGuard = [requireMembership(…), …]`)
   // and use the name on each route: read the name as what it stands for.
   const guardConsts = [...code.matchAll(/^const\s+(\w+)\s*=\s*(\[[^\]]*\]|authorize\([^)]*\)|(?:require|ensure)\w+\([^;]*\));/gm)];
@@ -352,6 +357,7 @@ for (const m of indexSrc.matchAll(/router\.use\(\s*'([^']+)'\s*,([^;]+?)\);/g)) 
     const handlerExpr = (ownRaw.replace(/\s+$/, '').match(/([\w.]+)\s*$/) || [])[1] || '';
     let kind;
     if (publicRouteSet.has(route)) kind = 'public';
+    else if (creatorGate >= 0 && r.index > creatorGate) kind = 'creator';
     else if (/requirePlatformAuthority/.test(own) || OWNER_RE.test(own) || ownerGates.some((at) => at < r.index)
       || ownerViaCallPath(file, raw, handlerExpr)) kind = 'platform-owner';
     else if (roles) kind = `roles:${roles.replace(/['"\s]/g, '').replace(/UserRole\./g, '')}`;
@@ -365,7 +371,7 @@ for (const m of indexSrc.matchAll(/router\.use\(\s*'([^']+)'\s*,([^;]+?)\);/g)) 
 }
 const memberPolicy = posturePolicyForScan.authorizationMemberHandlers || {};
 const memberReviewed = new Set(Object.values(memberPolicy).flat());
-const memberActual = Object.entries(authzHandlers).filter(([, k]) => k === 'member').map(([r]) => r);
+const memberActual = Object.entries(authzHandlers).filter(([, k]) => k === 'member' || k === 'creator').map(([r]) => r);
 const ownerRoomsPolicy = posturePolicyForScan.ownerRooms || {};
 const ownerRoomViolations = [];
 for (const [mod, room] of Object.entries(ownerRoomsPolicy)) {
@@ -394,7 +400,7 @@ const authorization = {
   handlers: Object.keys(authzHandlers).length,
   byKind: Object.entries(authzHandlers).reduce((a, [, k]) => { const kk = k.split(':')[0]; a[kk] = (a[kk] || 0) + 1; return a; }, {}),
   memberUnreviewed: memberActual.filter((r) => !memberReviewed.has(r)).sort(),
-  memberStale: [...memberReviewed].filter((r) => authzHandlers[r] !== 'member').sort(),
+  memberStale: [...memberReviewed].filter((r) => authzHandlers[r] !== 'member' && authzHandlers[r] !== 'creator').sort(),
   ownerRoomViolations,
   byRouter: Object.fromEntries(Object.entries(authzByRouter).sort(([a], [b]) => a.localeCompare(b))),
   perHandler: Object.fromEntries(Object.entries(authzHandlers).sort(([a], [b]) => a.localeCompare(b))),
@@ -1418,7 +1424,7 @@ controls.push(
   control('authz-declared-per-handler',
     authorization.handlers > 0 && authorization.memberUnreviewed.length === 0 && authorization.memberStale.length === 0 ? 'PRESENT' : 'ABSENT',
     'src/cyber-defense/posture-policy.json',
-    `${authorization.handlers} handler(s) classified: ${Object.entries(authorization.byKind).map(([k, n]) => `${n} ${k}`).join(', ')}; every member-level handler reviewed by name.`),
+    `${authorization.handlers} handler(s) classified: ${Object.entries(authorization.byKind).map(([k, n]) => `${n} ${k}`).join(', ')}; every member- and creator-level handler reviewed by name.`),
   control('owner-rooms-pinned',
     Object.keys(ownerRoomsPolicy).length > 0 && authorization.ownerRoomViolations.length === 0 ? 'PRESENT' : 'ABSENT',
     'src/cyber-defense/posture-policy.json',

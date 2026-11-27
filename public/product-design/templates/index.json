@@ -1,0 +1,41 @@
+{
+  "format": "familista.product-template-index",
+  "version": 1,
+  "templates": [
+    {
+      "product": "match-shirt",
+      "file": "football-jersey.json",
+      "key": "football-jersey.classic-v"
+    },
+    {
+      "product": "gk-shirt",
+      "file": "goalkeeper-shirt.json",
+      "key": "goalkeeper-shirt.long-sleeve-v"
+    },
+    {
+      "product": "training-top",
+      "file": "training-top.json",
+      "key": "training-top.crew-long-sleeve"
+    },
+    {
+      "product": "t-shirt",
+      "file": "t-shirt.json",
+      "key": "t-shirt.crew"
+    },
+    {
+      "product": "shorts",
+      "file": "shorts.json",
+      "key": "shorts.classic"
+    },
+    {
+      "product": "gk-shorts",
+      "file": "gk-shorts.json",
+      "key": "gk-shorts.classic"
+    },
+    {
+      "product": "socks",
+      "file": "socks.json",
+      "key": "socks.football"
+    }
+  ]
+}

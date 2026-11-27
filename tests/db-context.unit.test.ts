@@ -11,7 +11,7 @@
  */
 
 import {
-  currentDbContext, dbSettings, RLS_PILOT_MODELS, rlsContextMode, rlsModeStartupLine, runAsSystem, runInClubContext,
+  currentDbContext, dbSettings, RLS_PILOT_MODELS, rlsContextMode, rlsModeStartupLine, runAsSystem, runInClubContext, runInCreatorContext,
 } from '../src/security/db-context';
 
 describe('the mode switch', () => {
@@ -108,10 +108,16 @@ describe('the context', () => {
   });
 
   it('no context and a club without a club id map to settings the database refuses', () => {
-    expect(dbSettings(undefined)).toEqual({ mode: '', clubId: '' });
-    expect(dbSettings({ mode: 'club', clubId: null })).toEqual({ mode: 'club', clubId: '' });
-    expect(dbSettings({ mode: 'club', clubId: 'c1' })).toEqual({ mode: 'club', clubId: 'c1' });
-    expect(dbSettings({ mode: 'system', reason: 'video-transcode' })).toEqual({ mode: 'system', clubId: '' });
+    expect(dbSettings(undefined)).toEqual({ mode: '', clubId: '', creatorId: '' });
+    expect(dbSettings({ mode: 'club', clubId: null })).toEqual({ mode: 'club', clubId: '', creatorId: '' });
+    expect(dbSettings({ mode: 'club', clubId: 'c1' })).toEqual({ mode: 'club', clubId: 'c1', creatorId: '' });
+    expect(dbSettings({ mode: 'system', reason: 'video-transcode' })).toEqual({ mode: 'system', clubId: '', creatorId: '' });
+  });
+
+  it('a creator context names its creator and no club; it needs the creator', () => {
+    expect(dbSettings({ mode: 'creator', creatorId: 'k1' })).toEqual({ mode: 'creator', clubId: '', creatorId: 'k1' });
+    expect(runInCreatorContext('k1', () => currentDbContext())).toEqual({ mode: 'creator', creatorId: 'k1' });
+    expect(() => runInCreatorContext('', () => 0)).toThrow(/needs the creator/);
   });
 
   it('carries the context to exactly the tables the migrations protect', () => {

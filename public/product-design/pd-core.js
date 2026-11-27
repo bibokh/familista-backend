@@ -20,7 +20,7 @@
      { format: 'familista.product-design', version: 1, name,
        template: { key, version },
        palette:  [{ id, label, srgb }],
-       parts:    { collar, cuffs },                 palette ids
+       parts:    { collar, cuffs },                 palette ids: the template's two trim colours (its partNames)
        surfaces: [{ id, base, layers: [layer] }] }  one per template surface, in order
 
      layer    { id, type, name, visible, locked, ... }
@@ -28,6 +28,7 @@
        text     text, font, color, outline, x, y, w, h, r, w0, h0          a box
        roster   field (name | number), font, color, outline, x, y, w, h, r, w0, h0
        shape    shape, color, outline, x, y, w, h, r, w0, h0
+       image    asset, px, x, y, w, h, r, w0, h0                            a logo of the club's brand kit (M2c)
 
    A box is its centre (x, y), its size (w, h) and its rotation r in whole degrees,
    in millimetres on the surface's own coordinates at the template's reference
@@ -79,9 +80,14 @@
   var SHAPES = Object.freeze(['shield', 'circle', 'star', 'band', 'chevron', 'diamond']);
   var FONTS = Object.freeze(['sans-black', 'sans-bold', 'mono-bold']);
   var ROSTER_FIELDS = Object.freeze(['name', 'number']);
-  var LAYER_TYPES = Object.freeze(['pattern', 'text', 'roster', 'shape']);
-  var BOX_TYPES = Object.freeze(['text', 'roster', 'shape']);
+  var LAYER_TYPES = Object.freeze(['pattern', 'text', 'roster', 'shape', 'image']);
+  var BOX_TYPES = Object.freeze(['text', 'roster', 'shape', 'image']);
+  /** The print resolution below which an image layer is reported: dots per inch at the size it is placed. */
+  var MIN_PRINT_DPI = 150;
+  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   var PARTS = Object.freeze(['collar', 'cuffs']);
+  /** The garment forms the 3D builder knows; a template that names none is a top. */
+  var FORMS = Object.freeze(['top', 'shorts', 'socks']);
 
   var COMMON_KEYS = ['id', 'type', 'name', 'visible', 'locked'];
   var BOX_KEYS = ['x', 'y', 'w', 'h', 'r', 'w0', 'h0'];
@@ -94,6 +100,9 @@
     text: Object.freeze(COMMON_KEYS.concat(['text', 'font', 'color', 'outline'], BOX_KEYS)),
     roster: Object.freeze(COMMON_KEYS.concat(['field', 'font', 'color', 'outline'], BOX_KEYS)),
     shape: Object.freeze(COMMON_KEYS.concat(['shape', 'color', 'outline'], BOX_KEYS)),
+    // A logo: the brand-kit asset it shows (its id; the server checks it is the design's club's) and that PNG's pixel
+    // size, which the print-resolution check reads. Which logo it is never changes: another logo is another layer.
+    image: Object.freeze(COMMON_KEYS.concat(['asset', 'px'], BOX_KEYS)),
   });
   // What a `set` operation may change, per target. Ids, types and a roster's field never change.
   var SETTABLE = Object.freeze({
@@ -105,6 +114,7 @@
     text: Object.freeze(['name', 'visible', 'locked', 'text', 'font', 'color', 'outline'].concat(BOX_KEYS)),
     roster: Object.freeze(['name', 'visible', 'locked', 'font', 'color', 'outline'].concat(BOX_KEYS)),
     shape: Object.freeze(['name', 'visible', 'locked', 'shape', 'color', 'outline'].concat(BOX_KEYS)),
+    image: Object.freeze(['name', 'visible', 'locked'].concat(BOX_KEYS)),
   });
 
   var ID_RE = /^[a-z][a-z0-9-]{0,63}$/;
@@ -182,13 +192,26 @@
       if (!validOutline(s.outline)) throw PDError('template-outline', p);
       if (!validatePolygonList(s.safe)) throw PDError('template-safe', p);
       if (!finite(s.width) || !finite(s.height) || s.width <= 0 || s.height <= 0) throw PDError('template-size', p);
+      // A sock face names the centre of its ankle's bend; nothing else does.
+      if (s.ankle !== undefined && !(Array.isArray(s.ankle) && s.ankle.length === 2 && finite(s.ankle[0]) && finite(s.ankle[1]))) throw PDError('template-ankle', p);
     });
+    if (t.form !== undefined && !has(FORMS, t.form)) throw PDError('template-form');
+    // What the two trim colours are called on this garment (a top's collar and cuffs; shorts' waistband and leg hems).
+    if (t.partNames !== undefined && !(isObject(t.partNames) && Object.keys(t.partNames).length === PARTS.length &&
+      PARTS.every(function (k) { return goodName(t.partNames[k], LIMITS.label); }))) throw PDError('template-part-names');
     if (!Array.isArray(t.views) || !t.views.length) throw PDError('template-views');
+    var viewIds = {};
     t.views.forEach(function (v, i) {
       var p = 'views[' + i + ']';
-      if (!isObject(v) || !ids[v.surface] || !Array.isArray(v.viewBox) || v.viewBox.length !== 4) throw PDError('template-view', p);
+      if (!isObject(v) || !ID_RE.test(v.id) || viewIds[v.id] || !ids[v.surface] || !Array.isArray(v.viewBox) || v.viewBox.length !== 4) throw PDError('template-view', p);
+      viewIds[v.id] = 1;
       (v.context || []).forEach(function (c, j) {
         if (!ids[c.surface] || !validOutline(c.outline)) throw PDError('template-context', p + '.context[' + j + ']');
+      });
+      // A patch is an area of the surface printed in a trim colour: a waistband, a hem, a sock's heel and toe.
+      if (v.patches !== undefined && !Array.isArray(v.patches)) throw PDError('template-patch', p);
+      (v.patches || []).forEach(function (q, j) {
+        if (!isObject(q) || !has(PARTS, q.part) || !validOutline(q.outline)) throw PDError('template-patch', p + '.patches[' + j + ']');
       });
     });
     if (!isObject(t.rules) || !finite(t.rules.minTextHeight)) throw PDError('template-rules');
@@ -222,6 +245,8 @@
       case 'shape': return has(SHAPES, v) ? null : 'bad-shape';
       case 'font': return has(FONTS, v) ? null : 'bad-font';
       case 'field': return has(ROSTER_FIELDS, v) ? null : 'bad-field';
+      case 'asset': return typeof v === 'string' && UUID_RE.test(v) ? null : 'bad-asset';
+      case 'px': return Array.isArray(v) && v.length === 2 && isWhole(v[0], 1, 4096) && isWhole(v[1], 1, 4096) ? null : 'bad-number';
       case 'color': return colors[v] ? null : 'bad-color-ref';
       case 'outline': return v === null || colors[v] ? null : 'bad-color-ref';
       case 'text': return typeof v === 'string' && v.trim().length > 0 && v.length <= LIMITS.text && !CONTROL.test(v) ? null : 'bad-text';
@@ -395,6 +420,153 @@
     if (doc.parts.collar === id || doc.parts.cuffs === id) return true;
     return doc.surfaces.some(function (s) {
       return s.base === id || s.layers.some(function (n) { return n.color === id || n.outline === id; });
+    });
+  }
+
+  // ── colour: legibility and colourways (M7c) ───────────────────────────────
+
+  /** WCAG 2.x relative luminance of an sRGB colour written '#rrggbb'. */
+  function luminance(hex) {
+    var n = parseInt(String(hex).slice(1, 7), 16);
+    function ch(v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+    return 0.2126 * ch((n >> 16) & 255) + 0.7152 * ch((n >> 8) & 255) + 0.0722 * ch(n & 255);
+  }
+  /** WCAG 2.x contrast ratio of two sRGB colours: 1 (the same) to 21 (black on white). */
+  function contrastRatio(a, b) {
+    var x = luminance(a), y = luminance(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  }
+  /** Kit lettering is large text read from a distance: WCAG's figure for large text. */
+  var LETTERING_MIN = 3;
+  /** A pattern closer than this to its base is lost in it. */
+  var PATTERN_MIN = 1.1;
+
+  /**
+   * How legible a palette leaves the design's lettering: for each visible text or roster layer, the worst contrast
+   * against what it sits on (its surface's base and every visible pattern beneath it, at half opacity or more), its
+   * outline counting where it is the better edge. The worst of these, or null when the design has no lettering.
+   * `srgbOf(id)` names each swatch's colour, so a palette not yet applied can be measured.
+   */
+  function letteringContrast(doc, srgbOf) {
+    var worst = null;
+    doc.surfaces.forEach(function (s) {
+      var under = [srgbOf(s.base)];
+      s.layers.forEach(function (n) {
+        if (!n.visible) return;
+        if (n.type === 'pattern') { if (n.opacity >= 50) under.push(srgbOf(n.color)); return; }
+        if (n.type !== 'text' && n.type !== 'roster') return;
+        under.forEach(function (bg) {
+          var c = contrastRatio(srgbOf(n.color), bg);
+          if (n.outline) c = Math.max(c, contrastRatio(srgbOf(n.outline), bg));
+          if (worst === null || c < worst) worst = c;
+        });
+      });
+    });
+    return worst;
+  }
+  /** Whether every visible pattern still shows against its base. */
+  function patternsShow(doc, srgbOf) {
+    return doc.surfaces.every(function (s) {
+      return s.layers.every(function (n) { return n.type !== 'pattern' || !n.visible || contrastRatio(srgbOf(n.color), srgbOf(s.base)) >= PATTERN_MIN; });
+    });
+  }
+
+  /**
+   * Colourways of a design: the same design with its palette recoloured, as a kit's away and third strips are. Nothing
+   * is random: the same design and colours give the same suggestions in the same order.
+   *
+   * Candidates are the colours the design uses exchanged among the parts that use them, and each of them replaced by one
+   * of `extra` (the club's own colours, { srgb, label }). One is kept only when its lettering stays legible (at least
+   * 3:1 against what it sits on, see letteringContrast) and every pattern still shows; ranked by whether the main base
+   * colour changes, then by fewest colours changed, then by legibility. Each base colour is offered once before any is
+   * offered again. Returns at most `max` (default 6): { palette, changed, lettering }, the palette whole, in its order.
+   */
+  function colourways(doc, extra, max) {
+    max = max || 6;
+    var used = doc.palette.filter(function (sw) { return swatchInUse(doc, sw.id); });
+    var fixed = used.slice(6); // a design with more colours exchanges its first six and keeps the rest
+    used = used.slice(0, 6);
+    if (!used.length) return [];
+    var own = used.map(function (sw) { return { srgb: sw.srgb.toLowerCase(), label: sw.label }; });
+    var seen = {};
+    own.forEach(function (c) { seen[c.srgb] = true; });
+    fixed.forEach(function (sw) { seen[sw.srgb.toLowerCase()] = true; });
+    // A club colour all but the same as one the design has already (white and off-white) would offer nothing new.
+    var near = function (a, b) {
+      var x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16);
+      var dr = ((x >> 16) & 255) - ((y >> 16) & 255), dg = ((x >> 8) & 255) - ((y >> 8) & 255), db = (x & 255) - (y & 255);
+      return dr * dr + dg * dg + db * db < 24 * 24;
+    };
+    var others = [];
+    (extra || []).forEach(function (c) {
+      var x = c && typeof c.srgb === 'string' && /^#[0-9a-fA-F]{6}$/.test(c.srgb) ? c.srgb.toLowerCase() : null;
+      if (!x || seen[x] || Object.keys(seen).some(function (k) { return near(k, x); })) return;
+      seen[x] = true; others.push({ srgb: x, label: String(c.label || x).slice(0, LIMITS.label) });
+    });
+    var main = doc.surfaces[0], mainBase = main.base;
+    // What a strip looks like at a glance: its main base and its accent (the main surface's pattern, or its lettering).
+    var accentLayer = main.layers.filter(function (n) { return n.visible && n.type === 'pattern'; })[0] || main.layers.filter(function (n) { return n.visible && (n.type === 'text' || n.type === 'roster'); })[0];
+    var mainAccent = accentLayer && accentLayer.color !== mainBase ? accentLayer.color : null;
+
+    var out = [], sigs = {};
+    function consider(assign) {
+      var sig = used.map(function (sw) { return assign[sw.id].srgb; }).join('|');
+      if (sigs[sig]) return;
+      sigs[sig] = true;
+      var changed = used.filter(function (sw, i) { return assign[sw.id].srgb !== own[i].srgb; }).length;
+      if (!changed) return;
+      var srgbOf = function (id) { return assign[id] ? assign[id].srgb : findSwatch(doc, id).swatch.srgb; };
+      if (!patternsShow(doc, srgbOf)) return;
+      var lettering = letteringContrast(doc, srgbOf);
+      if (lettering !== null && lettering < LETTERING_MIN) return;
+      out.push({ assign: assign, sig: sig, changed: changed, lettering: lettering, base: srgbOf(mainBase), look: srgbOf(mainBase) + (mainAccent ? '/' + srgbOf(mainAccent) : ''), baseChanged: assign[mainBase] ? assign[mainBase].srgb !== findSwatch(doc, mainBase).swatch.srgb.toLowerCase() : false });
+    }
+    function permute(set) {
+      (function walk(k, rest, acc) {
+        if (k === used.length) { var a = {}; used.forEach(function (sw, i) { a[sw.id] = acc[i]; }); consider(a); return; }
+        for (var i = 0; i < rest.length; i++) walk(k + 1, rest.slice(0, i).concat(rest.slice(i + 1)), acc.concat([rest[i]]));
+      })(0, set, []);
+    }
+    // The design's own colours, exchanged among its parts: every ordering of them (at most 6! = 720).
+    permute(own);
+    // One of them replaced by one of the club's colours: as it stands, and, for a design of up to four colours, in
+    // every ordering too (so a club colour can become the base while the lettering moves to stay legible).
+    used.forEach(function (sw, i) {
+      others.forEach(function (c) {
+        var set = own.map(function (x, j) { return j === i ? c : x; });
+        if (used.length <= 4) permute(set);
+        else { var a = {}; used.forEach(function (x, j) { a[x.id] = set[j]; }); consider(a); }
+      });
+    });
+
+    var r2 = function (v) { return v === null ? 99 : Math.round(v * 100) / 100; };
+    out.sort(function (a, b) {
+      return (b.baseChanged - a.baseChanged) || (a.changed - b.changed) || (r2(b.lettering) - r2(a.lettering)) || (a.sig < b.sig ? -1 : a.sig > b.sig ? 1 : 0);
+    });
+    // Offered so that the strips look different at a glance: first bases far apart from each other and from the
+    // design's own, then nearer ones, then the rest, each pass in rank order.
+    var dist = function (a, b) {
+      var x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16);
+      var dr = ((x >> 16) & 255) - ((y >> 16) & 255), dg = ((x >> 8) & 255) - ((y >> 8) & 255), db = (x & 255) - (y & 255);
+      return Math.sqrt(dr * dr + dg * dg + db * db);
+    };
+    // One suggestion per look, its best-ranked: two that differ only in a trim or the lettering read as the same strip.
+    var ownLook = findSwatch(doc, mainBase).swatch.srgb.toLowerCase() + (mainAccent ? '/' + findSwatch(doc, mainAccent).swatch.srgb.toLowerCase() : '');
+    var looks = {};
+    looks[ownLook] = true;
+    out = out.filter(function (c) { if (looks[c.look]) return false; looks[c.look] = true; return true; });
+    var picked = [], bases = [findSwatch(doc, mainBase).swatch.srgb.toLowerCase()];
+    [96, 48, 0].forEach(function (apart) {
+      out.forEach(function (c) {
+        if (picked.length >= max || picked.indexOf(c) >= 0 || !bases.every(function (b) { return dist(b, c.base) >= apart; })) return;
+        picked.push(c); bases.push(c.base);
+      });
+    });
+    return picked.map(function (c) {
+      return {
+        palette: doc.palette.map(function (sw) { var a = c.assign[sw.id]; return a ? { id: sw.id, label: a.label, srgb: a.srgb } : { id: sw.id, label: sw.label, srgb: sw.srgb }; }),
+        changed: c.changed, lettering: c.lettering,
+      };
     });
   }
 
@@ -666,6 +838,11 @@
   // zone (seams, collar, cuffs) is a warning; lettering shorter than the
   // template's minimum is a warning. Hidden layers are not printed.
 
+  /** The print resolution of an image layer at its placed size: the lower of its two axes, in whole dots per inch. */
+  function imageDpi(n) {
+    // px × 25.4 / mm, not px / (mm / 25.4): the second rounds 600 px over 60 mm to 253.99…, one dot short of the truth.
+    return Math.floor(Math.min(n.px[0] * 25.4 / n.w, n.px[1] * 25.4 / n.h) + 1e-9);
+  }
   function checkDesign(doc, template) {
     var out = [];
     doc.surfaces.forEach(function (s) {
@@ -677,6 +854,10 @@
         if (!boxInPolygon(n, print)) out.push({ severity: 'blocker', code: 'outside-print-area', surface: s.id, layer: n.id });
         else if (!boxInPolygon(n, safeZone)) out.push({ severity: 'warning', code: 'crosses-safe-zone', surface: s.id, layer: n.id });
         if ((n.type === 'text' || n.type === 'roster') && n.h < template.rules.minTextHeight) out.push({ severity: 'warning', code: 'text-too-small', surface: s.id, layer: n.id });
+        if (n.type === 'image') {
+          var dpi = imageDpi(n);
+          if (dpi < MIN_PRINT_DPI) out.push({ severity: 'warning', code: 'low-resolution', surface: s.id, layer: n.id, dpi: dpi });
+        }
       });
     });
     return out;
@@ -712,12 +893,13 @@
   return Object.freeze({
     FORMAT: FORMAT, VERSION: VERSION, TEMPLATE_FORMAT: TEMPLATE_FORMAT, LIMITS: LIMITS, ZOOM: ZOOM,
     PATTERNS: PATTERNS, SHAPES: SHAPES, FONTS: FONTS, ROSTER_FIELDS: ROSTER_FIELDS, LAYER_TYPES: LAYER_TYPES,
-    BOX_TYPES: BOX_TYPES, PARTS: PARTS, KEYS: KEYS, SETTABLE: SETTABLE,
+    BOX_TYPES: BOX_TYPES, PARTS: PARTS, FORMS: FORMS, KEYS: KEYS, SETTABLE: SETTABLE, MIN_PRINT_DPI: MIN_PRINT_DPI, imageDpi: imageDpi,
     PDError: PDError, byteLength: byteLength, clone: clone, mm: mm, normAngle: normAngle,
     validateTemplate: validateTemplate, templateSurface: templateSurface,
     validateDocument: validateDocument, parseDocument: parseDocument, serializeDocument: serializeDocument,
     createDocument: createDocument,
     findLayer: findLayer, findSurface: findSurface, findSwatch: findSwatch, nextId: nextId, swatchInUse: swatchInUse,
+    contrastRatio: contrastRatio, letteringContrast: letteringContrast, colourways: colourways, LETTERING_MIN: LETTERING_MIN,
     applyOp: applyOp, createHistory: createHistory, commit: commit, record: record, undo: undo, redo: redo,
     flatten: flatten, outlinePath: outlinePath, boxCorners: boxCorners, pointInPolygon: pointInPolygon,
     segmentsIntersect: segmentsIntersect, boxInPolygon: boxInPolygon, pointInBox: pointInBox, hitTest: hitTest,

@@ -35,6 +35,46 @@ them across clubs, so each is isolated both ways (`FOR ALL`, `USING` and
 | Club operations | `ClubCalendarEntry` |
 | Staff market (the club's private notes) | `StaffClubNote` |
 
+Design Studio (`20261122200000_design_studio_club_projects`, after Stage 4, so
+enforced from the migration on): `DesignProject` is isolated by its own
+`clubId` both ways, as `VideoAsset` is — a club's design is its club's alone,
+and a platform design has no club, so only the named system path reaches it
+(the platform owner's requests run there). `DesignRevision` follows its
+project's club, looked up by primary key, as `PlayerInjury` follows its
+player's. Every path to them is an authenticated request; no worker reads them.
+The club's brand kit (`20261123100000_design_studio_brand_kit`) adds
+`DesignBrandKit` and `DesignBrandAsset`, each isolated by its own `clubId` both
+ways; an asset's club is also held to its kit's by a composite foreign key.
+The club's team rosters (`20261123200000_design_studio_team_rosters`) add
+`DesignRoster`, isolated by its own `clubId` both ways. Its entries are names of
+people (the name to print, a number, sizes); the audit log records counts only.
+The club's collections (`20261123210000_design_studio_collections`) add
+`DesignCollection` and `DesignCollectionItem`, each isolated by its own `clubId`
+both ways. An item names its collection and its project each together with the
+club (composite foreign keys onto `DesignCollection(id, clubId)` and
+`DesignProject(id, clubId)`), so no collection can gather another club's design;
+a trigger holds the roster a collection names to its club, on the system path too.
+Manufacturing (`20261123220000_manufacturing_requests`, owner-brokered) adds
+`ManufacturingRequest`, `ManufacturingRequestEvent` and `ManufacturingQuote`,
+each isolated by its own `clubId` both ways; a quotation and an event name their
+request and club together (composite keys). The Platform Owner's console reaches
+every club's requests on the named system path, behind `assertPlatformOwner`.
+`ManufacturingSupplier` is platform data with no club and no policy: only the
+Owner's routes reach it.
+
+Design reviews (`20261124100000_design_reviews`, M7b) add `DesignReviewComment`
+and `DesignApproval`, each isolated by its own `clubId` both ways and held to its
+design's club by a composite key onto `DesignProject(id, clubId)`. A decision is
+append-only: `DesignApproval_immutable` refuses UPDATE and DELETE and
+`DesignApproval_no_truncate` refuses TRUNCATE, on the system path too.
+
+The privacy foundation (`20261124200000_privacy_foundation`, P1) adds
+`ManufacturingRequestPerson`: the names of a request's entries, kept apart from
+its frozen specification, isolated by its own `clubId` both ways and held to
+its request's club by a composite key. `ManufacturingRequestPerson_erase_only`
+lets a kept name only become erased, and refuses DELETE and TRUNCATE except with
+the request itself.
+
 The AI agent worker runs each job's deterministic handler in that job's own
 club context (`runInClubContext(job.clubId, …)`), not on a system path: the
 finance agent reads `OperationsPayment` as the club it works for.
@@ -48,12 +88,21 @@ migrations.
 
 ## How it works
 
-PostgreSQL reads two transaction-local settings:
+PostgreSQL reads three transaction-local settings:
 
 | Setting | Values |
 |---|---|
-| `familista.rls_mode` | `club` — a request inside one club; `system` — an explicit, named path that acts across clubs |
+| `familista.rls_mode` | `club` — a request inside one club; `creator` — a signed-in creator's request (Creator Studio, P2); `system` — an explicit, named path that acts across clubs |
 | `familista.club_id` | the club, in `club` mode |
+| `familista.creator_id` | the creator, in `creator` mode |
+
+The Design Studio and manufacturing tables have two possible owners, a club or a creator (`20261125100000_creator_tenancy`):
+every row has exactly one (`<Table>_one_owner`, or `DesignProject_owner_shape` by its kind), each child names its parent
+and that parent's owner with one composite key per kind of owner, and their policies use
+`familista_rls_owner_ok("clubId", "creatorId")`: a club session reaches its club's rows, a creator session its own rows,
+the system path everything, and nothing else anything. A creator session reaches no club-only table at all:
+`familista_rls_club_ok` admits `club` and `system` alone. The policies were altered in place (`ALTER POLICY`), never
+dropped, so no table was ever without one.
 
 Anything else — no mode, an unknown mode, `club` without a club — sees nothing
 and writes nothing. That is the fail-closed default.
@@ -70,7 +119,10 @@ The application sets them (`src/security/db-context.ts`, `src/security/rls-clien
   with a literal reason. Each reason is reviewed by name in
   `posture-policy.json` (`rlsSystemPaths`); an unreviewed one fails CI. Today:
   `platform-owner`, `transfer-settlement`, `staff-market-move`,
-  `video-transcode`. An accepted invitation writes its membership in the
+  `video-transcode`, and the Creator Studio's account paths `creator-signup`,
+  `creator-signin`, `creator-session`, `creator-account` (they touch the creator
+  account tables only, never a Design Studio or club row).
+- `authenticateCreator` runs a creator's request in that creator's context. An accepted invitation writes its membership in the
   inviting club's own context, not a system one.
 - Backups, restores and their checks read under the system context
   (`PGOPTIONS` in `backup-config.ts`; `pg_dump --enable-row-security`).

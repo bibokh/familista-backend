@@ -1,0 +1,499 @@
+{
+  "format": "familista.product-template",
+  "version": 1,
+  "key": "shorts.classic",
+  "templateVersion": 1,
+  "name": "Shorts",
+  "category": "match-kits",
+  "form": "shorts",
+  "partNames": {
+    "collar": "Waistband",
+    "cuffs": "Leg hems"
+  },
+  "referenceSize": "M",
+  "surfaces": [
+    {
+      "id": "front",
+      "label": "Front",
+      "width": 720,
+      "height": 480,
+      "outline": [
+        [
+          160,
+          0
+        ],
+        [
+          560,
+          0
+        ],
+        [
+          640,
+          150,
+          620,
+          40
+        ],
+        [
+          660,
+          300
+        ],
+        [
+          710,
+          470
+        ],
+        [
+          390,
+          470
+        ],
+        [
+          360,
+          300,
+          372,
+          379.9
+        ],
+        [
+          330,
+          470,
+          348,
+          379.9
+        ],
+        [
+          10,
+          470
+        ],
+        [
+          60,
+          300
+        ],
+        [
+          80,
+          150
+        ],
+        [
+          160,
+          0,
+          100,
+          40
+        ]
+      ],
+      "safe": [
+        [
+          132,
+          52
+        ],
+        [
+          588,
+          52
+        ],
+        [
+          624,
+          150
+        ],
+        [
+          648,
+          300
+        ],
+        [
+          686,
+          436
+        ],
+        [
+          404,
+          436
+        ],
+        [
+          360,
+          290
+        ],
+        [
+          316,
+          436
+        ],
+        [
+          34,
+          436
+        ],
+        [
+          72,
+          300
+        ],
+        [
+          96,
+          150
+        ]
+      ]
+    },
+    {
+      "id": "back",
+      "label": "Back",
+      "width": 720,
+      "height": 480,
+      "outline": [
+        [
+          160,
+          0
+        ],
+        [
+          560,
+          0
+        ],
+        [
+          640,
+          150,
+          620,
+          40
+        ],
+        [
+          660,
+          300
+        ],
+        [
+          710,
+          470
+        ],
+        [
+          390,
+          470
+        ],
+        [
+          360,
+          300,
+          372,
+          379.9
+        ],
+        [
+          330,
+          470,
+          348,
+          379.9
+        ],
+        [
+          10,
+          470
+        ],
+        [
+          60,
+          300
+        ],
+        [
+          80,
+          150
+        ],
+        [
+          160,
+          0,
+          100,
+          40
+        ]
+      ],
+      "safe": [
+        [
+          132,
+          52
+        ],
+        [
+          588,
+          52
+        ],
+        [
+          624,
+          150
+        ],
+        [
+          648,
+          300
+        ],
+        [
+          686,
+          436
+        ],
+        [
+          404,
+          436
+        ],
+        [
+          360,
+          290
+        ],
+        [
+          316,
+          436
+        ],
+        [
+          34,
+          436
+        ],
+        [
+          72,
+          300
+        ],
+        [
+          96,
+          150
+        ]
+      ]
+    }
+  ],
+  "views": [
+    {
+      "id": "front",
+      "label": "Front",
+      "surface": "front",
+      "viewBox": [
+        -40,
+        -40,
+        800,
+        550
+      ],
+      "patches": [
+        {
+          "part": "collar",
+          "outline": [
+            [
+              -20,
+              -20
+            ],
+            [
+              740,
+              -20
+            ],
+            [
+              740,
+              40
+            ],
+            [
+              -20,
+              40
+            ]
+          ]
+        },
+        {
+          "part": "cuffs",
+          "outline": [
+            [
+              -20,
+              448
+            ],
+            [
+              740,
+              448
+            ],
+            [
+              740,
+              490
+            ],
+            [
+              -20,
+              490
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "back",
+      "label": "Back",
+      "surface": "back",
+      "viewBox": [
+        -40,
+        -40,
+        800,
+        550
+      ],
+      "patches": [
+        {
+          "part": "collar",
+          "outline": [
+            [
+              -20,
+              -20
+            ],
+            [
+              740,
+              -20
+            ],
+            [
+              740,
+              40
+            ],
+            [
+              -20,
+              40
+            ]
+          ]
+        },
+        {
+          "part": "cuffs",
+          "outline": [
+            [
+              -20,
+              448
+            ],
+            [
+              740,
+              448
+            ],
+            [
+              740,
+              490
+            ],
+            [
+              -20,
+              490
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": {
+    "minTextHeight": 8
+  },
+  "reference": {
+    "method": "Sublimation, all-over print",
+    "fabric": "Polyester, 140 g/m²",
+    "fits": [
+      {
+        "id": "men",
+        "label": "Men",
+        "sizes": [
+          "XS",
+          "S",
+          "M",
+          "L",
+          "XL",
+          "2XL",
+          "3XL",
+          "4XL",
+          "5XL"
+        ]
+      },
+      {
+        "id": "women",
+        "label": "Women",
+        "sizes": [
+          "XS",
+          "S",
+          "M",
+          "L",
+          "XL",
+          "2XL",
+          "3XL"
+        ]
+      },
+      {
+        "id": "youth",
+        "label": "Youth",
+        "sizes": [
+          "116",
+          "128",
+          "140",
+          "152",
+          "164"
+        ]
+      },
+      {
+        "id": "kids",
+        "label": "Kids",
+        "sizes": [
+          "92",
+          "98",
+          "104",
+          "110"
+        ]
+      }
+    ]
+  },
+  "start": {
+    "palette": [
+      {
+        "id": "c1",
+        "label": "Navy",
+        "srgb": "#0b1f5b"
+      },
+      {
+        "id": "c2",
+        "label": "White",
+        "srgb": "#f4f6fa"
+      },
+      {
+        "id": "c3",
+        "label": "Royal blue",
+        "srgb": "#1f4fd6"
+      },
+      {
+        "id": "c4",
+        "label": "Gold",
+        "srgb": "#d8ad3c"
+      }
+    ],
+    "parts": {
+      "collar": "c2",
+      "cuffs": "c2"
+    },
+    "surfaces": {
+      "front": {
+        "base": "c1",
+        "layers": [
+          {
+            "visible": true,
+            "locked": false,
+            "id": "l1",
+            "type": "roster",
+            "name": "Player number",
+            "field": "number",
+            "font": "sans-black",
+            "color": "c2",
+            "outline": null,
+            "x": 170,
+            "y": 380,
+            "w": 60,
+            "h": 70,
+            "r": 0,
+            "w0": 60,
+            "h0": 70
+          },
+          {
+            "visible": true,
+            "locked": false,
+            "id": "l2",
+            "type": "shape",
+            "name": "Club crest",
+            "shape": "shield",
+            "color": "c2",
+            "outline": "c4",
+            "x": 540,
+            "y": 370,
+            "w": 44,
+            "h": 52,
+            "r": 0,
+            "w0": 44,
+            "h0": 52
+          }
+        ]
+      },
+      "back": {
+        "base": "c1",
+        "layers": [
+          {
+            "visible": true,
+            "locked": false,
+            "id": "l3",
+            "type": "text",
+            "name": "Brand mark",
+            "text": "F",
+            "font": "sans-black",
+            "color": "c4",
+            "outline": null,
+            "x": 360,
+            "y": 120,
+            "w": 40,
+            "h": 46,
+            "r": 0,
+            "w0": 40,
+            "h0": 46
+          }
+        ]
+      }
+    }
+  }
+}

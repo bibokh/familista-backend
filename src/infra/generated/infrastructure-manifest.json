@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-21T23:24:19.662Z",
+  "generatedAt": "2026-11-26T18:29:00.116Z",
   "generator": "scripts/infrastructure-discover.js",
   "platform": {
     "name": "familista-backend",
@@ -282,7 +282,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "src/routes/index.ts",
-      "sourceEvidence": "src/routes/index.ts — 58 mounted routers",
+      "sourceEvidence": "src/routes/index.ts — 62 mounted routers",
       "dependencies": [
         "platform-core"
       ],
@@ -324,7 +324,7 @@
       "sourceEvidence": "prisma/schema.prisma — datasource provider",
       "dependencies": [],
       "healthKey": "database",
-      "note": "346 models, 212 enums, 50 migrations."
+      "note": "367 models, 229 enums, 61 migrations."
     },
     {
       "id": "prisma-orm",
@@ -1101,7 +1101,7 @@
       "provider": null,
       "region": null,
       "repositoryPath": "tests/",
-      "sourceEvidence": "tests/ — 241 suites; jest.config.ts",
+      "sourceEvidence": "tests/ — 253 suites; jest.config.ts",
       "dependencies": [
         "platform-core"
       ],
@@ -1161,7 +1161,7 @@
       "sourceEvidence": "tsconfig.json — target ES2020, strict true",
       "dependencies": [],
       "healthKey": "build",
-      "note": "630 TypeScript modules under src/."
+      "note": "677 TypeScript modules under src/."
     },
     {
       "id": "nodejs",
@@ -1169,7 +1169,7 @@
       "district": "language",
       "category": "runtime",
       "type": "RUNTIME",
-      "version": ">=20.0.0",
+      "version": ">=20.9.0",
       "status": "ACTIVE",
       "runtime": null,
       "provider": null,
@@ -1439,7 +1439,7 @@
       "id": "node",
       "name": "Node.js",
       "category": "runtime",
-      "version": ">=20.0.0",
+      "version": ">=20.9.0",
       "usedBy": [
         "backend"
       ],
@@ -1625,22 +1625,22 @@
     }
   ],
   "surface": {
-    "routeModules": 68,
+    "routeModules": 72,
     "serviceModules": 102,
     "middleware": 24,
     "fabricModules": 52,
-    "totalTypeScript": 630,
-    "testSuites": 241,
-    "migrations": 50,
-    "prismaModels": 346,
-    "prismaEnums": 212
+    "totalTypeScript": 677,
+    "testSuites": 253,
+    "migrations": 61,
+    "prismaModels": 367,
+    "prismaEnums": 229
   },
   "database": {
     "provider": "postgresql",
-    "models": 346,
-    "enums": 212,
-    "migrations": 50,
-    "latestMigration": "20261111100000_design_studio_persistence"
+    "models": 367,
+    "enums": 229,
+    "migrations": 61,
+    "latestMigration": "20261126200000_manufacturing_quotation_terms"
   },
   "typescript": {
     "target": "ES2020",
@@ -1729,9 +1729,9 @@
           "Algorithm telemetry (real PostgreSQL)",
           "AI read authorization (real PostgreSQL)",
           "Design Studio persistence (real PostgreSQL)",
-          "Audit (blocking on high and critical)",
-          "Checkout",
-          "Setup Node 20"
+          "Manufacturing workflow (real PostgreSQL)",
+          "Creator Studio tenancy (real PostgreSQL)",
+          "Plans and billing (real PostgreSQL)"
         ],
         "services": [
           "postgres:16-alpine",
@@ -1943,8 +1943,36 @@
       "path": "/system/product-design",
       "router": "productDesignRoutes",
       "file": "src/routes/product-design.routes.ts",
-      "writes": 5,
-      "reads": 4
+      "writes": 19,
+      "reads": 11
+    },
+    {
+      "path": "/system/manufacturing",
+      "router": "manufacturingRoutes",
+      "file": "src/routes/manufacturing.routes.ts",
+      "writes": 15,
+      "reads": 7
+    },
+    {
+      "path": "/club-design",
+      "router": "clubDesignRoutes",
+      "file": "src/routes/club-design.routes.ts",
+      "writes": 33,
+      "reads": 18
+    },
+    {
+      "path": "/creator/auth",
+      "router": "creatorAuthRoutes",
+      "file": "src/routes/creator-auth.routes.ts",
+      "writes": 7,
+      "reads": 1
+    },
+    {
+      "path": "/creator",
+      "router": "creatorRoutes",
+      "file": "src/routes/creator.routes.ts",
+      "writes": 39,
+      "reads": 23
     },
     {
       "path": "/telemetry",
@@ -2460,6 +2488,13 @@
       "technology": "Prisma"
     },
     {
+      "name": "sharp",
+      "declared": "0.35.5",
+      "resolved": "0.35.5",
+      "classification": "RUNTIME",
+      "technology": null
+    },
+    {
       "name": "stripe",
       "declared": "^14.18.0",
       "resolved": "14.25.0",
@@ -2529,6 +2564,6 @@
     "relationships": 14,
     "technologies": 30,
     "future": 6,
-    "dependencies": 41
+    "dependencies": 42
   }
 }
